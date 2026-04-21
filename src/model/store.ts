@@ -114,7 +114,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
         return payload.initialDialogsByPage;
       }
 
-      if (payload.initialDialogs) {
+      if (payload.initialDialogs && payload.initialDialogs.length > 0) {
         return { [payload.initialPageId]: payload.initialDialogs };
       }
 

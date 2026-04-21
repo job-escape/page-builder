@@ -13,7 +13,7 @@ export default async function Builder<Page extends BuilderPage = BuilderPage>({
   initialPageId,
   initialPageHistory,
   initialHtml,
-  initialDialogs = [],
+  initialDialogs,
   initialDialogsByPage,
   answers,
   lang,
