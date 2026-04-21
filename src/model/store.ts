@@ -9,11 +9,19 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   fetchPagesByOrder,
   registry,
   preloadRegistry,
+  getHttpRequestHeaders,
 }: {
   fetchPage: ({ id, lang }: { id: number; lang?: string }) => Promise<Page>;
   fetchPagesByOrder?: (params: { order: number; lang?: string }) => Promise<Page[]>;
   registry?: ComponentRegisry;
   preloadRegistry?: ComponentRegisry;
+  /**
+   * Optional callback that returns extra headers (e.g. auth Bearer token) to
+   * be merged into every `http_request` action. Called at request time on the
+   * client. Funnel leaves this undefined; onboarding-alpha passes a fn that
+   * reads the JWT from cookies.
+   */
+  getHttpRequestHeaders?: () => Record<string, string>;
 }) {
   const initEvt = createEvent<{
     initialPageId: number;
@@ -340,6 +348,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     finishEvt,
     registry,
     preloadRegistry: preloadRegistry ?? registry,
+    getHttpRequestHeaders,
     $activeDialog,
     setActiveDialogEvt,
     $lang,

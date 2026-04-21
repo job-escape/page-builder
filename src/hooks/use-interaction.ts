@@ -383,10 +383,14 @@ export const useInteraction = () => {
           await runLifecycle(requestConfig.lifecycleActions, "pending", runAction, context);
 
           // ── Fetch ──────────────────────────────────────────────────────────
+          const extraHeaders = model.getHttpRequestHeaders?.() ?? {};
           try {
             const res = await fetch(fullUrl, {
               method: requestConfig.method,
-              headers,
+              headers: {
+                ...extraHeaders,
+                ...headers,
+              },
               body: requestConfig.method !== "GET" ? JSON.stringify(bodyObject) : undefined,
             });
 
@@ -512,8 +516,14 @@ export const useInteraction = () => {
             return acc;
           }, {});
 
+          const triggerPayloadProps =
+            context?.triggerPayload && typeof context.triggerPayload === "object"
+              ? (context.triggerPayload as Record<string, unknown>)
+              : {};
+
           const props = {
             ...(interactionAnalytics.getProps?.(getAnalyticsContext()) ?? {}),
+            ...triggerPayloadProps,
             ...resolvedFields,
           };
 

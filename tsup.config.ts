@@ -11,6 +11,7 @@ const external = [
   "effector-react",
   "@effector/next",
   "@farfetched/core",
+  "@lottiefiles/react-lottie-player",
   "@radix-ui/react-avatar",
   "@radix-ui/react-progress",
   "@radix-ui/react-slot",
