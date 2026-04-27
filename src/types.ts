@@ -299,6 +299,7 @@ export interface SetSelectedSubscriptionAction {
   params: {
     mode: "by_id" | "next_bigger";
     subscriptionId?: string;
+    selectionType?: "standard" | "chase" | "super_chase";
   };
 }
 

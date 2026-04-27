@@ -47,6 +47,7 @@ export interface SetSelectedSubscriptionOptions {
   resolve: (params: {
     mode: "by_id" | "next_bigger";
     subscriptionId?: string;
+    selectionType?: "standard" | "chase" | "super_chase";
   }) => void;
 }
 
@@ -708,7 +709,7 @@ export const useInteraction = () => {
             });
             break;
           }
-          const { mode, subscriptionId } = action.params;
+          const { mode, subscriptionId, selectionType } = action.params;
           if (mode === "by_id" && !subscriptionId) {
             logger.warn("set_selected_subscription by_id missing subscriptionId", {
               action_type: action.type,
@@ -716,7 +717,7 @@ export const useInteraction = () => {
             });
             break;
           }
-          resolve({ mode, subscriptionId });
+          resolve({ mode, subscriptionId, selectionType });
           break;
         }
 
