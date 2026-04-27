@@ -293,6 +293,15 @@ export interface GoToLink {
   };
 }
 
+export interface SetSelectedSubscriptionAction {
+  id: string;
+  type: "set_selected_subscription";
+  params: {
+    mode: "by_id" | "next_bigger";
+    subscriptionId?: string;
+  };
+}
+
 export type StorageFormat = {
   any?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
   all?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
@@ -331,7 +340,8 @@ export type LogicAction =
   | ConditionalAction
   | SlideSwiperAction
   | SwiperSlideNextAction
-  | SwiperSlidePrevAction;
+  | SwiperSlidePrevAction
+  | SetSelectedSubscriptionAction;
 
 // ─── Action type string union ─────────────────────────────────────────────────
 

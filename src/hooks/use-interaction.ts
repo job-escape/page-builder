@@ -5,6 +5,7 @@ import { useLogger } from "next-axiom";
 
 import { slideNext, slidePrev, slideTo } from "../model/swiper-store";
 import { useInteractionAnalytics } from "../providers/interaction-analytics-context";
+import { useInteractionOptions } from "../providers/interaction-options-context";
 import { usePixelAdapter } from "../providers/pixel-context";
 import {
   Answers,
@@ -42,9 +43,17 @@ export interface OpenDialogOptions {
   getDialogId?: (dialogId: string) => string;
 }
 
+export interface SetSelectedSubscriptionOptions {
+  resolve: (params: {
+    mode: "by_id" | "next_bigger";
+    subscriptionId?: string;
+  }) => void;
+}
+
 export interface InteractionOptions {
   write_user_data?: WriteUserDataOptions;
   open_dialog?: OpenDialogOptions;
+  set_selected_subscription?: SetSelectedSubscriptionOptions;
 }
 
 interface ActionContext {
@@ -119,11 +128,24 @@ export const useInteraction = () => {
     localStates: localModel.$localStates,
   });
   const screenIndex = useUnit(model.$screenIndex);
+  const ambientOptions = useInteractionOptions();
 
-  const createInteraction = (options?: InteractionOptions) => {
+  const createInteraction = (callerOptions?: InteractionOptions) => {
+    const options: InteractionOptions = {
+      ...(ambientOptions ?? {}),
+      ...(callerOptions ?? {}),
+    };
     let localUser: Record<string, PrimitiveValue | string[]> = {};
-    let runtimeAnswers: Record<string, PrimitiveValue | string[]> = { ...(answers ?? {}) };
-    let runtimeLocalStates: Record<string, PrimitiveValue | string[]> = { ...(localStates ?? {}) };
+    // Read stores synchronously at interaction-start so we don't operate on a
+    // stale React snapshot when the host updated state after the latest render.
+    const liveAnswers = model.$answers.getState();
+    const liveLocalStates = localModel.$localStates.getState();
+    let runtimeAnswers: Record<string, PrimitiveValue | string[]> = {
+      ...(liveAnswers ?? answers ?? {}),
+    };
+    let runtimeLocalStates: Record<string, PrimitiveValue | string[]> = {
+      ...(liveLocalStates ?? localStates ?? {}),
+    };
     let isInteractionPending = false;
     const pendingTimeoutActions = new Set<Promise<void>>();
 
@@ -674,6 +696,27 @@ export const useInteraction = () => {
 
         case "prev_page": {
           prev();
+          break;
+        }
+
+        case "set_selected_subscription": {
+          const resolve = options?.set_selected_subscription?.resolve;
+          if (!resolve) {
+            logger.warn("set_selected_subscription action has no host resolver", {
+              action_type: action.type,
+              action_params: action.params,
+            });
+            break;
+          }
+          const { mode, subscriptionId } = action.params;
+          if (mode === "by_id" && !subscriptionId) {
+            logger.warn("set_selected_subscription by_id missing subscriptionId", {
+              action_type: action.type,
+              action_params: action.params,
+            });
+            break;
+          }
+          resolve({ mode, subscriptionId });
           break;
         }
 

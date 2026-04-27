@@ -42,6 +42,11 @@ export type {
   InteractionAnalyticsRuntimeContext,
 } from "./providers/interaction-analytics-context";
 export { InteractionAnalyticsProvider } from "./providers/interaction-analytics-provider";
+export {
+  InteractionOptionsContext,
+  useInteractionOptions,
+} from "./providers/interaction-options-context";
+export { InteractionOptionsProvider } from "./providers/interaction-options-provider";
 export { PixelContext, usePixelAdapter } from "./providers/pixel-context";
 export type { PixelAdapter } from "./providers/pixel-context";
 export { PixelAdapterProvider } from "./providers/pixel-provider";
@@ -59,6 +64,7 @@ export type {
   InteractionOptions,
   WriteUserDataOptions,
   OpenDialogOptions,
+  SetSelectedSubscriptionOptions,
 } from "./hooks/use-interaction";
 
 // ─── Client renderers ────────────────────────────────────────────────────────
