@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from "uuid";
 
 import { useLogger } from "next-axiom";
 
+import { useRef } from "react";
+
 import { slideNext, slidePrev, slideTo } from "../model/swiper-store";
 import { useInteractionAnalytics } from "../providers/interaction-analytics-context";
 import { useInteractionOptions } from "../providers/interaction-options-context";
@@ -130,6 +132,11 @@ export const useInteraction = () => {
   });
   const screenIndex = useUnit(model.$screenIndex);
   const ambientOptions = useInteractionOptions();
+  const answersRef = useRef(answers);
+  const localStatesRef = useRef(localStates);
+
+  answersRef.current = answers;
+  localStatesRef.current = localStates;
 
   const createInteraction = (callerOptions?: InteractionOptions) => {
     const options: InteractionOptions = {
@@ -137,15 +144,11 @@ export const useInteraction = () => {
       ...(callerOptions ?? {}),
     };
     let localUser: Record<string, PrimitiveValue | string[]> = {};
-    // Read stores synchronously at interaction-start so we don't operate on a
-    // stale React snapshot when the host updated state after the latest render.
-    const liveAnswers = model.$answers.getState();
-    const liveLocalStates = localModel.$localStates.getState();
     let runtimeAnswers: Record<string, PrimitiveValue | string[]> = {
-      ...(liveAnswers ?? answers ?? {}),
+      ...(answersRef.current ?? {}),
     };
     let runtimeLocalStates: Record<string, PrimitiveValue | string[]> = {
-      ...(liveLocalStates ?? localStates ?? {}),
+      ...(localStatesRef.current ?? {}),
     };
     let isInteractionPending = false;
     const pendingTimeoutActions = new Set<Promise<void>>();
