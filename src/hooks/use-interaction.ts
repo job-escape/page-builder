@@ -9,9 +9,11 @@ import { slideNext, slidePrev, slideTo } from "../model/swiper-store";
 import { useInteractionAnalytics } from "../providers/interaction-analytics-context";
 import { useInteractionOptions } from "../providers/interaction-options-context";
 import { usePixelAdapter } from "../providers/pixel-context";
+import { useTagManagerAdapter } from "../providers/tag-manager-context";
 import {
   Answers,
   ConditionalAction,
+  GtmPushAction,
   LogicAction,
   LogicValue,
   MapLocalStateAction,
@@ -120,6 +122,7 @@ export const useInteraction = () => {
   const page = usePage();
   const interactionAnalytics = useInteractionAnalytics();
   const pixel = usePixelAdapter();
+  const tagManager = useTagManagerAdapter();
   const logger = useLogger().with({ page_id: page.id });
   const { next, prev } = useNavigation();
   const { setActiveDialog, dialogs, setAnswers, answers, setLocalState, localStates } = useUnit({
@@ -624,6 +627,61 @@ export const useInteraction = () => {
             eventType: "trackCustom",
             eventName,
             eventExtra,
+          });
+          break;
+        }
+
+        case "gtm_push": {
+          const gtmPushAction = action as GtmPushAction;
+          const event = gtmPushAction.params.event;
+
+          if (!event) {
+            logger.warn("gtm_push action missing event name", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+
+          const fields = (gtmPushAction.params.fields ?? []) as Array<{
+            id: string;
+            localName: string;
+            analyticsName: string;
+            storeType: "manual" | "local" | "fact";
+          }>;
+
+          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
+            if (!field.analyticsName) return acc;
+
+            let resolvedValue: unknown;
+
+            switch (field.storeType) {
+              case "local":
+                resolvedValue = runtimeLocalStates[field.localName];
+                break;
+              case "fact":
+                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
+                break;
+              case "manual":
+              default:
+                resolvedValue = field.localName;
+                break;
+            }
+
+            acc[field.analyticsName] = resolvedValue;
+            return acc;
+          }, {});
+
+          const triggerPayloadProps =
+            context?.triggerPayload && typeof context.triggerPayload === "object"
+              ? (context.triggerPayload as Record<string, unknown>)
+              : {};
+
+          tagManager.pushEvent(event, {
+            ...triggerPayloadProps,
+            ...resolvedFields,
           });
           break;
         }

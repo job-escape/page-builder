@@ -32,6 +32,7 @@ export type {
   AnalyticsAction,
   SetTimeoutAction,
   PixelTrackAction,
+  GtmPushAction,
   SlideSwiperAction,
   SwiperSlideNextAction,
   SwiperSlidePrevAction,

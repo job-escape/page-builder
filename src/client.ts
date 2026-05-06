@@ -50,6 +50,9 @@ export { InteractionOptionsProvider } from "./providers/interaction-options-prov
 export { PixelContext, usePixelAdapter } from "./providers/pixel-context";
 export type { PixelAdapter } from "./providers/pixel-context";
 export { PixelAdapterProvider } from "./providers/pixel-provider";
+export { TagManagerContext, useTagManagerAdapter } from "./providers/tag-manager-context";
+export type { TagManagerAdapter } from "./providers/tag-manager-context";
+export { TagManagerAdapterProvider } from "./providers/tag-manager-provider";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 

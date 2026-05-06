@@ -260,6 +260,20 @@ export interface PixelTrackAction {
   };
 }
 
+export interface GtmPushAction {
+  id: string;
+  type: "gtm_push";
+  params: {
+    event: string;
+    fields?: {
+      id: string;
+      localName: string;
+      analyticsName: string;
+      storeType: "manual" | "local" | "fact";
+    }[];
+  };
+}
+
 export interface SlideSwiperAction {
   id: string;
   type: "slide_swiper";
@@ -338,6 +352,7 @@ export type LogicAction =
   | SetTimeoutAction
   | GoToLink
   | PixelTrackAction
+  | GtmPushAction
   | ConditionalAction
   | SlideSwiperAction
   | SwiperSlideNextAction
