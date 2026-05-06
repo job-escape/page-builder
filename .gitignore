@@ -6,4 +6,3 @@ dist
 
 # local auth — keep NODE_AUTH_TOKEN env var for publish
 .npmrc.local
-.claude
