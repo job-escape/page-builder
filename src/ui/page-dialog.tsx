@@ -1,8 +1,8 @@
 /** @jsxImportSource @emotion/react */
-import { Modal, ModalContent } from "@heroui/react";
 import { domToReact, Element, type DOMNode } from "html-react-parser";
 
 import { createContext } from "react";
+import { createPortal } from "react-dom";
 
 import { useBuilderModel } from "../hooks/use-builder-model";
 import { useInteraction } from "../hooks/use-interaction";
@@ -11,9 +11,6 @@ import { BuilderDialog, ComponentRegisry, ComponentRegistryProps, LogicValue } f
 import { tryParse } from "../utils/try-parse";
 
 import Parser from "./parser";
-
-const ModalAny = Modal as unknown as React.ComponentType<Record<string, unknown>>;
-const ModalContentAny = ModalContent as unknown as React.ComponentType<Record<string, unknown>>;
 
 const PageDialogContext = createContext<{
   onOpenChange: (open: boolean) => void;
@@ -71,31 +68,12 @@ export default function PageDialog({
     return null;
   }
 
-  return (
+  return createPortal(
     <PageDialogContext.Provider value={{ onOpenChange }}>
-      <ModalAny
-        isOpen={open}
-        onOpenChange={onOpenChange}
-        hideCloseButton
-        isDismissable={false}
-        isKeyboardDismissDisabled
-        shouldBlockScroll={false}
-        backdrop="transparent"
-        disableAnimation
-        classNames={{
-          wrapper: "items-stretch justify-stretch p-0",
-          base: "bg-transparent shadow-none m-0 max-w-none rounded-none",
-          backdrop: "hidden",
-        }}
-      >
-        <ModalContentAny>
-          {() => (
-            <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
-              <Parser content={html} registry={dialogRegistry} />
-            </div>
-          )}
-        </ModalContentAny>
-      </ModalAny>
-    </PageDialogContext.Provider>
+      <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
+        <Parser content={html} registry={dialogRegistry} />
+      </div>
+    </PageDialogContext.Provider>,
+    document.body,
   );
 }

@@ -1,8 +1,8 @@
 /** @jsxImportSource @emotion/react */
-import { Drawer, DrawerContent } from "@heroui/react";
 import { domToReact, Element, type DOMNode } from "html-react-parser";
 
 import { createContext, useContext, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import { useBuilderModel } from "../hooks/use-builder-model";
 import { useInteraction } from "../hooks/use-interaction";
@@ -11,9 +11,6 @@ import { BuilderDialog, ComponentRegisry, ComponentRegistryProps, LogicValue } f
 import { tryParse } from "../utils/try-parse";
 
 import Parser from "./parser";
-
-const DrawerAny = Drawer as unknown as React.ComponentType<Record<string, unknown>>;
-const DrawerContentAny = DrawerContent as unknown as React.ComponentType<Record<string, unknown>>;
 
 const PageDrawerContext = createContext<{
   onOpenChange: (open: boolean) => void;
@@ -79,11 +76,6 @@ export default function PageDrawer({
   const model = useBuilderModel();
   const onDismissRef = useRef<(() => void) | null>(null);
 
-  const handleOpenChange = (next: boolean) => {
-    if (!next) onDismissRef.current?.();
-    onOpenChange(next);
-  };
-
   const drawerRegistry = {
     ...(registryProp ?? model.registry ?? {}),
     "drawer-overlay": Overlay,
@@ -99,32 +91,12 @@ export default function PageDrawer({
     return null;
   }
 
-  return (
+  return createPortal(
     <PageDrawerContext.Provider value={{ onOpenChange, onDismissRef }}>
-      <DrawerAny
-        isOpen={open}
-        onOpenChange={handleOpenChange}
-        placement="bottom"
-        hideCloseButton
-        isDismissable={false}
-        isKeyboardDismissDisabled
-        shouldBlockScroll={false}
-        backdrop="transparent"
-        disableAnimation
-        classNames={{
-          wrapper: "items-stretch justify-stretch p-0",
-          base: "bg-transparent shadow-none m-0 max-w-none rounded-none h-auto",
-          backdrop: "hidden",
-        }}
-      >
-        <DrawerContentAny>
-          {() => (
-            <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
-              <Parser content={html} registry={drawerRegistry} />
-            </div>
-          )}
-        </DrawerContentAny>
-      </DrawerAny>
-    </PageDrawerContext.Provider>
+      <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
+        <Parser content={html} registry={drawerRegistry} />
+      </div>
+    </PageDrawerContext.Provider>,
+    document.body,
   );
 }
