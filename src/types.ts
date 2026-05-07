@@ -274,6 +274,34 @@ export interface GtmPushAction {
   };
 }
 
+export interface TiktokPushAction {
+  id: string;
+  type: "tiktok_push";
+  params: {
+    event: string;
+    fields?: {
+      id: string;
+      localName: string;
+      analyticsName: string;
+      storeType: "manual" | "local" | "fact";
+    }[];
+  };
+}
+
+export interface AxonPushAction {
+  id: string;
+  type: "axon_push";
+  params: {
+    event: string;
+    fields?: {
+      id: string;
+      localName: string;
+      analyticsName: string;
+      storeType: "manual" | "local" | "fact";
+    }[];
+  };
+}
+
 export interface SlideSwiperAction {
   id: string;
   type: "slide_swiper";
@@ -353,6 +381,8 @@ export type LogicAction =
   | GoToLink
   | PixelTrackAction
   | GtmPushAction
+  | TiktokPushAction
+  | AxonPushAction
   | ConditionalAction
   | SlideSwiperAction
   | SwiperSlideNextAction
