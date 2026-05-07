@@ -90,9 +90,113 @@ const getActionDataType = (source?: string, valueDataType?: string): string | un
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+type AnalyticsField = {
+  id: string;
+  localName: string | number | boolean;
+  analyticsName: string;
+  storeType: "manual" | "local" | "fact";
+  manualType?: "string" | "number" | "boolean" | "json";
+};
+
+const resolveAnalyticsField = (
+  field: AnalyticsField,
+  runtimeAnswers: Record<string, unknown>,
+  runtimeLocalStates: Record<string, unknown>,
+): unknown => {
+  switch (field.storeType) {
+    case "local":
+      return runtimeLocalStates[field.localName as string];
+    case "fact":
+      return runtimeAnswers[field.localName as string];
+    case "manual":
+    default: {
+      if (field.manualType === "json" && typeof field.localName === "string") {
+        const trimmed = field.localName.trim();
+        if (!trimmed) return undefined;
+        try {
+          return JSON.parse(trimmed);
+        } catch {
+          return undefined;
+        }
+      }
+      return field.localName;
+    }
+  }
+};
+
 function getNestedValue(obj: any, path: string): any {
   return path.split(".").reduce((acc, key) => acc?.[key], obj);
 }
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const setDeepValue = (
+  target: Record<string, unknown>,
+  path: string,
+  value: unknown,
+): Record<string, unknown> => {
+  const segments = path.split(".");
+  if (segments.length === 1) {
+    return { ...target, [segments[0]]: value };
+  }
+  const [head, ...rest] = segments;
+  const restPath = rest.join(".");
+  const headIsIndex = /^\d+$/.test(head);
+
+  const next = isPlainObject(target[head])
+    ? setDeepValue(target[head] as Record<string, unknown>, restPath, value)
+    : Array.isArray(target[head])
+      ? setDeepValueInArray(target[head] as unknown[], rest, value)
+      : headIsIndex
+        ? setDeepValueInArray([], rest, value)
+        : setDeepValue({}, restPath, value);
+
+  return { ...target, [head]: next };
+};
+
+const setDeepValueInArray = (arr: unknown[], segments: string[], value: unknown): unknown[] => {
+  if (segments.length === 0) return value as unknown[];
+  const [head, ...rest] = segments;
+  const idx = /^\d+$/.test(head) ? Number(head) : -1;
+  if (idx < 0) {
+    // not an array index — treat array as object-like fallback (shouldn't happen
+    // in practice, but keeps the function total)
+    return arr;
+  }
+  const copy = arr.slice();
+  if (rest.length === 0) {
+    copy[idx] = value;
+    return copy;
+  }
+  const child = copy[idx];
+  if (isPlainObject(child)) {
+    copy[idx] = setDeepValue(child, rest.join("."), value);
+  } else if (Array.isArray(child)) {
+    copy[idx] = setDeepValueInArray(child, rest, value);
+  } else {
+    // build nested structure from scratch when the slot is empty / scalar
+    copy[idx] = /^\d+$/.test(rest[0])
+      ? setDeepValueInArray([], rest, value)
+      : setDeepValue({}, rest.join("."), value);
+  }
+  return copy;
+};
+
+const mergeResolvedFields = (
+  base: Record<string, unknown>,
+  resolved: Record<string, unknown>,
+): Record<string, unknown> => {
+  let out = base;
+  for (const [key, value] of Object.entries(resolved)) {
+    if (key.includes(".")) {
+      out = setDeepValue(out, key, value);
+    } else {
+      out = { ...out, [key]: value };
+    }
+  }
+  return out;
+};
 
 function injectResponseData<T extends { params: { __responseData?: string } }>(
   action: T,
@@ -532,30 +636,19 @@ export const useInteraction = () => {
 
           const fields = (analyticsAction.params.fields ?? []) as Array<{
             id: string;
-            localName: string;
+            localName: string | number | boolean;
             analyticsName: string;
             storeType: "manual" | "local" | "fact";
+            manualType?: "string" | "number" | "boolean" | "json";
           }>;
 
           const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
             if (!field.analyticsName) return acc;
-
-            let resolvedValue: unknown;
-
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
-
-            acc[field.analyticsName] = resolvedValue;
+            acc[field.analyticsName] = resolveAnalyticsField(
+              field as AnalyticsField,
+              runtimeAnswers as Record<string, unknown>,
+              runtimeLocalStates as Record<string, unknown>,
+            );
             return acc;
           }, {});
 
@@ -564,11 +657,13 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          const props = {
-            ...(interactionAnalytics.getProps?.(getAnalyticsContext()) ?? {}),
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          };
+          const props = mergeResolvedFields(
+            {
+              ...(interactionAnalytics.getProps?.(getAnalyticsContext()) ?? {}),
+              ...triggerPayloadProps,
+            },
+            resolvedFields,
+          );
 
           interactionAnalytics.track(event, props);
           break;
@@ -661,30 +756,19 @@ export const useInteraction = () => {
 
           const fields = (gtmPushAction.params.fields ?? []) as Array<{
             id: string;
-            localName: string;
+            localName: string | number | boolean;
             analyticsName: string;
             storeType: "manual" | "local" | "fact";
+            manualType?: "string" | "number" | "boolean" | "json";
           }>;
 
           const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
             if (!field.analyticsName) return acc;
-
-            let resolvedValue: unknown;
-
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
-
-            acc[field.analyticsName] = resolvedValue;
+            acc[field.analyticsName] = resolveAnalyticsField(
+              field as AnalyticsField,
+              runtimeAnswers as Record<string, unknown>,
+              runtimeLocalStates as Record<string, unknown>,
+            );
             return acc;
           }, {});
 
@@ -693,10 +777,10 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          tagManager.pushEvent(event, {
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          });
+          tagManager.pushEvent(
+            event,
+            mergeResolvedFields({ ...triggerPayloadProps }, resolvedFields),
+          );
           break;
         }
 
@@ -716,30 +800,19 @@ export const useInteraction = () => {
 
           const fields = (tiktokPushAction.params.fields ?? []) as Array<{
             id: string;
-            localName: string;
+            localName: string | number | boolean;
             analyticsName: string;
             storeType: "manual" | "local" | "fact";
+            manualType?: "string" | "number" | "boolean" | "json";
           }>;
 
           const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
             if (!field.analyticsName) return acc;
-
-            let resolvedValue: unknown;
-
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
-
-            acc[field.analyticsName] = resolvedValue;
+            acc[field.analyticsName] = resolveAnalyticsField(
+              field as AnalyticsField,
+              runtimeAnswers as Record<string, unknown>,
+              runtimeLocalStates as Record<string, unknown>,
+            );
             return acc;
           }, {});
 
@@ -748,11 +821,16 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          tiktokPixel.track(event, {
-            ...(tiktokPixel.getProps?.(getAnalyticsContext()) ?? {}),
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          });
+          tiktokPixel.track(
+            event,
+            mergeResolvedFields(
+              {
+                ...(tiktokPixel.getProps?.(getAnalyticsContext()) ?? {}),
+                ...triggerPayloadProps,
+              },
+              resolvedFields,
+            ),
+          );
           break;
         }
 
@@ -772,30 +850,19 @@ export const useInteraction = () => {
 
           const fields = (axonPushAction.params.fields ?? []) as Array<{
             id: string;
-            localName: string;
+            localName: string | number | boolean;
             analyticsName: string;
             storeType: "manual" | "local" | "fact";
+            manualType?: "string" | "number" | "boolean" | "json";
           }>;
 
           const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
             if (!field.analyticsName) return acc;
-
-            let resolvedValue: unknown;
-
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
-
-            acc[field.analyticsName] = resolvedValue;
+            acc[field.analyticsName] = resolveAnalyticsField(
+              field as AnalyticsField,
+              runtimeAnswers as Record<string, unknown>,
+              runtimeLocalStates as Record<string, unknown>,
+            );
             return acc;
           }, {});
 
@@ -804,11 +871,16 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          axonPixel.track(event, {
-            ...(axonPixel.getProps?.(getAnalyticsContext()) ?? {}),
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          });
+          axonPixel.track(
+            event,
+            mergeResolvedFields(
+              {
+                ...(axonPixel.getProps?.(getAnalyticsContext()) ?? {}),
+                ...triggerPayloadProps,
+              },
+              resolvedFields,
+            ),
+          );
           break;
         }
 
