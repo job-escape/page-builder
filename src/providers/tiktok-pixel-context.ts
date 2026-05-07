@@ -2,8 +2,20 @@
 
 import { createContext, useContext } from "react";
 
+import { Answers, BuilderPage, PrimitiveValue } from "../types";
+
+export type TiktokPixelProps = Record<string, unknown>;
+
+export type TiktokPixelRuntimeContext = {
+  answers: Partial<Answers>;
+  localStates: Record<string, PrimitiveValue | string[]>;
+  page: BuilderPage;
+  screenIndex: number;
+};
+
 export type TiktokPixelAdapter = {
-  track: (event: string, props?: Record<string, unknown>) => void;
+  track: (event: string, props?: TiktokPixelProps) => void;
+  getProps?: (context: TiktokPixelRuntimeContext) => TiktokPixelProps;
 };
 
 export const TiktokPixelContext = createContext<TiktokPixelAdapter | null>(null);

@@ -749,6 +749,7 @@ export const useInteraction = () => {
               : {};
 
           tiktokPixel.track(event, {
+            ...(tiktokPixel.getProps?.(getAnalyticsContext()) ?? {}),
             ...triggerPayloadProps,
             ...resolvedFields,
           });
@@ -804,6 +805,7 @@ export const useInteraction = () => {
               : {};
 
           axonPixel.track(event, {
+            ...(axonPixel.getProps?.(getAnalyticsContext()) ?? {}),
             ...triggerPayloadProps,
             ...resolvedFields,
           });
