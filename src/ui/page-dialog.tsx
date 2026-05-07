@@ -1,5 +1,5 @@
 /** @jsxImportSource @emotion/react */
-import { Modal, ModalContent } from "@heroui/react";
+import { Dialog, DialogContent, DialogPortal } from "@radix-ui/react-dialog";
 import { domToReact, Element, type DOMNode } from "html-react-parser";
 
 import { createContext } from "react";
@@ -11,9 +11,6 @@ import { BuilderDialog, ComponentRegisry, ComponentRegistryProps, LogicValue } f
 import { tryParse } from "../utils/try-parse";
 
 import Parser from "./parser";
-
-const ModalAny = Modal as unknown as React.ComponentType<Record<string, unknown>>;
-const ModalContentAny = ModalContent as unknown as React.ComponentType<Record<string, unknown>>;
 
 const PageDialogContext = createContext<{
   onOpenChange: (open: boolean) => void;
@@ -38,9 +35,18 @@ function DialogContentReg({ domNode, config }: ComponentRegistryProps) {
   const css = useStyledNode(domNode.attribs);
 
   return (
-    <div css={css} style={{ pointerEvents: "auto" }}>
+    <DialogContent
+      css={css}
+      style={{ pointerEvents: "auto" }}
+      onInteractOutside={(e) => {
+        e.preventDefault();
+      }}
+      onEscapeKeyDown={(e) => {
+        e.preventDefault();
+      }}
+    >
       {domToReact(domNode.children as DOMNode[], config)}
-    </div>
+    </DialogContent>
   );
 }
 
@@ -62,40 +68,22 @@ export default function PageDialog({
     "dialog-content": DialogContentReg,
   };
 
-  const html = dialog.html;
-  if (!html) {
-    return null;
-  }
-
-  if (!open && !dialog.force_mount) {
-    return null;
-  }
-
-  return (
-    <PageDialogContext.Provider value={{ onOpenChange }}>
-      <ModalAny
-        isOpen={open}
-        onOpenChange={onOpenChange}
-        hideCloseButton
-        isDismissable={false}
-        isKeyboardDismissDisabled
-        shouldBlockScroll={false}
-        backdrop="transparent"
-        disableAnimation
-        classNames={{
-          wrapper: "items-stretch justify-stretch p-0",
-          base: "bg-transparent shadow-none m-0 max-w-none rounded-none",
-          backdrop: "hidden",
-        }}
-      >
-        <ModalContentAny>
-          {() => (
-            <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
-              <Parser content={html} registry={dialogRegistry} />
+  if (dialog.html) {
+    return (
+      <PageDialogContext.Provider value={{ onOpenChange }}>
+        <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
+          <DialogPortal forceMount={dialog.force_mount || undefined}>
+            <div
+              aria-hidden={!open}
+              style={{ display: open ? "contents" : "none" }}
+            >
+              <Parser content={dialog.html} registry={dialogRegistry} />
             </div>
-          )}
-        </ModalContentAny>
-      </ModalAny>
-    </PageDialogContext.Provider>
-  );
+          </DialogPortal>
+        </Dialog>
+      </PageDialogContext.Provider>
+    );
+  }
+
+  return null;
 }
