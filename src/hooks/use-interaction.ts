@@ -263,7 +263,15 @@ export const useInteraction = () => {
             break;
           }
 
-          window.location.href = link;
+          const resolvedLink = link.replace(/\$\{([^}]+)\}/g, (_match, rawKey) => {
+            const key = rawKey.trim();
+            const value = runtimeAnswers[key as keyof Answers];
+            if (value === undefined || value === null) return "";
+            if (Array.isArray(value)) return value.join(",");
+            return String(value);
+          });
+
+          window.location.href = resolvedLink;
 
           break;
         }
