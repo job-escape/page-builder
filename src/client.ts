@@ -53,6 +53,12 @@ export { PixelAdapterProvider } from "./providers/pixel-provider";
 export { TagManagerContext, useTagManagerAdapter } from "./providers/tag-manager-context";
 export type { TagManagerAdapter } from "./providers/tag-manager-context";
 export { TagManagerAdapterProvider } from "./providers/tag-manager-provider";
+export { TiktokPixelContext, useTiktokPixelAdapter } from "./providers/tiktok-pixel-context";
+export type { TiktokPixelAdapter } from "./providers/tiktok-pixel-context";
+export { TiktokPixelAdapterProvider } from "./providers/tiktok-pixel-provider";
+export { AxonPixelContext, useAxonPixelAdapter } from "./providers/axon-pixel-context";
+export type { AxonPixelAdapter } from "./providers/axon-pixel-context";
+export { AxonPixelAdapterProvider } from "./providers/axon-pixel-provider";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 

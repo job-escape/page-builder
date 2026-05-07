@@ -8,10 +8,13 @@ import { useRef } from "react";
 import { slideNext, slidePrev, slideTo } from "../model/swiper-store";
 import { useInteractionAnalytics } from "../providers/interaction-analytics-context";
 import { useInteractionOptions } from "../providers/interaction-options-context";
+import { useAxonPixelAdapter } from "../providers/axon-pixel-context";
 import { usePixelAdapter } from "../providers/pixel-context";
 import { useTagManagerAdapter } from "../providers/tag-manager-context";
+import { useTiktokPixelAdapter } from "../providers/tiktok-pixel-context";
 import {
   Answers,
+  AxonPushAction,
   ConditionalAction,
   GtmPushAction,
   LogicAction,
@@ -23,6 +26,7 @@ import {
   RequestEnv,
   RequestLifecycleAction,
   RequestStatus,
+  TiktokPushAction,
   WriteResponseDataAction,
 } from "../types";
 import { applyValueTransforms } from "../utils/apply-value-transforms";
@@ -123,6 +127,8 @@ export const useInteraction = () => {
   const interactionAnalytics = useInteractionAnalytics();
   const pixel = usePixelAdapter();
   const tagManager = useTagManagerAdapter();
+  const tiktokPixel = useTiktokPixelAdapter();
+  const axonPixel = useAxonPixelAdapter();
   const logger = useLogger().with({ page_id: page.id });
   const { next, prev } = useNavigation();
   const { setActiveDialog, dialogs, setAnswers, answers, setLocalState, localStates } = useUnit({
@@ -680,6 +686,116 @@ export const useInteraction = () => {
               : {};
 
           tagManager.pushEvent(event, {
+            ...triggerPayloadProps,
+            ...resolvedFields,
+          });
+          break;
+        }
+
+        case "tiktok_push": {
+          const tiktokPushAction = action as TiktokPushAction;
+          const event = tiktokPushAction.params.event;
+
+          if (!event) {
+            logger.warn("tiktok_push action missing event name", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+
+          const fields = (tiktokPushAction.params.fields ?? []) as Array<{
+            id: string;
+            localName: string;
+            analyticsName: string;
+            storeType: "manual" | "local" | "fact";
+          }>;
+
+          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
+            if (!field.analyticsName) return acc;
+
+            let resolvedValue: unknown;
+
+            switch (field.storeType) {
+              case "local":
+                resolvedValue = runtimeLocalStates[field.localName];
+                break;
+              case "fact":
+                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
+                break;
+              case "manual":
+              default:
+                resolvedValue = field.localName;
+                break;
+            }
+
+            acc[field.analyticsName] = resolvedValue;
+            return acc;
+          }, {});
+
+          const triggerPayloadProps =
+            context?.triggerPayload && typeof context.triggerPayload === "object"
+              ? (context.triggerPayload as Record<string, unknown>)
+              : {};
+
+          tiktokPixel.track(event, {
+            ...triggerPayloadProps,
+            ...resolvedFields,
+          });
+          break;
+        }
+
+        case "axon_push": {
+          const axonPushAction = action as AxonPushAction;
+          const event = axonPushAction.params.event;
+
+          if (!event) {
+            logger.warn("axon_push action missing event name", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+
+          const fields = (axonPushAction.params.fields ?? []) as Array<{
+            id: string;
+            localName: string;
+            analyticsName: string;
+            storeType: "manual" | "local" | "fact";
+          }>;
+
+          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
+            if (!field.analyticsName) return acc;
+
+            let resolvedValue: unknown;
+
+            switch (field.storeType) {
+              case "local":
+                resolvedValue = runtimeLocalStates[field.localName];
+                break;
+              case "fact":
+                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
+                break;
+              case "manual":
+              default:
+                resolvedValue = field.localName;
+                break;
+            }
+
+            acc[field.analyticsName] = resolvedValue;
+            return acc;
+          }, {});
+
+          const triggerPayloadProps =
+            context?.triggerPayload && typeof context.triggerPayload === "object"
+              ? (context.triggerPayload as Record<string, unknown>)
+              : {};
+
+          axonPixel.track(event, {
             ...triggerPayloadProps,
             ...resolvedFields,
           });
