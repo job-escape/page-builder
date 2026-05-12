@@ -694,6 +694,7 @@ export const useInteraction = () => {
               : {};
 
           tagManager.pushEvent(event, {
+            ...(interactionAnalytics?.getProps?.(getAnalyticsContext()) ?? {}),
             ...triggerPayloadProps,
             ...resolvedFields,
           });
