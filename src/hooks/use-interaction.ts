@@ -34,6 +34,7 @@ import { buildConditionFacts } from "../utils/build-condition-facts";
 import { buildRequestBodyObject } from "../utils/build-request-body-object";
 import { evaluateConditionalAction } from "../utils/evaluate-conditional-action";
 import { resolveValuePicker } from "../utils/resolve-value-picker";
+import { setByPath } from "../utils/set-by-path";
 import { tryParse } from "../utils/try-parse";
 
 import { useBuilderModel } from "./use-builder-model";
@@ -560,7 +561,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
@@ -689,7 +690,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
@@ -745,7 +746,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
@@ -801,7 +802,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
