@@ -353,6 +353,31 @@ export interface SpinStartAction {
   };
 }
 
+export interface SlidesNextAction {
+  id: string;
+  type: "slides_next";
+  params: {
+    slides_id: string;
+  };
+}
+
+export interface SlidesPrevAction {
+  id: string;
+  type: "slides_prev";
+  params: {
+    slides_id: string;
+  };
+}
+
+export interface SlidesGotoAction {
+  id: string;
+  type: "slides_goto";
+  params: {
+    slides_id: string;
+    slide_index: number | string;
+  };
+}
+
 export type StorageFormat = {
   any?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
   all?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
@@ -396,7 +421,10 @@ export type LogicAction =
   | SwiperSlideNextAction
   | SwiperSlidePrevAction
   | SetSelectedSubscriptionAction
-  | SpinStartAction;
+  | SpinStartAction
+  | SlidesNextAction
+  | SlidesPrevAction
+  | SlidesGotoAction;
 
 // ─── Action type string union ─────────────────────────────────────────────────
 

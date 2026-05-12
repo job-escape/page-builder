@@ -63,11 +63,18 @@ export interface SpinStartOptions {
   startSpin: (params: { wheelId: string }) => void;
 }
 
+export interface SlidesOptions {
+  next: (params: { id: string }) => void;
+  prev: (params: { id: string }) => void;
+  goto: (params: { id: string; index: number }) => void;
+}
+
 export interface InteractionOptions {
   write_user_data?: WriteUserDataOptions;
   open_dialog?: OpenDialogOptions;
   set_selected_subscription?: SetSelectedSubscriptionOptions;
   spin_start?: SpinStartOptions;
+  slides?: SlidesOptions;
 }
 
 interface ActionContext {
@@ -911,6 +918,87 @@ export const useInteraction = () => {
             break;
           }
           resolve({ mode, subscriptionId, selectionType });
+          break;
+        }
+
+        // ── Slides ────────────────────────────────────────────────────────────
+        case "slides_next": {
+          const next = options?.slides?.next;
+          if (!next) {
+            logger.warn("slides_next action has no host resolver", {
+              action_type: action.type,
+              action_params: action.params,
+            });
+            break;
+          }
+          const { slides_id: slidesId } = action.params;
+          if (!slidesId) {
+            logger.warn("slides_next action missing slides_id", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+          next({ id: slidesId });
+          break;
+        }
+
+        case "slides_prev": {
+          const prev = options?.slides?.prev;
+          if (!prev) {
+            logger.warn("slides_prev action has no host resolver", {
+              action_type: action.type,
+              action_params: action.params,
+            });
+            break;
+          }
+          const { slides_id: slidesId } = action.params;
+          if (!slidesId) {
+            logger.warn("slides_prev action missing slides_id", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+          prev({ id: slidesId });
+          break;
+        }
+
+        case "slides_goto": {
+          const goto = options?.slides?.goto;
+          if (!goto) {
+            logger.warn("slides_goto action has no host resolver", {
+              action_type: action.type,
+              action_params: action.params,
+            });
+            break;
+          }
+          const { slides_id: slidesId, slide_index: slideIndex } = action.params;
+          if (!slidesId || slideIndex === undefined) {
+            logger.warn("slides_goto action missing slides_id or slide_index", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+          const resolvedIndex = Number(slideIndex);
+          if (!Number.isFinite(resolvedIndex) || resolvedIndex < 0) {
+            logger.warn("slides_goto action index is invalid", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+              resolved_index: resolvedIndex,
+            });
+            break;
+          }
+          goto({ id: slidesId, index: resolvedIndex });
           break;
         }
 
