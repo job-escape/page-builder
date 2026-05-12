@@ -32,8 +32,10 @@ import {
 import { applyValueTransforms } from "../utils/apply-value-transforms";
 import { buildConditionFacts } from "../utils/build-condition-facts";
 import { buildRequestBodyObject } from "../utils/build-request-body-object";
+import { deepMergeAll } from "../utils/deep-merge";
 import { evaluateConditionalAction } from "../utils/evaluate-conditional-action";
 import { resolveValuePicker } from "../utils/resolve-value-picker";
+import { setByPath } from "../utils/set-by-path";
 import { tryParse } from "../utils/try-parse";
 
 import { useBuilderModel } from "./use-builder-model";
@@ -567,7 +569,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
@@ -576,11 +578,11 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          const props = {
-            ...(interactionAnalytics.getProps?.(getAnalyticsContext()) ?? {}),
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          };
+          const props = deepMergeAll(
+            interactionAnalytics.getProps?.(getAnalyticsContext()),
+            triggerPayloadProps,
+            resolvedFields,
+          );
 
           interactionAnalytics.track(event, props);
           break;
@@ -696,7 +698,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
@@ -705,11 +707,14 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          tagManager.pushEvent(event, {
-            ...(interactionAnalytics?.getProps?.(getAnalyticsContext()) ?? {}),
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          });
+          tagManager.pushEvent(
+            event,
+            deepMergeAll(
+              interactionAnalytics?.getProps?.(getAnalyticsContext()),
+              triggerPayloadProps,
+              resolvedFields,
+            ),
+          );
           break;
         }
 
@@ -752,7 +757,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
@@ -761,11 +766,14 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          tiktokPixel.track(event, {
-            ...(tiktokPixel.getProps?.(getAnalyticsContext()) ?? {}),
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          });
+          tiktokPixel.track(
+            event,
+            deepMergeAll(
+              tiktokPixel.getProps?.(getAnalyticsContext()),
+              triggerPayloadProps,
+              resolvedFields,
+            ),
+          );
           break;
         }
 
@@ -808,7 +816,7 @@ export const useInteraction = () => {
                 break;
             }
 
-            acc[field.analyticsName] = resolvedValue;
+            setByPath(acc, field.analyticsName, resolvedValue);
             return acc;
           }, {});
 
@@ -817,11 +825,14 @@ export const useInteraction = () => {
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
-          axonPixel.track(event, {
-            ...(axonPixel.getProps?.(getAnalyticsContext()) ?? {}),
-            ...triggerPayloadProps,
-            ...resolvedFields,
-          });
+          axonPixel.track(
+            event,
+            deepMergeAll(
+              axonPixel.getProps?.(getAnalyticsContext()),
+              triggerPayloadProps,
+              resolvedFields,
+            ),
+          );
           break;
         }
 
