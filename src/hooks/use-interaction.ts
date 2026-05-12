@@ -59,10 +59,15 @@ export interface SetSelectedSubscriptionOptions {
   }) => void;
 }
 
+export interface SpinStartOptions {
+  startSpin: (params: { wheelId: string }) => void;
+}
+
 export interface InteractionOptions {
   write_user_data?: WriteUserDataOptions;
   open_dialog?: OpenDialogOptions;
   set_selected_subscription?: SetSelectedSubscriptionOptions;
+  spin_start?: SpinStartOptions;
 }
 
 interface ActionContext {
@@ -906,6 +911,30 @@ export const useInteraction = () => {
             break;
           }
           resolve({ mode, subscriptionId, selectionType });
+          break;
+        }
+
+        // ── Spinning wheel ────────────────────────────────────────────────────
+        case "spin_start": {
+          const startSpin = options?.spin_start?.startSpin;
+          if (!startSpin) {
+            logger.warn("spin_start action has no host resolver", {
+              action_type: action.type,
+              action_params: action.params,
+            });
+            break;
+          }
+          const { wheel_id: wheelId } = action.params;
+          if (!wheelId) {
+            logger.warn("spin_start action missing wheel_id", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+          startSpin({ wheelId });
           break;
         }
 

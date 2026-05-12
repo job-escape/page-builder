@@ -345,6 +345,14 @@ export interface SetSelectedSubscriptionAction {
   };
 }
 
+export interface SpinStartAction {
+  id: string;
+  type: "spin_start";
+  params: {
+    wheel_id: string;
+  };
+}
+
 export type StorageFormat = {
   any?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
   all?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
@@ -387,7 +395,8 @@ export type LogicAction =
   | SlideSwiperAction
   | SwiperSlideNextAction
   | SwiperSlidePrevAction
-  | SetSelectedSubscriptionAction;
+  | SetSelectedSubscriptionAction
+  | SpinStartAction;
 
 // ─── Action type string union ─────────────────────────────────────────────────
 

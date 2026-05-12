@@ -82,6 +82,7 @@ export type {
   WriteUserDataOptions,
   OpenDialogOptions,
   SetSelectedSubscriptionOptions,
+  SpinStartOptions,
 } from "./hooks/use-interaction";
 
 // ─── Client renderers ────────────────────────────────────────────────────────
