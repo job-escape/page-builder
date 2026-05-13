@@ -257,6 +257,12 @@ export interface PixelTrackAction {
     eventName: string;
     eventId?: string;
     eventIdDataType?: string;
+    fields?: {
+      id: string;
+      localName: string;
+      analyticsName: string;
+      storeType: "manual" | "local" | "fact";
+    }[];
   };
 }
 

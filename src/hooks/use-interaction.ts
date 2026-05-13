@@ -637,6 +637,51 @@ export const useInteraction = () => {
 
           const eventExtra = resolvedEventId ? { eventID: String(resolvedEventId) } : undefined;
 
+          const pixelFields = (pixelTrackAction.params.fields ?? []) as Array<{
+            id: string;
+            localName: string;
+            analyticsName: string;
+            storeType: "manual" | "local" | "fact";
+          }>;
+
+          const resolvedPixelFields = pixelFields.reduce<Record<string, unknown>>((acc, field) => {
+            if (!field.analyticsName) return acc;
+
+            let resolvedValue: unknown;
+
+            switch (field.storeType) {
+              case "local":
+                resolvedValue = runtimeLocalStates[field.localName];
+                break;
+              case "fact":
+                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
+                break;
+              case "manual":
+              default:
+                resolvedValue = field.localName;
+                break;
+            }
+
+            setByPath(acc, field.analyticsName, resolvedValue);
+            return acc;
+          }, {});
+
+          const pixelTriggerPayloadProps =
+            context?.triggerPayload && typeof context.triggerPayload === "object"
+              ? (context.triggerPayload as Record<string, unknown>)
+              : {};
+
+          const mergedPixelProps = deepMergeAll(
+            interactionAnalytics?.getProps?.(getAnalyticsContext()),
+            pixelTriggerPayloadProps,
+            resolvedPixelFields,
+          );
+
+          const eventProps =
+            mergedPixelProps && Object.keys(mergedPixelProps).length > 0
+              ? (mergedPixelProps as Record<string, string>)
+              : undefined;
+
           if (
             eventName === "PageView" ||
             eventName === "Lead" ||
@@ -646,6 +691,7 @@ export const useInteraction = () => {
             pixel.track({
               eventType: "track",
               eventName,
+              eventProps,
               eventExtra,
             });
             break;
@@ -654,6 +700,7 @@ export const useInteraction = () => {
           pixel.track({
             eventType: "trackCustom",
             eventName,
+            eventProps,
             eventExtra,
           });
           break;
