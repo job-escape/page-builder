@@ -293,11 +293,6 @@ export const useInteraction = () => {
         case "write_user_data": {
           const { fact, factDataType, source, value, valueDataType, valueTransforms } =
             action.params;
-          logger.info("write_user_data action triggered", {
-            action_type: action.type,
-            fact,
-            source,
-          });
           if (!fact) {
             logger.warn("write_user_data action missing fact", {
               action_type: action.type,
@@ -524,23 +519,6 @@ export const useInteraction = () => {
           const event = analyticsAction.params.event;
 
           if (!interactionAnalytics) {
-            logger.warn("analytics action provider is missing", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: runtimeAnswers,
-              local_states: runtimeLocalStates,
-              event,
-            });
-            break;
-          }
-
-          if (!event) {
-            logger.warn("analytics action missing event name", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: runtimeAnswers,
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -585,6 +563,10 @@ export const useInteraction = () => {
           );
 
           interactionAnalytics.track(event, props);
+          logger.info("analytics interaction track", {
+            event: event,
+            ...props,
+          });
           break;
         }
 
