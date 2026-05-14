@@ -565,6 +565,7 @@ export const useInteraction = () => {
           interactionAnalytics.track(event, props);
           logger.info("analytics interaction track", {
             event: event,
+            href: window.location.href,
             ...props,
           });
           break;
