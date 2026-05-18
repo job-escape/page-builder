@@ -54,8 +54,8 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
   const states = useMemo(() => getStates(statesRaw), [statesRaw]);
   const activeState = useActiveState(states, model.$answers, localModel.$localStates);
 
-  const [displayValue, setDisplayValue] = useState(0);
-  const rafRef = useRef<number | null>(null);
+  const [cssReady, setCssReady] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
   const halfTriggeredRef = useRef(false);
   const fullTriggeredRef = useRef(false);
@@ -72,59 +72,50 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
     halfTriggeredRef.current = false;
     fullTriggeredRef.current = false;
     lastIntRef.current = -1;
-    startTimeRef.current = performance.now();
-    setDisplayValue(0);
+    setCssReady(false);
 
-    let elapsedAtPause = 0;
+    requestAnimationFrame(() => {
+      startTimeRef.current = performance.now();
+      setCssReady(true);
+    });
 
-    const tick = () => {
-      if (stoppedRef.current) {
-        // Keep the start time anchored to "now" while paused so the
-        // animation resumes from where it left off instead of jumping.
-        startTimeRef.current = performance.now() - elapsedAtPause;
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
+    const TICK_MS = 30;
+    timerRef.current = setInterval(() => {
+      if (stoppedRef.current) return;
 
       const elapsed = performance.now() - startTimeRef.current;
-      elapsedAtPause = elapsed;
       const progress = speed === 0 ? 1 : Math.min(elapsed / speed, 1);
-      const value = visualTarget * progress;
+      const value = Math.trunc(visualTarget * progress);
 
-      setDisplayValue(value);
+      if (value !== lastIntRef.current) {
+        lastIntRef.current = value;
 
-      const intValue = Math.trunc(value);
-      if (intValue !== lastIntRef.current) {
-        lastIntRef.current = intValue;
-
-        if (!halfTriggeredRef.current && intValue >= 50) {
+        if (!halfTriggeredRef.current && value >= 50) {
           halfTriggeredRef.current = true;
           runTrigger("half_load");
         }
 
         if (progress < 1) {
-          runTrigger("progress_iterate", { loader_value: intValue });
+          runTrigger("progress_iterate", { loader_value: value });
         }
       }
 
       if (progress >= 1) {
-        setDisplayValue(visualTarget);
         if (!fullTriggeredRef.current) {
           fullTriggeredRef.current = true;
           runTrigger("full_load");
         }
-        return;
+        if (timerRef.current !== null) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
       }
-
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
+    }, TICK_MS);
 
     return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, [logic, percentage, speed, visualTarget]);
@@ -133,5 +124,11 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
     return null;
   }
 
-  return <Progress indicatorClassName="transition-none" value={displayValue} />;
+  return (
+    <Progress
+      indicatorClassName={cssReady ? "transition-transform ease-linear" : "transition-none"}
+      transitionDuration={cssReady ? `${speed}ms` : undefined}
+      value={cssReady ? visualTarget : 0}
+    />
+  );
 }
