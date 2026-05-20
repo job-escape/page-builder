@@ -390,6 +390,50 @@ export const useInteraction = () => {
           break;
         }
 
+        case "play_video": {
+          if (typeof document === "undefined") break;
+
+          const { targetId, withSound = true, restart = true } = action.params;
+
+          if (!targetId) {
+            logger.warn("play_video action missing targetId", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+
+          const el = document.getElementById(targetId);
+          if (!(el instanceof HTMLVideoElement)) {
+            logger.warn("play_video target is not a <video>", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+              element_id: targetId,
+            });
+            break;
+          }
+
+          el.pause();
+          if (withSound) el.muted = false;
+          if (restart) el.currentTime = 0;
+          // Signals to the host video component that the user took control —
+          // its IntersectionObserver stops auto-pausing on scroll.
+          el.dataset.userControlled = "true";
+          el.play().catch((err) => {
+            logger.warn("play_video rejected — likely lost user gesture", {
+              action_type: action.type,
+              action_params: action.params,
+              element_id: targetId,
+              err: String(err),
+            });
+          });
+          break;
+        }
+
         case "http_request": {
           const requestConfig = tryParse<RequestConfig>(action.params.request);
           if (!requestConfig) {

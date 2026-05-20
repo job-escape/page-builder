@@ -213,6 +213,16 @@ export interface ScrollToAction {
   };
 }
 
+export interface PlayVideoAction {
+  id: string;
+  type: "play_video";
+  params: {
+    targetId?: string;
+    withSound?: boolean;
+    restart?: boolean;
+  };
+}
+
 export interface OpenUrlAction {
   id: string;
   type: "open_url";
@@ -413,6 +423,7 @@ export type LogicAction =
   | HttpRequestAction
   | PlayAnimationAction
   | ScrollToAction
+  | PlayVideoAction
   | OpenUrlAction
   | SubmitFormAction
   | AnalyticsAction

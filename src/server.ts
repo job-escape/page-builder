@@ -27,6 +27,7 @@ export type {
   HttpRequestAction,
   PlayAnimationAction,
   ScrollToAction,
+  PlayVideoAction,
   OpenUrlAction,
   SubmitFormAction,
   AnalyticsAction,
