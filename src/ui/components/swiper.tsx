@@ -43,7 +43,7 @@ export default function SwiperRegistry({ domNode, config }: ComponentRegistryPro
     <ClassNames>
       {({ css }) => (
         <SwiperView
-          id={attribs["data-id"] ?? ""}
+          id={attribs["data-id"] ?? attribs.id ?? ""}
           className={css(styledCss)}
           autoplay={autoplay}
           loop={loop}

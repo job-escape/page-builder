@@ -153,6 +153,13 @@ export const useInteraction = () => {
     setLocalState: localModel.setLocalStateEvt,
     localStates: localModel.$localStates,
   });
+  // Scope-bind so swiper commands land in the same @effector/next scope that
+  // SwiperView reads from via `useUnit($swiperCommands)`. Calling the imported
+  // events directly fires on the un-scoped global store and the SwiperView
+  // never sees the command. Same gotcha as `spin_start`.
+  const handleSlideTo = useUnit(slideTo);
+  const handleSlideNext = useUnit(slideNext);
+  const handleSlidePrev = useUnit(slidePrev);
   const screenIndex = useUnit(model.$screenIndex);
   const ambientOptions = useInteractionOptions();
   const answersRef = useRef(answers);
@@ -937,7 +944,7 @@ export const useInteraction = () => {
             break;
           }
 
-          slideTo({ id: swiperId, index: resolvedIndex });
+          handleSlideTo({ id: swiperId, index: resolvedIndex });
           break;
         }
 
@@ -954,7 +961,7 @@ export const useInteraction = () => {
             break;
           }
 
-          slideNext({ id: swiperId });
+          handleSlideNext({ id: swiperId });
           break;
         }
 
@@ -971,7 +978,7 @@ export const useInteraction = () => {
             break;
           }
 
-          slidePrev({ id: swiperId });
+          handleSlidePrev({ id: swiperId });
           break;
         }
 
