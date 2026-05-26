@@ -441,6 +441,59 @@ export const useInteraction = () => {
           break;
         }
 
+        case "unmute_video": {
+          if (typeof document === "undefined") break;
+
+          const { targetId } = action.params;
+
+          if (!targetId) {
+            logger.warn("unmute_video action missing targetId", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+
+          const el = document.getElementById(targetId);
+          if (!(el instanceof HTMLVideoElement)) {
+            logger.warn("unmute_video target is not a <video>", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+              element_id: targetId,
+            });
+            break;
+          }
+
+          // Enforce "last unmuted wins" — every other <video> on the page is
+          // muted (kept playing silently). Clearing userControlled hands the
+          // others back to the host's auto-pause-on-scroll behavior.
+          for (const v of document.querySelectorAll("video")) {
+            if (v === el) continue;
+            v.muted = true;
+            delete v.dataset.userControlled;
+          }
+
+          // Unlike play_video, leave playback position alone so a currently-
+          // playing autoplay video just gains sound without a visible glitch.
+          el.muted = false;
+          el.dataset.userControlled = "true";
+          if (el.paused) {
+            el.play().catch((err) => {
+              logger.warn("unmute_video rejected — likely lost user gesture", {
+                action_type: action.type,
+                action_params: action.params,
+                element_id: targetId,
+                err: String(err),
+              });
+            });
+          }
+          break;
+        }
+
         case "http_request": {
           const requestConfig = tryParse<RequestConfig>(action.params.request);
           if (!requestConfig) {

@@ -223,6 +223,14 @@ export interface PlayVideoAction {
   };
 }
 
+export interface UnmuteVideoAction {
+  id: string;
+  type: "unmute_video";
+  params: {
+    targetId?: string;
+  };
+}
+
 export interface OpenUrlAction {
   id: string;
   type: "open_url";
@@ -424,6 +432,7 @@ export type LogicAction =
   | PlayAnimationAction
   | ScrollToAction
   | PlayVideoAction
+  | UnmuteVideoAction
   | OpenUrlAction
   | SubmitFormAction
   | AnalyticsAction

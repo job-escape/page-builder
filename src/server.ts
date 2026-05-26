@@ -28,6 +28,7 @@ export type {
   PlayAnimationAction,
   ScrollToAction,
   PlayVideoAction,
+  UnmuteVideoAction,
   OpenUrlAction,
   SubmitFormAction,
   AnalyticsAction,
