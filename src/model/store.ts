@@ -257,10 +257,15 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
       return result;
     },
   });
+  // Clocked on $currentPage (not $currentPageId) so the prefetch re-fires once the
+  // current node becomes available — including after the self-heal below loads a page
+  // whose forward-prefetch was dropped. Clocking on the id alone would stall the
+  // prefetch chain after any missed page (it would read a null current page and fetch
+  // nothing, then never retry).
   sample({
-    clock: $currentPageId,
+    clock: $currentPage,
     source: { currentPage: $currentPage, lang: $lang },
-    filter: Boolean,
+    filter: ({ currentPage }) => Boolean(currentPage),
     fn: ({ currentPage, lang }) => {
       if (!currentPage) {
         return { pageIds: [], lang };
@@ -291,6 +296,30 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     target: setPagesEvt,
   });
 
+  // Self-heal: the forward prefetch only ever loads the *next* node, never the current
+  // one, on the assumption it was prefetched by the previous page. If that prefetch was
+  // dropped (take-latest) or failed, the page you land on is absent from $pages with no
+  // way to recover. This fetches the current node by its own id when it's missing, via a
+  // dedicated effect (not the shared query) so it can't be superseded by the prefetch.
+  // Loading it flips $currentPage null→node, which re-fires the prefetch above.
+  const ensureCurrentPageFx = createEffect(({ id, lang }: { id: number; lang?: string }) =>
+    fetchPage({ id, lang }),
+  );
+
+  sample({
+    clock: $currentPageId,
+    source: { pages: $pages, lang: $lang },
+    filter: ({ pages }, id) => id !== null && !pages[id],
+    fn: ({ lang }, id) => ({ id: id as number, lang }),
+    target: ensureCurrentPageFx,
+  });
+
+  sample({
+    clock: ensureCurrentPageFx.doneData,
+    fn: (page) => ({ [page.id]: page }) as Record<number, Page>,
+    target: setPagesEvt,
+  });
+
   sample({
     source: { pageHtml: $pageHtml, pages: $pages },
     filter: ({ pageHtml, pages }) =>
@@ -308,6 +337,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     fetchPageHtmlFx.pending,
     resolvePreviousPageFx.pending,
     prefetchPreviousPageFx.pending,
+    ensureCurrentPageFx.pending,
     (...pending) => pending.some(Boolean),
   );
 
