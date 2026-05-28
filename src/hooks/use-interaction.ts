@@ -71,9 +71,19 @@ export interface SlidesOptions {
   goto: (params: { id: string; index: number }) => void;
 }
 
+export interface OpenIntercomOptions {
+  open: () => void;
+}
+
+export interface RefreshSessionOptions {
+  refresh: () => Promise<void> | void;
+}
+
 export interface InteractionOptions {
   write_user_data?: WriteUserDataOptions;
   open_dialog?: OpenDialogOptions;
+  open_intercom?: OpenIntercomOptions;
+  refresh_session?: RefreshSessionOptions;
   set_selected_subscription?: SetSelectedSubscriptionOptions;
   spin_start?: SpinStartOptions;
   slides?: SlidesOptions;
@@ -356,6 +366,44 @@ export const useInteraction = () => {
 
         case "close_dialog": {
           setActiveDialog(null);
+          break;
+        }
+
+        case "open_intercom": {
+          const opener = options?.open_intercom?.open;
+          if (opener) {
+            opener();
+          } else {
+            logger.warn("open_intercom action has no opener registered", {
+              action_type: action.type,
+            });
+          }
+          break;
+        }
+
+        case "refresh_session": {
+          const refresh = options?.refresh_session?.refresh;
+          if (refresh) {
+            try {
+              await refresh();
+            } catch (err) {
+              logger.warn("refresh_session action failed", {
+                action_type: action.type,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          } else {
+            logger.warn("refresh_session action has no handler registered", {
+              action_type: action.type,
+            });
+          }
+          break;
+        }
+
+        case "buy_upsell" as never: {
+          // Deprecated — use http_request instead. Keep this case so legacy
+          // JSONs don't blow up the runtime; will be removed once all unsub
+          // pages are regenerated.
           break;
         }
 

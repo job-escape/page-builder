@@ -98,8 +98,21 @@ export const buildRuleConditions = (conditions: RuleConditions) => {
   return { all: [] } satisfies TopLevelCondition;
 };
 
-export const createConditionEngine = () => {
-  return new Engine([], {
-    allowUndefinedFacts: true,
+const registerStringOperators = (engine: Engine) => {
+  engine.addOperator("contains", (factValue, jsonValue) => {
+    if (factValue === undefined || factValue === null) return false;
+    if (Array.isArray(factValue)) return factValue.includes(jsonValue);
+    return String(factValue).includes(String(jsonValue));
   });
+  engine.addOperator("doesNotContain", (factValue, jsonValue) => {
+    if (factValue === undefined || factValue === null) return true;
+    if (Array.isArray(factValue)) return !factValue.includes(jsonValue);
+    return !String(factValue).includes(String(jsonValue));
+  });
+};
+
+export const createConditionEngine = () => {
+  const engine = new Engine([], { allowUndefinedFacts: true });
+  registerStringOperators(engine);
+  return engine;
 };

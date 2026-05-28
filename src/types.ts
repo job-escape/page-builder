@@ -239,6 +239,18 @@ export interface OpenUrlAction {
   };
 }
 
+export interface OpenIntercomAction {
+  id: string;
+  type: "open_intercom";
+  params: Record<string, never>;
+}
+
+export interface RefreshSessionAction {
+  id: string;
+  type: "refresh_session";
+  params: Record<string, never>;
+}
+
 export interface SubmitFormAction {
   id: string;
   type: "submit_form";
@@ -434,6 +446,8 @@ export type LogicAction =
   | PlayVideoAction
   | UnmuteVideoAction
   | OpenUrlAction
+  | OpenIntercomAction
+  | RefreshSessionAction
   | SubmitFormAction
   | AnalyticsAction
   | SetTimeoutAction

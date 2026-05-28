@@ -104,6 +104,7 @@ export { default as AnimatedContainerRegistry } from "./ui/components/animated-c
 export { default as AnimatedPercentageRegistry } from "./ui/components/animated-percentage";
 export { default as ButtonRegistry } from "./ui/components/button";
 export { default as ConditionRegistry } from "./ui/components/condition";
+export { default as ContainerRegistry } from "./ui/components/container";
 export { default as InlineDataRegistry } from "./ui/components/inline-data";
 export { default as LightLoaderRegistry } from "./ui/components/light-loader";
 export { default as LoaderRegistry } from "./ui/components/loader";
