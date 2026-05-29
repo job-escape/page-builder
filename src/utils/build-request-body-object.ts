@@ -80,6 +80,18 @@ export const buildRequestBodyObject = ({
       return body;
     }
 
+    if (field.spreadAnswers && field.valueDataType) {
+      const prefix = `${field.valueDataType}-`;
+      const spreadObj: Record<string, PrimitiveValue | string[]> = {};
+      for (const [answerKey, answerValue] of Object.entries(answers)) {
+        if (answerKey.startsWith(prefix) && answerValue != null) {
+          spreadObj[answerKey.slice(prefix.length)] = answerValue;
+        }
+      }
+      body[field.key] = spreadObj;
+      return body;
+    }
+
     const value =
       resolveRequestBodyField({
         field,

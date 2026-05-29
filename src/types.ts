@@ -500,6 +500,7 @@ export interface BodyField {
   value?: string;
   valueDataType?: string;
   factName?: string;
+  spreadAnswers?: boolean;
 }
 
 export interface RequestHeader {
