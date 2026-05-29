@@ -88,7 +88,11 @@ export const buildRequestBodyObject = ({
           spreadObj[answerKey.slice(prefix.length)] = answerValue;
         }
       }
-      body[field.key] = spreadObj;
+      const existing = body[field.key];
+      body[field.key] =
+        existing !== null && typeof existing === "object" && !Array.isArray(existing)
+          ? { ...(existing as Record<string, unknown>), ...spreadObj }
+          : spreadObj;
       return body;
     }
 
