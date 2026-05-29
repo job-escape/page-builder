@@ -1,6 +1,7 @@
 import HTMLReactParser, { Element, HTMLReactParserOptions } from "html-react-parser/lib/index";
 
 import { ComponentRegisry } from "../types";
+import { resolveSeniorFactor, scaleSeniorStyleString } from "../utils/scale-senior-styles";
 
 export default function Parser({
   content,
@@ -18,10 +19,15 @@ export default function Parser({
         const Component = registry[componentType];
 
         if (Component) return <Component config={config} domNode={domNode} />;
-        else if (componentType && componentType !== "container") {
-        }
 
-        if (componentType && !Component) {
+        // Plain element (text span, paragraph, etc.): scale its inline
+        // font-size/spacing for senior mode. Registry components are handled by
+        // useStyledNode, so they're skipped above to avoid double-scaling.
+        if (domNode.attribs?.style) {
+          const factor = resolveSeniorFactor(domNode.attribs);
+          if (factor) {
+            domNode.attribs.style = scaleSeniorStyleString(domNode.attribs.style, factor);
+          }
         }
       }
     },

@@ -77,6 +77,15 @@ export { usePage } from "./hooks/use-page";
 export { useActiveState } from "./hooks/use-active-state";
 export { useStyledNode } from "./hooks/use-styled-node";
 export { useInteraction } from "./hooks/use-interaction";
+
+// ─── Senior-mode style scaling ───────────────────────────────────────────────
+
+export {
+  SENIOR_DEFAULT_FACTOR,
+  resolveSeniorFactor,
+  scaleCssValue,
+  scaleSeniorStyles,
+} from "./utils/scale-senior-styles";
 export type {
   InteractionOptions,
   WriteUserDataOptions,
