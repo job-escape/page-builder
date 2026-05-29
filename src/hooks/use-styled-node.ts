@@ -1,8 +1,6 @@
 // use-styled-node.ts
 import { css, CSSObject, SerializedStyles } from "@emotion/react";
 
-import { resolveSeniorFactor, scaleSeniorStyles } from "../utils/scale-senior-styles";
-
 function toCamelCase(prop: string): string {
   if (prop.startsWith("--")) {
     return prop;
@@ -41,23 +39,15 @@ function withHover(
 }
 
 export function useStyledNode(attribs: Record<string, string>): SerializedStyles {
-  // When the element opts into senior mode, scale typography/spacing up.
-  // No-op (identity) when the `senior` attribute is absent.
-  const seniorFactor = resolveSeniorFactor(attribs);
-  const parse = (value: string | undefined): Record<string, string> => {
-    const parsed = parseStyleString(value ?? "");
-    return seniorFactor ? scaleSeniorStyles(parsed, seniorFactor) : parsed;
-  };
-
-  const shared = parse(attribs.style);
-  const sharedHover = parse(attribs["hover-style"]);
-  const sharedDisabled = parse(attribs["disabled-style"]);
-  const desktop = parse(attribs["desktop-style"]);
-  const desktopHover = parse(attribs["desktop-hover-style"]);
-  const desktopDisabled = parse(attribs["desktop-disabled-style"]);
-  const mobile = parse(attribs["mobile-style"]);
-  const mobileHover = parse(attribs["mobile-hover-style"]);
-  const mobileDisabled = parse(attribs["mobile-disabled-style"]);
+  const shared = parseStyleString(attribs.style ?? "");
+  const sharedHover = parseStyleString(attribs["hover-style"] ?? "");
+  const sharedDisabled = parseStyleString(attribs["disabled-style"] ?? "");
+  const desktop = parseStyleString(attribs["desktop-style"] ?? "");
+  const desktopHover = parseStyleString(attribs["desktop-hover-style"] ?? "");
+  const desktopDisabled = parseStyleString(attribs["desktop-disabled-style"] ?? "");
+  const mobile = parseStyleString(attribs["mobile-style"] ?? "");
+  const mobileHover = parseStyleString(attribs["mobile-hover-style"] ?? "");
+  const mobileDisabled = parseStyleString(attribs["mobile-disabled-style"] ?? "");
 
   return css({
     ...shared,
