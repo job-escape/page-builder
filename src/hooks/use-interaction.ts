@@ -26,6 +26,7 @@ import {
   RequestEnv,
   RequestLifecycleAction,
   RequestStatus,
+  RequestTiming,
   TiktokPushAction,
   WriteResponseDataAction,
 } from "../types";
@@ -588,6 +589,7 @@ export const useInteraction = () => {
 
           // ── Fetch ──────────────────────────────────────────────────────────
           const extraHeaders = model.getHttpRequestHeaders?.() ?? {};
+          const fetchStart = performance.now();
           try {
             const res = await fetch(fullUrl, {
               method: requestConfig.method,
@@ -624,7 +626,17 @@ export const useInteraction = () => {
               ok: res.ok,
               matched_lifecycle_status: matched?.status ?? null,
               response_has_body: responseData !== null,
+              duration_ms: Math.round(performance.now() - fetchStart),
             });
+
+            logger[res.ok ? "info" : "warn"]("request_timing", {
+              kind: "http_action",
+              url: fullUrl,
+              method: requestConfig.method,
+              status: res.status,
+              ok: res.ok,
+              duration_ms: Math.round(performance.now() - fetchStart),
+            } satisfies RequestTiming);
 
             if (matched) {
               for (const a of matched.actions) {
@@ -648,8 +660,18 @@ export const useInteraction = () => {
               url: fullUrl,
               method: requestConfig.method,
               env: requestConfig.env,
+              duration_ms: Math.round(performance.now() - fetchStart),
               error,
             });
+
+            logger.warn("request_timing", {
+              kind: "http_action",
+              url: fullUrl,
+              method: requestConfig.method,
+              ok: false,
+              duration_ms: Math.round(performance.now() - fetchStart),
+            } satisfies RequestTiming);
+
             await runLifecycle(requestConfig.lifecycleActions, "error_network", runAction, context);
           }
 

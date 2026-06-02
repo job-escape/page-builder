@@ -515,6 +515,24 @@ export interface ResponseMapping {
   factName: string;
 }
 
+/**
+ * Normalized timing envelope for every network request the builder makes.
+ * Logged to Axiom under a single `request_timing` message so latency across
+ * all request kinds can be queried in one place:
+ *   request_timing | summarize p95=percentile(duration_ms, 95) by kind
+ */
+export interface RequestTiming {
+  kind: "mdx" | "page" | "pages_by_order" | "dialog" | "http_action";
+  duration_ms: number;
+  ok: boolean;
+  page_id?: number;
+  url?: string;
+  status?: number;
+  method?: string;
+  lang?: string;
+  order?: number;
+}
+
 export type RequestStatus =
   | "pending"
   | "success"

@@ -1,7 +1,14 @@
 import { createQuery } from "@farfetched/core";
 import { combine, createEffect, createEvent, createStore, sample } from "effector";
 
-import { Answers, BuilderDialog, BuilderPage, ComponentRegisry, StoredValue } from "../types";
+import {
+  Answers,
+  BuilderDialog,
+  BuilderPage,
+  ComponentRegisry,
+  RequestTiming,
+  StoredValue,
+} from "../types";
 import { normalizePageHistory, resolvePreviousPage } from "../utils/previous-page";
 
 export default function createBuilderModel<Page extends BuilderPage = BuilderPage>({
@@ -23,6 +30,62 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
    */
   getHttpRequestHeaders?: () => Record<string, string>;
 }) {
+  // Single normalized timing stream for every request this model makes. Logged
+  // to Axiom as `request_timing` by the React layer (see builder-client.tsx).
+  const requestTimingEvt = createEvent<RequestTiming>();
+
+  const timedFetchPage = async (params: { id: number; lang?: string }) => {
+    const start = performance.now();
+    try {
+      const result = await fetchPage(params);
+      requestTimingEvt({
+        kind: "page",
+        page_id: params.id,
+        lang: params.lang,
+        duration_ms: Math.round(performance.now() - start),
+        ok: true,
+      });
+      return result;
+    } catch (error) {
+      requestTimingEvt({
+        kind: "page",
+        page_id: params.id,
+        lang: params.lang,
+        duration_ms: Math.round(performance.now() - start),
+        ok: false,
+      });
+      throw error;
+    }
+  };
+
+  // Wraps the optional `fetchPagesByOrder` callback so previous-page resolution
+  // by order is timed too (otherwise it's a blind spot in Axiom).
+  const timedFetchPagesByOrder = fetchPagesByOrder
+    ? async (params: { order: number; lang?: string }) => {
+        const start = performance.now();
+        try {
+          const result = await fetchPagesByOrder(params);
+          requestTimingEvt({
+            kind: "pages_by_order",
+            order: params.order,
+            lang: params.lang,
+            duration_ms: Math.round(performance.now() - start),
+            ok: true,
+          });
+          return result;
+        } catch (error) {
+          requestTimingEvt({
+            kind: "pages_by_order",
+            order: params.order,
+            lang: params.lang,
+            duration_ms: Math.round(performance.now() - start),
+            ok: false,
+          });
+          throw error;
+        }
+      }
+    : undefined;
+
   const initEvt = createEvent<{
     initialPageId: number;
     initialPageHistory?: number[];
@@ -89,9 +152,41 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     async (pages: Page[]): Promise<{ id: number; html: string }[]> => {
       const result = await Promise.all(
         pages.map(async (page) => {
-          const response = await fetch(page.mdx_url);
-          if (!response.ok) throw new Error(`Failed to fetch html for page ${page.id}`);
+          const start = performance.now();
+          let response: Response;
+          try {
+            response = await fetch(page.mdx_url);
+          } catch (error) {
+            // network-level failure (DNS, offline, CORS)
+            requestTimingEvt({
+              kind: "mdx",
+              page_id: page.id,
+              url: page.mdx_url,
+              duration_ms: Math.round(performance.now() - start),
+              ok: false,
+            });
+            throw error;
+          }
+          if (!response.ok) {
+            requestTimingEvt({
+              kind: "mdx",
+              page_id: page.id,
+              url: page.mdx_url,
+              status: response.status,
+              duration_ms: Math.round(performance.now() - start),
+              ok: false,
+            });
+            throw new Error(`Failed to fetch html for page ${page.id}`);
+          }
           const html = await response.text();
+          requestTimingEvt({
+            kind: "mdx",
+            page_id: page.id,
+            url: page.mdx_url,
+            status: response.status,
+            duration_ms: Math.round(performance.now() - start),
+            ok: true,
+          });
           return { id: page.id, html };
         }),
       );
@@ -161,8 +256,8 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   >(async ({ currentPage, lang, pageHistory, pages }) => {
     return resolvePreviousPage({
       currentPage,
-      fetchPage,
-      fetchPagesByOrder,
+      fetchPage: timedFetchPage,
+      fetchPagesByOrder: timedFetchPagesByOrder,
       lang,
       pageHistory,
       pages,
@@ -179,8 +274,8 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   >(async ({ currentPage, lang, pageHistory, pages }) => {
     return resolvePreviousPage({
       currentPage,
-      fetchPage,
-      fetchPagesByOrder,
+      fetchPage: timedFetchPage,
+      fetchPagesByOrder: timedFetchPagesByOrder,
       lang,
       pageHistory,
       pages,
@@ -253,7 +348,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   const fetchPagesQuery = createQuery({
     name: "fetchPages",
     handler: async ({ pageIds, lang }: { pageIds: number[]; lang?: string }) => {
-      const result = await Promise.all(pageIds.map((id) => fetchPage({ id, lang })));
+      const result = await Promise.all(pageIds.map((id) => timedFetchPage({ id, lang })));
       return result;
     },
   });
@@ -303,7 +398,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   // dedicated effect (not the shared query) so it can't be superseded by the prefetch.
   // Loading it flips $currentPage null→node, which re-fires the prefetch above.
   const ensureCurrentPageFx = createEffect(({ id, lang }: { id: number; lang?: string }) =>
-    fetchPage({ id, lang }),
+    timedFetchPage({ id, lang }),
   );
 
   sample({
@@ -386,6 +481,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     $screenIndex,
     $isFetchingPage,
     $hasFetchFailed,
+    requestTimingEvt,
   };
 }
 

@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import dynamic from "next/dynamic";
 
+import { useLogger } from "next-axiom";
+
 import { ComponentType, useEffect, useRef, useState } from "react";
 
 import { BuilderClientModel } from "../model/gate";
@@ -13,7 +15,7 @@ import LocalProvider from "../providers/local-provider";
 import ModelProvider, { ClientModelProvider } from "../providers/model-provider";
 import PageProvider from "../providers/page-provider";
 import { PreloadProvider } from "../providers/preload-context";
-import { BuilderPage, ComponentRegisry } from "../types";
+import { BuilderPage, ComponentRegisry, RequestTiming } from "../types";
 
 import BuilderClientLoadingPage from "./builder-client-loading-page";
 import { FallbackTeaserPage, FallbackTeaserPageWithNavigation } from "./fallback-teaser-page";
@@ -38,6 +40,22 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
   const registry = registryProp ?? model.registry ?? {};
   const preloadRegistry = preloadRegistryProp ?? model.preloadRegistry ?? registry;
   useGate(clientModel.BuilderGate);
+
+  const logger = useLogger();
+  const loggerRef = useRef(logger);
+  useEffect(() => { loggerRef.current = logger; });
+
+  useEffect(() => {
+    const logTiming = (t: RequestTiming) => {
+      loggerRef.current[t.ok ? "info" : "warn"]("request_timing", t);
+    };
+    const unsubModel = model.requestTimingEvt.watch(logTiming);
+    const unsubClient = clientModel.requestTimingEvt.watch(logTiming);
+    return () => {
+      unsubModel();
+      unsubClient();
+    };
+  }, [model, clientModel]);
 
   useEffect(() => {
     (PageDialog as typeof PageDialog & { preload?: () => Promise<unknown> }).preload?.();
