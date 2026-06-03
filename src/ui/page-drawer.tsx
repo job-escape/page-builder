@@ -1,6 +1,6 @@
 /** @jsxImportSource @emotion/react */
+import { Drawer } from "@heroui/react";
 import { domToReact, Element, type DOMNode } from "html-react-parser";
-import { Drawer, Drawer as DrawerPrimitive } from "vaul";
 
 import { createContext, useContext, useEffect, useRef } from "react";
 
@@ -11,6 +11,17 @@ import { BuilderDialog, ComponentRegisry, ComponentRegistryProps, LogicValue } f
 import { tryParse } from "../utils/try-parse";
 
 import Parser from "./parser";
+
+type DrawerType = React.ComponentType<Record<string, unknown>> & {
+  Backdrop: React.ComponentType<Record<string, unknown>>;
+  Content: React.ComponentType<Record<string, unknown>>;
+  Dialog: React.ComponentType<Record<string, unknown>>;
+};
+
+const DrawerAny = Drawer as unknown as DrawerType;
+
+const DISABLE_ANIMATION =
+  "data-[entering]:duration-0 data-[exiting]:duration-0 data-[entering]:animate-none data-[exiting]:animate-none";
 
 const PageDrawerContext = createContext<{
   onOpenChange: (open: boolean) => void;
@@ -56,9 +67,9 @@ function DrawerContentReg({ domNode, config }: ComponentRegistryProps) {
   }, [logic]);
 
   return (
-    <DrawerPrimitive.Content style={{ pointerEvents: "auto" }} css={css}>
+    <div style={{ pointerEvents: "auto" }} css={css}>
       {domToReact(domNode.children as DOMNode[], config)}
-    </DrawerPrimitive.Content>
+    </div>
   );
 }
 
@@ -87,19 +98,40 @@ export default function PageDrawer({
     "drawer-content": DrawerContentReg,
   };
 
-  if (dialog.html) {
-    return (
-      <PageDrawerContext.Provider value={{ onOpenChange, onDismissRef }}>
-        <Drawer.Root modal={false} open={open} onOpenChange={handleOpenChange}>
-          <Drawer.Portal forceMount={dialog.force_mount || undefined}>
-            <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
-              <Parser content={dialog.html} registry={drawerRegistry} />
-            </div>
-          </Drawer.Portal>
-        </Drawer.Root>
-      </PageDrawerContext.Provider>
-    );
+  const html = dialog.html;
+  if (!html) {
+    return null;
   }
 
-  return null;
+  if (!open && !dialog.force_mount) {
+    return null;
+  }
+
+  return (
+    <PageDrawerContext.Provider value={{ onOpenChange, onDismissRef }}>
+      <DrawerAny>
+        <DrawerAny.Backdrop
+          isOpen={open}
+          onOpenChange={handleOpenChange}
+          variant="transparent"
+          isDismissable={false}
+          isKeyboardDismissDisabled
+          className={`hidden bg-transparent ${DISABLE_ANIMATION}`}
+        >
+          <DrawerAny.Content
+            placement="bottom"
+            className={`items-stretch justify-stretch p-0 max-w-none ${DISABLE_ANIMATION}`}
+          >
+            <DrawerAny.Dialog
+              className={`bg-transparent shadow-none m-0 max-w-none rounded-none h-auto outline-none ${DISABLE_ANIMATION}`}
+            >
+              <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
+                <Parser content={html} registry={drawerRegistry} />
+              </div>
+            </DrawerAny.Dialog>
+          </DrawerAny.Content>
+        </DrawerAny.Backdrop>
+      </DrawerAny>
+    </PageDrawerContext.Provider>
+  );
 }
