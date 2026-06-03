@@ -80,6 +80,7 @@ export { useInteraction } from "./hooks/use-interaction";
 export type {
   InteractionOptions,
   WriteUserDataOptions,
+  GbFeatureOptions,
   OpenDialogOptions,
   SetSelectedSubscriptionOptions,
   SpinStartOptions,

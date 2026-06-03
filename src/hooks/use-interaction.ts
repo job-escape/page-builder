@@ -50,6 +50,12 @@ export interface WriteUserDataOptions {
   getValue: (factName: string) => PrimitiveValue | undefined;
 }
 
+export interface GbFeatureOptions {
+  // Resolve a GrowthBook feature value by name. Lives in the host app because
+  // page-builder is GrowthBook-agnostic (same pattern as write_user_data).
+  getFeatureValue: (featureName: string) => PrimitiveValue | string[] | undefined;
+}
+
 export interface OpenDialogOptions {
   getDialogId?: (dialogId: string) => string;
 }
@@ -82,6 +88,7 @@ export interface RefreshSessionOptions {
 
 export interface InteractionOptions {
   write_user_data?: WriteUserDataOptions;
+  gb_feature?: GbFeatureOptions;
   open_dialog?: OpenDialogOptions;
   open_intercom?: OpenIntercomOptions;
   refresh_session?: RefreshSessionOptions;
@@ -342,6 +349,53 @@ export const useInteraction = () => {
             localUser = { ...localUser, [key]: resolvedValue };
             runtimeAnswers = { ...runtimeAnswers, [key as keyof Answers]: resolvedValue };
             setAnswers({ key, value: resolvedValue });
+          }
+          break;
+        }
+
+        case "gb_feature": {
+          const { featureName, fact, factDataType } = action.params;
+
+          if (!featureName || !fact) {
+            logger.warn("gb_feature action missing featureName or destination key", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+
+          const getFeatureValue = options?.gb_feature?.getFeatureValue;
+          if (!getFeatureValue) {
+            logger.warn("gb_feature action has no host resolver", {
+              action_type: action.type,
+              action_params: action.params,
+            });
+            break;
+          }
+
+          const featureValue = getFeatureValue(featureName);
+          if (featureValue === undefined || featureValue === null) {
+            logger.warn("gb_feature value could not be resolved", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+              feature_name: featureName,
+            });
+            break;
+          }
+
+          // factDataType === "local" → local state; otherwise → user data fact.
+          if (factDataType === "local") {
+            runtimeLocalStates = { ...runtimeLocalStates, [fact]: featureValue };
+            setLocalState({ key: fact, value: featureValue });
+          } else {
+            const key = getFactKey(fact, factDataType);
+            localUser = { ...localUser, [key]: featureValue };
+            runtimeAnswers = { ...runtimeAnswers, [key as keyof Answers]: featureValue };
+            setAnswers({ key, value: featureValue });
           }
           break;
         }

@@ -158,6 +158,18 @@ export interface WriteResponseDataAction {
   };
 }
 
+export interface GbFeatureAction {
+  id: string;
+  type: "gb_feature";
+  params: {
+    featureName: string;
+    // Destination key. When `factDataType` is "local" it is a local-state key,
+    // otherwise it is a user-data fact name.
+    fact: string;
+    factDataType?: string;
+  };
+}
+
 export interface NextPageAction {
   id: string;
   type: "next_page";
@@ -436,6 +448,7 @@ export type LogicAction =
   | WriteLocalStateAction
   | MapLocalStateAction
   | WriteResponseDataAction
+  | GbFeatureAction
   | NextPageAction
   | PrevPageAction
   | OpenDialogAction
