@@ -1,5 +1,5 @@
 /** @jsxImportSource @emotion/react */
-import { Modal } from "@heroui/react";
+import { Dialog, DialogContent, DialogPortal } from "@radix-ui/react-dialog";
 import { domToReact, Element, type DOMNode } from "html-react-parser";
 
 import { createContext } from "react";
@@ -11,17 +11,6 @@ import { BuilderDialog, ComponentRegisry, ComponentRegistryProps, LogicValue } f
 import { tryParse } from "../utils/try-parse";
 
 import Parser from "./parser";
-
-type ModalType = React.ComponentType<Record<string, unknown>> & {
-  Backdrop: React.ComponentType<Record<string, unknown>>;
-  Container: React.ComponentType<Record<string, unknown>>;
-  Dialog: React.ComponentType<Record<string, unknown>>;
-};
-
-const ModalAny = Modal as unknown as ModalType;
-
-const DISABLE_ANIMATION =
-  "data-[entering]:duration-0 data-[exiting]:duration-0 data-[entering]:animate-none data-[exiting]:animate-none";
 
 const PageDialogContext = createContext<{
   onOpenChange: (open: boolean) => void;
@@ -46,9 +35,18 @@ function DialogContentReg({ domNode, config }: ComponentRegistryProps) {
   const css = useStyledNode(domNode.attribs);
 
   return (
-    <div css={css} style={{ pointerEvents: "auto" }}>
+    <DialogContent
+      css={css}
+      style={{ pointerEvents: "auto" }}
+      onInteractOutside={(e) => {
+        e.preventDefault();
+      }}
+      onEscapeKeyDown={(e) => {
+        e.preventDefault();
+      }}
+    >
       {domToReact(domNode.children as DOMNode[], config)}
-    </div>
+    </DialogContent>
   );
 }
 
@@ -70,39 +68,22 @@ export default function PageDialog({
     "dialog-content": DialogContentReg,
   };
 
-  const html = dialog.html;
-  if (!html) {
-    return null;
-  }
-
-  if (!open && !dialog.force_mount) {
-    return null;
-  }
-
-  return (
-    <PageDialogContext.Provider value={{ onOpenChange }}>
-      <ModalAny>
-        <ModalAny.Backdrop
-          isOpen={open}
-          onOpenChange={onOpenChange}
-          variant="transparent"
-          isDismissable={false}
-          isKeyboardDismissDisabled
-          className={`hidden bg-transparent ${DISABLE_ANIMATION}`}
-        >
-          <ModalAny.Container
-            className={`items-stretch justify-stretch p-0 max-w-none ${DISABLE_ANIMATION}`}
-          >
-            <ModalAny.Dialog
-              className={`bg-transparent shadow-none m-0 max-w-none rounded-none outline-none ${DISABLE_ANIMATION}`}
+  if (dialog.html) {
+    return (
+      <PageDialogContext.Provider value={{ onOpenChange }}>
+        <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
+          <DialogPortal forceMount={dialog.force_mount || undefined}>
+            <div
+              aria-hidden={!open}
+              style={{ display: open ? "contents" : "none" }}
             >
-              <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
-                <Parser content={html} registry={dialogRegistry} />
-              </div>
-            </ModalAny.Dialog>
-          </ModalAny.Container>
-        </ModalAny.Backdrop>
-      </ModalAny>
-    </PageDialogContext.Provider>
-  );
+              <Parser content={dialog.html} registry={dialogRegistry} />
+            </div>
+          </DialogPortal>
+        </Dialog>
+      </PageDialogContext.Provider>
+    );
+  }
+
+  return null;
 }
