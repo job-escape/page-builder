@@ -11,6 +11,7 @@ import { ComponentRegistryProps, LogicValue } from "../../types";
 import { tryParse } from "../../utils/try-parse";
 
 import { Progress } from "../internal/progress";
+import { cn } from "../../lib/cn";
 
 const getNumberAttr = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
@@ -20,11 +21,10 @@ const getNumberAttr = (value: string | undefined, fallback: number) => {
 const getLogic  = (raw: string) => tryParse<LogicValue>(raw)      || [];
 const getStates = (raw: string) => tryParse<NodeStatesValue>(raw) || [];
 
-// Height in px (applied inline by <Progress>) — matches shadcn h-1.5 / h-3 / h-4.
-const VARIANT_HEIGHT: Record<string, number> = {
-  slim:    6,
-  thick:   16,
-  default: 12,
+const VARIANT_HEIGHT: Record<string, string> = {
+  slim:    "h-1.5",
+  thick:   "h-4",
+  default: "h-3",
 };
 
 export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
@@ -134,8 +134,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
     <div className="relative w-full" data-variant={variant}>
       <Progress
         value={targetValue}
-        className="w-full"
-        barHeight={VARIANT_HEIGHT[variant] ?? VARIANT_HEIGHT.default}
+        className={cn("w-full", VARIANT_HEIGHT[variant] ?? VARIANT_HEIGHT.default)}
         indicatorClassName={cssReady ? "transition-transform ease-linear" : "transition-none"}
         transitionDuration={cssReady ? `${transitionDuration}ms` : undefined}
       />
