@@ -21,10 +21,11 @@ const getNumberAttr = (value: string | undefined, fallback: number) => {
 const getLogic  = (raw: string) => tryParse<LogicValue>(raw)      || [];
 const getStates = (raw: string) => tryParse<NodeStatesValue>(raw) || [];
 
+// "!" so these win over HeroUI's descendant-selector track height (h-2).
 const VARIANT_HEIGHT: Record<string, string> = {
-  slim:    "h-1.5",
-  thick:   "h-4",
-  default: "h-3",
+  slim:    "!h-1.5",
+  thick:   "!h-4",
+  default: "!h-3",
 };
 
 export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {

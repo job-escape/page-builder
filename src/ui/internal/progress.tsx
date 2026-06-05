@@ -36,14 +36,26 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         value={value ?? 0}
         maxValue={max}
         aria-label="progress"
-        className={cn("h-4 w-full", className)}
+        className="w-full"
         style={mergedStyle}
         {...(props as Record<string, unknown>)}
       >
-        <HeroProgressAny.Track className="h-full bg-secondary">
+        {/*
+          HeroUI's ".progress-bar .progress-bar__track" rule applies "h-2" via a
+          descendant selector, which out-specifies plain utility classes. We force
+          the shadcn sizing convention (default h-4, full pill) on the track with
+          "!" utilities so the height/shape actually win. The consumer's className
+          (e.g. a variant height) is forwarded here and overrides the default.
+        */}
+        <HeroProgressAny.Track
+          className={cn(
+            "relative w-full overflow-hidden !h-4 !rounded-full bg-secondary",
+            className,
+          )}
+        >
           <HeroProgressAny.Fill
             className={cn(
-              "bg-brand",
+              "h-full !rounded-full bg-brand",
               transitionDuration && "[transition-duration:var(--progress-duration)]",
               indicatorClassName,
             )}
