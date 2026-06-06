@@ -1,7 +1,16 @@
+import Cookies from "js-cookie";
+
 import { Answers, PrimitiveValue } from "../types";
 
 const isDateNowDataType = (dataType?: string): boolean =>
   dataType === "date_now" || dataType === "date.now()";
+
+// js-cookie reads `document.cookie`, so guard against SSR where it is absent
+// (this util is also re-exported from the server entry).
+const readCookie = (name: string): string | undefined => {
+  if (typeof document === "undefined") return undefined;
+  return Cookies.get(name);
+};
 
 const normalizeAnswerValue = (value: Answers[keyof Answers] | undefined): PrimitiveValue | undefined => {
   if (Array.isArray(value)) {
@@ -46,6 +55,10 @@ export const resolveValuePicker = ({
 
   if (dataType === "local") {
     return localStates[value];
+  }
+
+  if (dataType === "cookie") {
+    return readCookie(value);
   }
 
   if (dataType === "trigger") {

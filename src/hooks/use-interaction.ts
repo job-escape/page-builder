@@ -611,18 +611,6 @@ export const useInteraction = () => {
           }
 
           const fullUrl = `${BASE_URLS[requestConfig.env] ?? ""}${requestConfig.url}`;
-          logger.info("http_request action started", {
-            action_type: action.type,
-            action_params: action.params,
-            answers: runtimeAnswers,
-            local_states: runtimeLocalStates,
-            url: fullUrl,
-            method: requestConfig.method,
-            env: requestConfig.env,
-            request_url: requestConfig.url,
-            request_headers_count: requestConfig.headers.length,
-            lifecycle_actions_count: requestConfig.lifecycleActions.length,
-          });
 
           // ── Headers ────────────────────────────────────────────────────────
           const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -636,6 +624,20 @@ export const useInteraction = () => {
             answers: runtimeAnswers,
             localStates: runtimeLocalStates,
             triggerPayload: context?.triggerPayload,
+          });
+
+          logger.info("http_request action started", {
+            action_type: action.type,
+            action_params: action.params,
+            answers: runtimeAnswers,
+            local_states: runtimeLocalStates,
+            url: fullUrl,
+            method: requestConfig.method,
+            env: requestConfig.env,
+            request_url: requestConfig.url,
+            request_headers_count: requestConfig.headers.length,
+            request_body: bodyObject,
+            lifecycle_actions_count: requestConfig.lifecycleActions.length,
           });
 
           // ── Pending lifecycle ──────────────────────────────────────────────

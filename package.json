@@ -41,6 +41,7 @@
   "dependencies": {
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "js-cookie": "^3.0.8",
     "json-rules-engine": "^7.3.1",
     "lucide-react": "^0.525.0",
     "tailwind-merge": "^2.6.1",
@@ -74,6 +75,7 @@
     "@radix-ui/react-progress": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "@types/jest": "^30.0.0",
+    "@types/js-cookie": "^3.0.6",
     "@types/node": "^20.12.11",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.17",

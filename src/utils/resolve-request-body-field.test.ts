@@ -47,6 +47,25 @@ describe("resolveRequestBodyField", () => {
     ).toBe("test@example.com");
   });
 
+  it("reads cookie values from the new value-picker shape", () => {
+    document.cookie = "_fbc=fb.1.1700000000.abc123; path=/";
+
+    expect(
+      resolveRequestBodyField({
+        field: {
+          id: "1",
+          key: "fbc",
+          value: "_fbc",
+          valueDataType: "cookie",
+        },
+        answers: {},
+        localStates: {},
+      }),
+    ).toBe("fb.1.1700000000.abc123");
+
+    document.cookie = "_fbc=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+  });
+
   it("supports legacy factName fields as funnel_data facts", () => {
     expect(
       resolveRequestBodyField({

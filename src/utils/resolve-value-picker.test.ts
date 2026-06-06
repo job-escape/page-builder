@@ -24,6 +24,36 @@ describe("resolveValuePicker", () => {
     ).toBe("uuid-123");
   });
 
+  describe("cookie data type", () => {
+    afterEach(() => {
+      document.cookie = "_fbc=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    });
+
+    it("reads values from cookies", () => {
+      document.cookie = "_fbc=fb.1.1700000000.abc123; path=/";
+
+      expect(
+        resolveValuePicker({
+          value: "_fbc",
+          dataType: "cookie",
+          answers: {},
+          localStates: {},
+        }),
+      ).toBe("fb.1.1700000000.abc123");
+    });
+
+    it("returns undefined when the cookie is absent", () => {
+      expect(
+        resolveValuePicker({
+          value: "_missing_cookie",
+          dataType: "cookie",
+          answers: {},
+          localStates: {},
+        }),
+      ).toBeUndefined();
+    });
+  });
+
   it("returns the current timestamp for date.now() values", () => {
     const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1710000000000);
 
