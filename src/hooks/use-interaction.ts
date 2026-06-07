@@ -1,4 +1,5 @@
 import { useUnit } from "effector-react";
+import Cookies from "js-cookie";
 import { v4 as uuidv4 } from "uuid";
 
 import { useLogger } from "next-axiom";
@@ -148,6 +149,19 @@ function wait(delay: number): Promise<void> {
 const BASE_URLS: Record<RequestEnv, string> = {
   users: process.env.NEXT_PUBLIC_API_URL ?? "",
   funnel: process.env.NEXT_PUBLIC_FUNNEL_API_URL ?? "",
+};
+
+// Facebook attribution cookies, read straight off the browser via js-cookie and
+// logged on every http_request so we can debug why an outbound payload did or
+// didn't pick them up. SSR-guarded — `document` is absent on the server.
+const FB_COOKIE_NAMES = ["_fbc", "_fbp", "fbclid"] as const;
+
+const readFbCookies = (): Record<string, string | undefined> => {
+  if (typeof document === "undefined") return {};
+  return FB_COOKIE_NAMES.reduce<Record<string, string | undefined>>((acc, name) => {
+    acc[name] = Cookies.get(name);
+    return acc;
+  }, {});
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -637,6 +651,7 @@ export const useInteraction = () => {
             request_url: requestConfig.url,
             request_headers_count: requestConfig.headers.length,
             request_body: bodyObject,
+            cookies: readFbCookies(),
             lifecycle_actions_count: requestConfig.lifecycleActions.length,
           });
 
