@@ -33,6 +33,11 @@ export {
 export { default as PageProvider, PageContext } from "./providers/page-provider";
 export { PreloadProvider, usePreload } from "./providers/preload-context";
 export {
+  ComponentResolverProvider,
+  useComponentResolver,
+} from "./providers/component-resolver-context";
+export type { ComponentResolver } from "./providers/component-resolver-context";
+export {
   InteractionAnalyticsContext,
   useInteractionAnalytics,
 } from "./providers/interaction-analytics-context";
@@ -104,6 +109,7 @@ export { DEFAULT_REGISTRY } from "./const/default-registry";
 export { default as AnimatedContainerRegistry } from "./ui/components/animated-container";
 export { default as AnimatedPercentageRegistry } from "./ui/components/animated-percentage";
 export { default as ButtonRegistry } from "./ui/components/button";
+export { default as ComponentRefRegistry } from "./ui/components/component-ref";
 export { default as ConditionRegistry } from "./ui/components/condition";
 export { default as ContainerRegistry } from "./ui/components/container";
 export { default as InlineDataRegistry } from "./ui/components/inline-data";
