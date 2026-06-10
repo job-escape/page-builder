@@ -164,6 +164,49 @@ const readFbCookies = (): Record<string, string | undefined> => {
   }, {});
 };
 
+// The full answers object is too large/noisy to ship to Axiom on every
+// http_request, so we log only this curated allow-list — attribution,
+// device, and identity fields we actually need to debug an outbound payload.
+const LOGGED_ANSWER_KEYS = [
+  "country_code",
+  "country_name",
+  "deviceId",
+  "device_type",
+  "fb-pixel",
+  "fb_timestamp",
+  "fbc",
+  "fbclid",
+  "fbp",
+  "gender",
+  "email",
+  "id",
+  "lang",
+  "quiz_version",
+  "user_agent",
+  "utm_ad",
+  "utm_adgroupid",
+  "utm_adset",
+  "utm_assetgroup",
+  "utm_button",
+  "utm_campaign",
+  "utm_content",
+  "utm_id",
+  "utm_keyword",
+  "utm_medium",
+  "utm_placement",
+  "utm_source",
+  "utm_tag",
+  "utm_term",
+] as const;
+
+const pickLoggedAnswers = (
+  answers: Record<string, PrimitiveValue | string[]>,
+): Record<string, PrimitiveValue | string[]> =>
+  LOGGED_ANSWER_KEYS.reduce<Record<string, PrimitiveValue | string[]>>((acc, key) => {
+    if (answers[key] !== undefined) acc[key] = answers[key];
+    return acc;
+  }, {});
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export const useInteraction = () => {
@@ -233,7 +276,7 @@ export const useInteraction = () => {
             logger.warn("write_local_state action missing key", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               source,
             });
@@ -257,7 +300,7 @@ export const useInteraction = () => {
             logger.warn("write_local_state action missing value", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               key,
               source,
@@ -309,7 +352,7 @@ export const useInteraction = () => {
             logger.warn("go_to_link action missing link", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
 
@@ -336,7 +379,7 @@ export const useInteraction = () => {
             logger.warn("write_user_data action missing fact", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -374,7 +417,7 @@ export const useInteraction = () => {
             logger.warn("gb_feature action missing featureName or destination key", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -394,7 +437,7 @@ export const useInteraction = () => {
             logger.warn("gb_feature value could not be resolved", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               feature_name: featureName,
             });
@@ -424,7 +467,7 @@ export const useInteraction = () => {
             logger.warn("open_dialog target dialog not found", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               available_dialog_ids: dialogs?.map((d) => d.uuid) ?? [],
               dialog_id: dialogId,
@@ -488,7 +531,7 @@ export const useInteraction = () => {
             logger.warn("scroll_to action missing target id", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -499,7 +542,7 @@ export const useInteraction = () => {
             logger.warn("scroll_to target element not found", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               element_id: elementId,
             });
@@ -523,7 +566,7 @@ export const useInteraction = () => {
             logger.warn("play_video action missing targetId", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -534,7 +577,7 @@ export const useInteraction = () => {
             logger.warn("play_video target is not a <video>", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               element_id: targetId,
             });
@@ -567,7 +610,7 @@ export const useInteraction = () => {
             logger.warn("unmute_video action missing targetId", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -578,7 +621,7 @@ export const useInteraction = () => {
             logger.warn("unmute_video target is not a <video>", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               element_id: targetId,
             });
@@ -617,7 +660,7 @@ export const useInteraction = () => {
             logger.error("http_request action config is invalid", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               raw_request: action.params.request,
             });
@@ -643,9 +686,10 @@ export const useInteraction = () => {
           logger.info("http_request action started", {
             action_type: action.type,
             action_params: action.params,
-            answers: runtimeAnswers,
+            answers: pickLoggedAnswers(runtimeAnswers),
             local_states: runtimeLocalStates,
             url: fullUrl,
+            page_url: typeof window !== "undefined" ? window.location.href : undefined,
             method: requestConfig.method,
             env: requestConfig.env,
             request_url: requestConfig.url,
@@ -689,7 +733,7 @@ export const useInteraction = () => {
 
             logger[res.ok ? "info" : "warn"]("http_request action completed", {
               action_type: action.type,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               url: fullUrl,
               method: requestConfig.method,
@@ -726,7 +770,7 @@ export const useInteraction = () => {
             logger.error("http_request action failed", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               url: fullUrl,
               method: requestConfig.method,
@@ -837,7 +881,7 @@ export const useInteraction = () => {
             logger.warn("pixel_track action missing event name", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -855,7 +899,7 @@ export const useInteraction = () => {
             logger.warn("pixel_track event id could not be resolved", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               event_name: eventName,
               event_id: eventId,
@@ -942,7 +986,7 @@ export const useInteraction = () => {
             logger.warn("gtm_push action missing event name", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1001,7 +1045,7 @@ export const useInteraction = () => {
             logger.warn("tiktok_push action missing event name", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1060,7 +1104,7 @@ export const useInteraction = () => {
             logger.warn("axon_push action missing event name", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1119,7 +1163,7 @@ export const useInteraction = () => {
             logger.warn("slide_to action missing id or index", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1131,7 +1175,7 @@ export const useInteraction = () => {
             logger.warn("slide_to action index is invalid", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               resolved_index: resolvedIndex,
             });
@@ -1149,7 +1193,7 @@ export const useInteraction = () => {
             logger.warn("swiper_slide_next action missing id", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1166,7 +1210,7 @@ export const useInteraction = () => {
             logger.warn("swiper_slide_prev action missing id", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1222,7 +1266,7 @@ export const useInteraction = () => {
             logger.warn("slides_next action missing slides_id", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1245,7 +1289,7 @@ export const useInteraction = () => {
             logger.warn("slides_prev action missing slides_id", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1268,7 +1312,7 @@ export const useInteraction = () => {
             logger.warn("slides_goto action missing slides_id or slide_index", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
@@ -1278,7 +1322,7 @@ export const useInteraction = () => {
             logger.warn("slides_goto action index is invalid", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
               resolved_index: resolvedIndex,
             });
@@ -1303,7 +1347,7 @@ export const useInteraction = () => {
             logger.warn("spin_start action missing wheel_id", {
               action_type: action.type,
               action_params: action.params,
-              answers: runtimeAnswers,
+              answers: pickLoggedAnswers(runtimeAnswers),
               local_states: runtimeLocalStates,
             });
             break;
