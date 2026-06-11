@@ -13,6 +13,7 @@ import { useAxonPixelAdapter } from "../providers/axon-pixel-context";
 import { usePixelAdapter } from "../providers/pixel-context";
 import { useTagManagerAdapter } from "../providers/tag-manager-context";
 import { useTiktokPixelAdapter } from "../providers/tiktok-pixel-context";
+import { useXPixelAdapter } from "../providers/x-pixel-context";
 import {
   Answers,
   AxonPushAction,
@@ -30,6 +31,7 @@ import {
   RequestTiming,
   TiktokPushAction,
   WriteResponseDataAction,
+  XPushAction,
 } from "../types";
 import { applyValueTransforms } from "../utils/apply-value-transforms";
 import { buildConditionFacts } from "../utils/build-condition-facts";
@@ -217,6 +219,7 @@ export const useInteraction = () => {
   const pixel = usePixelAdapter();
   const tagManager = useTagManagerAdapter();
   const tiktokPixel = useTiktokPixelAdapter();
+  const xPixel = useXPixelAdapter();
   const axonPixel = useAxonPixelAdapter();
   const logger = useLogger().with({ page_id: page.id });
   const { next, prev } = useNavigation();
@@ -1148,6 +1151,65 @@ export const useInteraction = () => {
             event,
             deepMergeAll(
               axonPixel.getProps?.(getAnalyticsContext()),
+              triggerPayloadProps,
+              resolvedFields,
+            ),
+          );
+          break;
+        }
+
+        case "x_push": {
+          const xPushAction = action as XPushAction;
+          const event = xPushAction.params.event;
+
+          if (!event) {
+            logger.warn("x_push action missing event name", {
+              action_type: action.type,
+              action_params: action.params,
+              answers: runtimeAnswers,
+              local_states: runtimeLocalStates,
+            });
+            break;
+          }
+
+          const fields = (xPushAction.params.fields ?? []) as Array<{
+            id: string;
+            localName: string;
+            analyticsName: string;
+            storeType: "manual" | "local" | "fact";
+          }>;
+
+          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
+            if (!field.analyticsName) return acc;
+
+            let resolvedValue: unknown;
+
+            switch (field.storeType) {
+              case "local":
+                resolvedValue = runtimeLocalStates[field.localName];
+                break;
+              case "fact":
+                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
+                break;
+              case "manual":
+              default:
+                resolvedValue = field.localName;
+                break;
+            }
+
+            setByPath(acc, field.analyticsName, resolvedValue);
+            return acc;
+          }, {});
+
+          const triggerPayloadProps =
+            context?.triggerPayload && typeof context.triggerPayload === "object"
+              ? (context.triggerPayload as Record<string, unknown>)
+              : {};
+
+          xPixel.track(
+            event,
+            deepMergeAll(
+              xPixel.getProps?.(getAnalyticsContext()),
               triggerPayloadProps,
               resolvedFields,
             ),

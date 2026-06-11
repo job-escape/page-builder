@@ -72,6 +72,9 @@ export type {
   AxonPixelRuntimeContext,
 } from "./providers/axon-pixel-context";
 export { AxonPixelAdapterProvider } from "./providers/axon-pixel-provider";
+export { XPixelContext, useXPixelAdapter } from "./providers/x-pixel-context";
+export type { XPixelAdapter, XPixelProps, XPixelRuntimeContext } from "./providers/x-pixel-context";
+export { XPixelAdapterProvider } from "./providers/x-pixel-provider";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 

@@ -350,6 +350,20 @@ export interface AxonPushAction {
   };
 }
 
+export interface XPushAction {
+  id: string;
+  type: "x_push";
+  params: {
+    event: string;
+    fields?: {
+      id: string;
+      localName: string;
+      analyticsName: string;
+      storeType: "manual" | "local" | "fact";
+    }[];
+  };
+}
+
 export interface SlideSwiperAction {
   id: string;
   type: "slide_swiper";
@@ -469,6 +483,7 @@ export type LogicAction =
   | GtmPushAction
   | TiktokPushAction
   | AxonPushAction
+  | XPushAction
   | ConditionalAction
   | SlideSwiperAction
   | SwiperSlideNextAction
