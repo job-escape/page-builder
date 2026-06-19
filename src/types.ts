@@ -263,6 +263,12 @@ export interface RefreshSessionAction {
   params: Record<string, never>;
 }
 
+export interface OpenCookieBannerAction {
+  id: string;
+  type: "open_cookie_banner";
+  params: Record<string, never>;
+}
+
 export interface SubmitFormAction {
   id: string;
   type: "submit_form";
@@ -475,6 +481,7 @@ export type LogicAction =
   | OpenUrlAction
   | OpenIntercomAction
   | RefreshSessionAction
+  | OpenCookieBannerAction
   | SubmitFormAction
   | AnalyticsAction
   | SetTimeoutAction

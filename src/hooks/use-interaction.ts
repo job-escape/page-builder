@@ -515,6 +515,23 @@ export const useInteraction = () => {
           break;
         }
 
+        case "open_cookie_banner": {
+          // Re-open the Cookiebot consent banner. Cookiebot is a domain-wide CMP
+          // (loaded once in the host's root layout), so the same consent state is
+          // shared across the landing and every funnel page — this just re-prompts.
+          // Mirrors the host's `renewCookieConsent`; self-contained so page-builder
+          // stays host-agnostic (no resolver needed).
+          if (typeof window === "undefined") break;
+          const w = window as Window &
+            typeof globalThis & {
+              cookieInited?: boolean;
+              Cookiebot?: { renew: () => void };
+            };
+          w.cookieInited = true;
+          w.Cookiebot?.renew();
+          break;
+        }
+
         case "buy_upsell" as never: {
           // Deprecated — use http_request instead. Keep this case so legacy
           // JSONs don't blow up the runtime; will be removed once all unsub
