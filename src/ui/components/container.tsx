@@ -24,7 +24,11 @@ export default function ContainerRegistry({ domNode, config }: ComponentRegistry
   const firedRef = useRef(false);
 
   useEffect(() => {
-    if (preload || firedRef.current) return;
+    if (preload) {
+      firedRef.current = false;
+      return;
+    }
+    if (firedRef.current) return;
     if (!logic.some(rule => rule.trigger === "on_mount")) return;
     firedRef.current = true;
     const { handleTrigger } = createInteraction();
