@@ -21,8 +21,12 @@ function toConditionBranches(states: NodeStatesValue): Condition["condition"] {
 // Local facts are prefixed with "local-" to match how the engine builds fact keys:
 // fact: `${cond.data_type}-${cond.fact}` → "local-isSubmitting"
 
-function mergeAnswers(answers: Answers, localModel: Record<string, PrimitiveValue | string[]>): Answers {
-  return buildConditionFacts(answers, localModel);
+function mergeAnswers(
+  answers: Answers,
+  localModel: Record<string, PrimitiveValue | string[]>,
+  subscriptionFacts: Record<string, PrimitiveValue>,
+): Answers {
+  return buildConditionFacts(answers, localModel, subscriptionFacts);
 }
 
 // ─── Model factory ────────────────────────────────────────────────────────────
@@ -31,6 +35,7 @@ function createActiveStateModel(
   states: NodeStatesValue,
   $answers: Store<Answers>,
   $localModel: Store<Record<string, PrimitiveValue | string[]>>,
+  $subscriptionFacts: Store<Record<string, PrimitiveValue>>,
 ) {
   const $activeState = createStore<string | null>(null);
 
@@ -38,9 +43,11 @@ function createActiveStateModel(
     async ({
       answers,
       local,
+      subscription,
     }: {
       answers: Answers;
       local: Record<string, PrimitiveValue | string[]>;
+      subscription: Record<string, PrimitiveValue>;
     }): Promise<string | null> => {
       if (!states.length) return null;
 
@@ -54,8 +61,8 @@ function createActiveStateModel(
 
       if (!nonEmpty.length) return null;
 
-      // merge local model into answers before passing to engine
-      const mergedAnswers = mergeAnswers(answers, local);
+      // merge local model + subscription facts into answers before passing to engine
+      const mergedAnswers = mergeAnswers(answers, local, subscription);
 
       const matched = await runCondition(nonEmpty, mergedAnswers);
       return matched?.nodeId ? String(matched.nodeId) : null;
@@ -65,12 +72,16 @@ function createActiveStateModel(
   $activeState.on(evaluateFx.doneData, (_, result) => result);
 
   sample({
-    clock: [$answers, $localModel],
-    source: { answers: $answers, local: $localModel },
+    clock: [$answers, $localModel, $subscriptionFacts],
+    source: { answers: $answers, local: $localModel, subscription: $subscriptionFacts },
     target: evaluateFx,
   });
 
-  evaluateFx({ answers: $answers.getState(), local: $localModel.getState() });
+  evaluateFx({
+    answers: $answers.getState(),
+    local: $localModel.getState(),
+    subscription: $subscriptionFacts.getState(),
+  });
 
   return { $activeState };
 }
@@ -83,9 +94,10 @@ export function useActiveState(
   states: NodeStatesValue,
   $answers: Store<Answers>,
   $localModel: Store<Record<string, PrimitiveValue | string[]>>,
+  $subscriptionFacts: Store<Record<string, PrimitiveValue>>,
 ): string | null {
   const modelRef = useRef<ActiveStateModel>(
-    createActiveStateModel(states, $answers, $localModel),
+    createActiveStateModel(states, $answers, $localModel, $subscriptionFacts),
   ).current;
 
   return useUnit(modelRef.$activeState);

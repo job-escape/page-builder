@@ -49,7 +49,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
   const logic  = useMemo(() => getLogic(logicRaw),   [logicRaw]);
   const states = useMemo(() => getStates(statesRaw), [statesRaw]);
 
-  const activeState = useActiveState(states, model.$answers, localModel.$localStates);
+  const activeState = useActiveState(states, model.$answers, localModel.$localStates, model.$subscriptionFacts);
   const isStopped   = activeState === "stopped";
 
   triggerRef.current = createInteraction().handleTrigger;

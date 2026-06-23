@@ -6,6 +6,7 @@ import {
   BuilderDialog,
   BuilderPage,
   ComponentRegisry,
+  PrimitiveValue,
   RequestTiming,
   StoredValue,
 } from "../types";
@@ -105,6 +106,16 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     .on(initEvt, (state, payload) => {
       return payload.answers;
     });
+  // Subscription facts: a field→value map mirrored from the host's currently
+  // selected subscription. Kept separate from $answers (so it is never persisted
+  // to the answers cookie) and merged into condition facts at evaluation time as
+  // `subscription_data-<field>`. The host keeps this in sync with its selection.
+  const setSubscriptionFactsEvt = createEvent<Record<string, PrimitiveValue>>();
+  const $subscriptionFacts = createStore<Record<string, PrimitiveValue>>(
+    {},
+    { sid: "subscriptionFacts" },
+  ).on(setSubscriptionFactsEvt, (_, payload) => payload);
+
   const nextPageEvt = createEvent<number>();
   const prevPageEvt = createEvent();
   const prefetchPreviousPageEvt = createEvent();
@@ -470,6 +481,8 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     prefetchPreviousPageEvt,
     $answers,
     setAnswerEvt,
+    $subscriptionFacts,
+    setSubscriptionFactsEvt,
     finishEvt,
     registry,
     preloadRegistry: preloadRegistry ?? registry,

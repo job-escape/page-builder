@@ -3,6 +3,7 @@ import { useUnit } from "effector-react";
 import { useLogger } from "next-axiom";
 
 import { Answers } from "../types";
+import { buildConditionFacts } from "../utils/build-condition-facts";
 import { runCondition } from "../utils/run-condition";
 
 import { useBuilderModel } from "./use-builder-model";
@@ -12,11 +13,12 @@ export const useNavigation = () => {
   const page = usePage();
   const model = useBuilderModel();
   const logger = useLogger().with({ page_id: page.id });
-  const { nextPage, prevPage, prevAnswers, finish } = useUnit({
+  const { nextPage, prevPage, prevAnswers, finish, subscriptionFacts } = useUnit({
     nextPage: model.nextPageEvt,
     prevPage: model.prevPageEvt,
     prevAnswers: model.$answers,
     finish: model.finishEvt,
+    subscriptionFacts: model.$subscriptionFacts,
   });
 
   const next = async (partialAnswers?: Answers) => {
@@ -24,7 +26,10 @@ export const useNavigation = () => {
 
     if (page.condition) {
       try {
-        const result = await runCondition(page.condition.condition, answers);
+        const result = await runCondition(
+          page.condition.condition,
+          buildConditionFacts(answers, null, subscriptionFacts),
+        );
 
         if (result?.nodeId) {
           return nextPage(result.nodeId);

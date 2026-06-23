@@ -26,7 +26,7 @@ export default function ButtonRegistry(props: ComponentRegistryProps) {
 
   const model = useBuilderModel();
   const localModel = useLocalModel();
-  const activeState = useActiveState(states, model.$answers, localModel.$localStates);
+  const activeState = useActiveState(states, model.$answers, localModel.$localStates, model.$subscriptionFacts);
 
   const isLoading = activeState === "loading";
   const isDisabled = activeState === "disabled";

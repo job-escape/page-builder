@@ -16,12 +16,15 @@ import { buildConditionFacts } from "../../utils/build-condition-facts";
 import { runCondition } from "../../utils/run-condition";
 import { tryParse } from "../../utils/try-parse";
 
+type ConditionDependencies = {
+  answerKeys: Set<string>;
+  localKeys: Set<string>;
+  subscriptionFields: Set<string>;
+};
+
 const collectRuleDependencies = (
   rules: Condition["condition"][number]["rules"] | undefined,
-  dependencies: {
-    answerKeys: Set<string>;
-    localKeys: Set<string>;
-  },
+  dependencies: ConditionDependencies,
 ) => {
   if (!rules) {
     return;
@@ -40,6 +43,11 @@ const collectRuleDependencies = (
         return;
       }
 
+      if (child.data_type === "subscription_data") {
+        dependencies.subscriptionFields.add(child.fact);
+        return;
+      }
+
       dependencies.answerKeys.add(
         child.data_type ? `${child.data_type}-${child.fact}` : child.fact,
       );
@@ -51,9 +59,10 @@ const collectRuleDependencies = (
 };
 
 const getConditionDependencies = (branches: Condition["condition"]) => {
-  const dependencies = {
+  const dependencies: ConditionDependencies = {
     answerKeys: new Set<string>(),
     localKeys: new Set<string>(),
+    subscriptionFields: new Set<string>(),
   };
 
   branches.forEach((branch) => {
@@ -66,13 +75,17 @@ const getConditionDependencies = (branches: Condition["condition"]) => {
 const buildRelevantStateSignature = ({
   answers,
   localStates,
+  subscriptionFacts,
   answerKeys,
   localKeys,
+  subscriptionFields,
 }: {
   answers: Answers;
   localStates: Record<string, PrimitiveValue | string[]>;
+  subscriptionFacts: Record<string, PrimitiveValue>;
   answerKeys: Set<string>;
   localKeys: Set<string>;
+  subscriptionFields: Set<string>;
 }) =>
   JSON.stringify({
     answers: Array.from(answerKeys)
@@ -81,6 +94,9 @@ const buildRelevantStateSignature = ({
     localStates: Array.from(localKeys)
       .sort()
       .map((key) => [key, localStates[key] ?? null]),
+    subscription: Array.from(subscriptionFields)
+      .sort()
+      .map((field) => [field, subscriptionFacts[field] ?? null]),
   });
 
 const ConditionBranchRenderer = memo(
@@ -115,7 +131,11 @@ const ConditionBranchRenderer = memo(
 export default function ConditionRegistry({ domNode, config }: ComponentRegistryProps) {
   const model = useBuilderModel();
   const localModel = useLocalModel();
-  const [answers, localStates] = useUnit([model.$answers, localModel.$localStates]);
+  const [answers, localStates, subscriptionFacts] = useUnit([
+    model.$answers,
+    localModel.$localStates,
+    model.$subscriptionFacts,
+  ]);
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
   const baseLogger = useLogger();
   const logger = useMemo(
@@ -136,10 +156,19 @@ export default function ConditionRegistry({ domNode, config }: ComponentRegistry
       buildRelevantStateSignature({
         answers,
         localStates,
+        subscriptionFacts,
         answerKeys: dependencies.answerKeys,
         localKeys: dependencies.localKeys,
+        subscriptionFields: dependencies.subscriptionFields,
       }),
-    [answers, dependencies.answerKeys, dependencies.localKeys, localStates],
+    [
+      answers,
+      dependencies.answerKeys,
+      dependencies.localKeys,
+      dependencies.subscriptionFields,
+      localStates,
+      subscriptionFacts,
+    ],
   );
 
   useEffect(() => {
@@ -147,7 +176,10 @@ export default function ConditionRegistry({ domNode, config }: ComponentRegistry
 
     const evaluateCondition = async () => {
       try {
-        const result = await runCondition(branches, buildConditionFacts(answers, localStates));
+        const result = await runCondition(
+          branches,
+          buildConditionFacts(answers, localStates, subscriptionFacts),
+        );
 
         if (!isCancelled) {
           setTargetNodeId(result?.nodeId ? String(result.nodeId) : null);
@@ -171,7 +203,7 @@ export default function ConditionRegistry({ domNode, config }: ComponentRegistry
     return () => {
       isCancelled = true;
     };
-  }, [answers, branches, localStates, logger, relevantSignature]);
+  }, [answers, branches, localStates, subscriptionFacts, logger, relevantSignature]);
 
   const elementChildren = useMemo(
     () => domNode.children.filter((c): c is Element => c instanceof Element),

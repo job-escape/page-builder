@@ -223,13 +223,22 @@ export const useInteraction = () => {
   const axonPixel = useAxonPixelAdapter();
   const logger = useLogger().with({ page_id: page.id });
   const { next, prev } = useNavigation();
-  const { setActiveDialog, dialogs, setAnswers, answers, setLocalState, localStates } = useUnit({
+  const {
+    setActiveDialog,
+    dialogs,
+    setAnswers,
+    answers,
+    setLocalState,
+    localStates,
+    subscriptionFacts,
+  } = useUnit({
     setActiveDialog: model.setActiveDialogEvt,
     dialogs: model.$dialogs,
     setAnswers: model.setAnswerEvt,
     answers: model.$answers,
     setLocalState: localModel.setLocalStateEvt,
     localStates: localModel.$localStates,
+    subscriptionFacts: model.$subscriptionFacts,
   });
   // Scope-bind so swiper commands land in the same @effector/next scope that
   // SwiperView reads from via `useUnit($swiperCommands)`. Calling the imported
@@ -242,9 +251,11 @@ export const useInteraction = () => {
   const ambientOptions = useInteractionOptions();
   const answersRef = useRef(answers);
   const localStatesRef = useRef(localStates);
+  const subscriptionFactsRef = useRef(subscriptionFacts);
 
   answersRef.current = answers;
   localStatesRef.current = localStates;
+  subscriptionFactsRef.current = subscriptionFacts;
 
   const createInteraction = (callerOptions?: InteractionOptions) => {
     const options: InteractionOptions = {
@@ -258,10 +269,16 @@ export const useInteraction = () => {
     let runtimeLocalStates: Record<string, PrimitiveValue | string[]> = {
       ...(localStatesRef.current ?? {}),
     };
+    // Subscription facts only change between interactions (on plan selection), so a
+    // snapshot at interaction start is sufficient.
+    const runtimeSubscriptionFacts: Record<string, PrimitiveValue> = {
+      ...(subscriptionFactsRef.current ?? {}),
+    };
     let isInteractionPending = false;
     const pendingTimeoutActions = new Set<Promise<void>>();
 
-    const getRuntimeFacts = (): Answers => buildConditionFacts(runtimeAnswers, runtimeLocalStates);
+    const getRuntimeFacts = (): Answers =>
+      buildConditionFacts(runtimeAnswers, runtimeLocalStates, runtimeSubscriptionFacts);
     const getAnalyticsContext = () => ({
       answers: runtimeAnswers,
       localStates: runtimeLocalStates,

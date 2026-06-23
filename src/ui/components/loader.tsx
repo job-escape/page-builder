@@ -52,7 +52,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
   const statesRaw = attribs.states ?? attribs["data-lexical-loader-states"] ?? "";
   const logic = useMemo(() => getLogic(logicRaw), [logicRaw]);
   const states = useMemo(() => getStates(statesRaw), [statesRaw]);
-  const activeState = useActiveState(states, model.$answers, localModel.$localStates);
+  const activeState = useActiveState(states, model.$answers, localModel.$localStates, model.$subscriptionFacts);
 
   const [cssReady, setCssReady] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
