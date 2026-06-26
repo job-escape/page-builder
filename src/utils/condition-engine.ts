@@ -13,12 +13,29 @@ type RuleLeaf = {
   operator: string;
   value: string;
   data_type?: string | null;
+  value_type?: string | null;
 };
 
 type EngineLeafCondition = {
   fact: string;
   operator: string;
-  value: string;
+  value: string | number | boolean;
+};
+
+export const coerceValue = (
+  value: string,
+  valueType?: string | null,
+): string | number | boolean => {
+  if (valueType === "boolean") {
+    return value === "true";
+  }
+
+  if (valueType === "number") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? value : parsed;
+  }
+
+  return value;
 };
 
 type NestedEngineCondition = EngineLeafCondition | TopLevelCondition;
@@ -63,7 +80,7 @@ const buildConditionNode = (condition: RuleLeaf | RuleConditions): NestedEngineC
     return {
       fact: buildFactKey(condition),
       operator: mapOperator(condition.operator),
-      value: condition.value,
+      value: coerceValue(condition.value, condition.value_type),
     };
   }
 

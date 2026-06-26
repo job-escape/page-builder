@@ -14,11 +14,14 @@ export type BuilderKeyValue = {
   name: BuilderKeyValueShape["name"];
 };
 
+export type ConditionValueType = "string" | "number" | "boolean";
+
 export type ConditionRuleLeaf = {
   fact: string;
   operator: string;
   value: string;
   data_type?: BuilderKeyValueShape["data_type"] | null;
+  value_type?: ConditionValueType | null;
 };
 
 export type ConditionRuleGroup = {
@@ -153,6 +156,9 @@ export interface WriteResponseDataAction {
   params: {
     factName: string;
     path: string;
+    // The editor's FactPicker stores the data_type under `${paramKey}DataType`,
+    // i.e. `factNameDataType` here. `factDataType` is accepted as a fallback.
+    factNameDataType?: string;
     factDataType?: string;
     __responseData?: string;
   };
@@ -447,8 +453,20 @@ export interface SlidesGotoAction {
 }
 
 export type StorageFormat = {
-  any?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
-  all?: Array<{ fact: string; operator: string; value: string; data_type: string | null }>;
+  any?: Array<{
+    fact: string;
+    operator: string;
+    value: string;
+    data_type: string | null;
+    value_type?: ConditionValueType | null;
+  }>;
+  all?: Array<{
+    fact: string;
+    operator: string;
+    value: string;
+    data_type: string | null;
+    value_type?: ConditionValueType | null;
+  }>;
 };
 
 export interface ConditionalAction {

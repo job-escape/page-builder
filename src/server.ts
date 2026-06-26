@@ -95,6 +95,8 @@ export { evaluateConditionalAction } from "./utils/evaluate-conditional-action";
 export { applyValueTransforms } from "./utils/apply-value-transforms";
 export type { ValueTransform } from "./utils/apply-value-transforms";
 export { resolveValuePicker } from "./utils/resolve-value-picker";
+export { classifyDecline, DECLINE_CATEGORIES } from "./utils/classify-decline";
+export type { DeclineCategory } from "./utils/classify-decline";
 export { buildRequestBodyObject } from "./utils/build-request-body-object";
 export { resolveRequestBodyField } from "./utils/resolve-request-body-field";
 export {

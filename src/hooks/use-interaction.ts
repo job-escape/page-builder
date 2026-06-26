@@ -351,13 +351,13 @@ export const useInteraction = () => {
         }
 
         case "write_response_data": {
-          const { factName, path, factDataType, __responseData } = action.params;
+          const { factName, path, factNameDataType, factDataType, __responseData } = action.params;
           if (!factName || !path) break;
 
           const responseData = tryParse(__responseData ?? "null");
           const value = getNestedValue(responseData, path);
           if (value !== undefined) {
-            const key = getFactKey(factName, factDataType);
+            const key = getFactKey(factName, factNameDataType ?? factDataType);
             localUser = { ...localUser, [key]: value };
             runtimeAnswers = { ...runtimeAnswers, [key as keyof Answers]: value };
 
