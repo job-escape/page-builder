@@ -48,6 +48,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
     0,
     getNumberAttr(attribs.speed ?? attribs["data-lexical-loader-speed"], 2000),
   );
+  const color = attribs.color ?? attribs["data-lexical-loader-color"] ?? undefined;
   const logicRaw = attribs.logic ?? attribs["data-lexical-loader-logic"] ?? "";
   const statesRaw = attribs.states ?? attribs["data-lexical-loader-states"] ?? "";
   const logic = useMemo(() => getLogic(logicRaw), [logicRaw]);
@@ -127,6 +128,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
   return (
     <Progress
       indicatorClassName={cssReady ? "transition-transform ease-linear" : "transition-none"}
+      indicatorStyle={color ? { backgroundColor: color } : undefined}
       transitionDuration={cssReady ? `${speed}ms` : undefined}
       value={cssReady ? visualTarget : 0}
     />

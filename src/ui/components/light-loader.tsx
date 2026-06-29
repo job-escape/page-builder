@@ -43,6 +43,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
 
   const speed   = Math.max(0, getNumberAttr(attribs.speed   ?? attribs["data-lexical-loader-speed"],   2000));
   const variant = attribs.variant ?? attribs["data-lexical-loader-variant"] ?? "default";
+  const color   = attribs.color   ?? attribs["data-lexical-loader-color"] ?? undefined;
 
   const logicRaw  = attribs.logic  ?? attribs["data-lexical-loader-logic"]  ?? "";
   const statesRaw = attribs.states ?? attribs["data-lexical-loader-states"] ?? "";
@@ -136,6 +137,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
         value={targetValue}
         className={cn("w-full", VARIANT_HEIGHT[variant] ?? VARIANT_HEIGHT.default)}
         indicatorClassName={cssReady ? "transition-transform ease-linear" : "transition-none"}
+        indicatorStyle={color ? { backgroundColor: color } : undefined}
         transitionDuration={cssReady ? `${transitionDuration}ms` : undefined}
       />
     </div>
