@@ -38,14 +38,16 @@ const isSlideNode = (node: unknown): node is DOMNode => {
 export default function SwiperRegistry({ domNode, config }: ComponentRegistryProps) {
   const preload = usePreload();
   // Warm the swiper chunk in the background (incl. during the hidden pre-render)
-  // so the carousel doesn't pop in. The carousel itself isn't rendered during
-  // pre-render — it would init in a hidden, zero-width container.
+  // so it's ready when the carousel goes active.
   usePreloadChunk(loadSwiperView);
   const attribs = domNode?.attribs ?? {};
   const styledCss = useStyledNode(attribs);
-  if (preload) return null;
   const slideNodes = domNode.children.filter(isSlideNode);
   const slides = slideNodes.map((child) => domToReact([child], config) as ReactNode);
+  // During pre-render, still render the slide content (so its images/components
+  // warm), but skip the swiper carousel itself — it would init in a hidden,
+  // zero-width container. The swiper chunk is warmed via usePreloadChunk above.
+  if (preload) return <>{slides}</>;
   const autoplay = attribs['swiper-autoplay'] === 'true'
   const loop = attribs['swiper-loop'] === 'true'
   return (
