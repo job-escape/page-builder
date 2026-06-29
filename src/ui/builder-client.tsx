@@ -169,7 +169,7 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
       }
 
       return (
-        <div key={page.id} style={{ display: "block" }} aria-hidden>
+        <div key={page.id} style={{ display: "none" }} aria-hidden>
           <PreloadProvider preload>
             <LocalProvider>
               <PageProvider<Page> page={page as Page}>
