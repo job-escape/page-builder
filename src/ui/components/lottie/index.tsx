@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useInteraction } from "../../../hooks/use-interaction";
 import { usePreload } from "../../../providers/preload-context";
+import { usePreloadChunk } from "../../../hooks/use-preload-chunk";
 import { useStyledNode } from "../../../hooks/use-styled-node";
 import { ComponentRegistryProps, LogicValue } from "../../../types";
 import { tryParse } from "../../../utils/try-parse";
@@ -17,13 +18,17 @@ import { tryParse } from "../../../utils/try-parse";
 // ~330KB) is split into its own chunk and only fetched when a lottie block
 // actually renders — instead of being pulled into every consumer that spreads
 // DEFAULT_REGISTRY.
-const LottiePlayerSrc = dynamic(() => import("./lottie-player-src"), { ssr: false });
+const loadLottiePlayer = () => import("./lottie-player-src");
+const LottiePlayerSrc = dynamic(loadLottiePlayer, { ssr: false });
 
 const cache = new Map<string, unknown>();
 
 export default function LottieRegistry(props: ComponentRegistryProps) {
   const { domNode } = props;
   const preload = usePreload();
+  // Warm the lottie player chunk in the background (incl. during the hidden
+  // pre-render) so it's ready when a lottie block becomes active.
+  usePreloadChunk(loadLottiePlayer);
   const attribs = domNode?.attribs ?? {};
 
   const src = attribs.src || attribs["data-lexical-lottie-src"];
