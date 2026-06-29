@@ -5,8 +5,9 @@ import { IPlayerProps, Player, PlayerEvent } from "@lottiefiles/react-lottie-pla
 function LottiePlayerSrc({
   onError,
   onEvent,
+  onComplete,
   ...props
-}: IPlayerProps & { onError: () => void }) {
+}: IPlayerProps & { onError: () => void; onComplete?: () => void }) {
   return (
     <Player
       {...props}
@@ -14,6 +15,9 @@ function LottiePlayerSrc({
         onEvent?.(event);
         if (event === PlayerEvent.Error) {
           onError();
+        }
+        if (event === PlayerEvent.Complete) {
+          onComplete?.();
         }
       }}
     />

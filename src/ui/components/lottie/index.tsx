@@ -2,7 +2,8 @@
 
 /** @jsxImportSource @emotion/react */
 import { css } from "@emotion/react";
-import { PlayerEvent } from "@lottiefiles/react-lottie-player";
+
+import dynamic from "next/dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -12,7 +13,11 @@ import { useStyledNode } from "../../../hooks/use-styled-node";
 import { ComponentRegistryProps, LogicValue } from "../../../types";
 import { tryParse } from "../../../utils/try-parse";
 
-import LottiePlayerSrc from "./lottie-player-src";
+// Lazy-load the lottie player so react-lottie-player (+ its lottie-web engine,
+// ~330KB) is split into its own chunk and only fetched when a lottie block
+// actually renders — instead of being pulled into every consumer that spreads
+// DEFAULT_REGISTRY.
+const LottiePlayerSrc = dynamic(() => import("./lottie-player-src"), { ssr: false });
 
 const cache = new Map<string, unknown>();
 
@@ -81,11 +86,9 @@ export default function LottieRegistry(props: ComponentRegistryProps) {
       loop={loop}
       src={animationData as object}
       onError={() => {}}
-      onEvent={(event) => {
-        if (event === PlayerEvent.Complete) {
-          const { handleTrigger } = createInteraction();
-          handleTrigger("on_finish", logic).catch(() => undefined);
-        }
+      onComplete={() => {
+        const { handleTrigger } = createInteraction();
+        handleTrigger("on_finish", logic).catch(() => undefined);
       }}
     />
   );

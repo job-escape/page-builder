@@ -43,7 +43,9 @@ export default defineConfig([
     dts: { resolve: true, compilerOptions: { jsxImportSource: "@emotion/react" } },
     sourcemap: true,
     clean: false,
-    splitting: false,
+    // Enable code-splitting so `dynamic(() => import(...))` boundaries (lottie,
+    // swiper) emit real lazy chunks instead of being inlined into client.mjs.
+    splitting: true,
     target: "es2020",
     external,
     banner: {
