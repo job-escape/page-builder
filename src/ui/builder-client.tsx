@@ -12,13 +12,18 @@ import { ComponentType, useEffect, useRef, useState } from "react";
 import { BuilderClientModel } from "../model/gate";
 import { BuilderModel } from "../model/store";
 import LocalProvider from "../providers/local-provider";
-import ModelProvider, { ClientModelProvider } from "../providers/model-provider";
+import ModelProvider, {
+  ClientModelProvider,
+} from "../providers/model-provider";
 import PageProvider from "../providers/page-provider";
 import { PreloadProvider } from "../providers/preload-context";
 import { BuilderPage, ComponentRegisry, RequestTiming } from "../types";
 
 import BuilderClientLoadingPage from "./builder-client-loading-page";
-import { FallbackTeaserPage, FallbackTeaserPageWithNavigation } from "./fallback-teaser-page";
+import {
+  FallbackTeaserPage,
+  FallbackTeaserPageWithNavigation,
+} from "./fallback-teaser-page";
 import Parser from "./parser";
 
 const PageDialog = dynamic(() => import("./page-dialog"), { ssr: false });
@@ -38,12 +43,15 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
   preloadRegistry?: ComponentRegisry;
 }) {
   const registry = registryProp ?? model.registry ?? {};
-  const preloadRegistry = preloadRegistryProp ?? model.preloadRegistry ?? registry;
+  const preloadRegistry =
+    preloadRegistryProp ?? model.preloadRegistry ?? registry;
   useGate(clientModel.BuilderGate);
 
   const logger = useLogger();
   const loggerRef = useRef(logger);
-  useEffect(() => { loggerRef.current = logger; });
+  useEffect(() => {
+    loggerRef.current = logger;
+  });
 
   useEffect(() => {
     const logTiming = (t: RequestTiming) => {
@@ -58,8 +66,12 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
   }, [model, clientModel]);
 
   useEffect(() => {
-    (PageDialog as typeof PageDialog & { preload?: () => Promise<unknown> }).preload?.();
-    (PageDrawer as typeof PageDrawer & { preload?: () => Promise<unknown> }).preload?.();
+    (
+      PageDialog as typeof PageDialog & { preload?: () => Promise<unknown> }
+    ).preload?.();
+    (
+      PageDrawer as typeof PageDrawer & { preload?: () => Promise<unknown> }
+    ).preload?.();
   }, []);
 
   const {
@@ -83,9 +95,12 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
   });
 
   const pageForCurrent = visiblePages.find((p) => p.id === current);
-  const currentPageDialogsLoaded = current !== null && dialogsByPage[current] !== undefined;
+  const currentPageDialogsLoaded =
+    current !== null && dialogsByPage[current] !== undefined;
   const pageReady =
-    pageForCurrent && typeof pageForCurrent.html === "string" && currentPageDialogsLoaded;
+    pageForCurrent &&
+    typeof pageForCurrent.html === "string" &&
+    currentPageDialogsLoaded;
 
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,11 +169,14 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
       }
 
       return (
-        <div key={page.id} style={{ display: "none" }} aria-hidden>
+        <div key={page.id} style={{ display: "block" }} aria-hidden>
           <PreloadProvider preload>
             <LocalProvider>
               <PageProvider<Page> page={page as Page}>
-                <Parser content={page.html as string} registry={preloadRegistry} />
+                <Parser
+                  content={page.html as string}
+                  registry={preloadRegistry}
+                />
               </PageProvider>
             </LocalProvider>
           </PreloadProvider>
@@ -172,7 +190,9 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
     }
 
     if (!pageForCurrent) {
-      return <FallbackTeaserPage currentPageId={current} reason="missing_page" />;
+      return (
+        <FallbackTeaserPage currentPageId={current} reason="missing_page" />
+      );
     }
 
     if (typeof pageForCurrent.html !== "string") {
@@ -189,7 +209,8 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
   };
 
   const fallback = renderFallback();
-  const fallbackKey = pageForCurrent?.id ?? `missing-page-${current ?? "unknown"}`;
+  const fallbackKey =
+    pageForCurrent?.id ?? `missing-page-${current ?? "unknown"}`;
 
   return (
     <ModelProvider model={model as unknown as BuilderModel}>
