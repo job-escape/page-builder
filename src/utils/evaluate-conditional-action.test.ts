@@ -18,6 +18,8 @@ jest.mock("json-rules-engine", () => {
   class Engine {
     private rules: Rule[] = [];
 
+    addOperator() {}
+
     addRule(rule: Rule) {
       this.rules.push(rule);
     }

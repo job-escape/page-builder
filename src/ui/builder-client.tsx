@@ -9,6 +9,7 @@ import { useLogger } from "next-axiom";
 
 import { ComponentType, useEffect, useRef, useState } from "react";
 
+import { usePreloadChunk } from "../hooks/use-preload-chunk";
 import { BuilderClientModel } from "../model/gate";
 import { BuilderModel } from "../model/store";
 import LocalProvider from "../providers/local-provider";
@@ -18,6 +19,7 @@ import ModelProvider, {
 import PageProvider from "../providers/page-provider";
 import { PreloadProvider } from "../providers/preload-context";
 import { BuilderPage, ComponentRegisry, RequestTiming } from "../types";
+import { loadJsonRulesEngine } from "../utils/load-json-rules-engine";
 
 import BuilderClientLoadingPage from "./builder-client-loading-page";
 import {
@@ -46,6 +48,10 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
   const preloadRegistry =
     preloadRegistryProp ?? model.preloadRegistry ?? registry;
   useGate(clientModel.BuilderGate);
+
+  // Warm json-rules-engine in the background so the first conditional
+  // navigation/action evaluation doesn't pay an on-demand chunk fetch.
+  usePreloadChunk(loadJsonRulesEngine);
 
   const logger = useLogger();
   const loggerRef = useRef(logger);

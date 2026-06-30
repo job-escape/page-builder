@@ -1,8 +1,7 @@
-import { Rule } from "json-rules-engine";
-
 import { Answers, StorageFormat } from "../types";
 
 import { buildRuleConditions, createConditionEngine, hasRuleConditions } from "./condition-engine";
+import { loadJsonRulesEngine } from "./load-json-rules-engine";
 
 /**
  * Evaluates a StorageFormat (simple conditions object) against the provided facts.
@@ -20,7 +19,8 @@ export const evaluateConditionalAction = async (
     return true;
   }
 
-  const engine = createConditionEngine();
+  const { Rule } = await loadJsonRulesEngine();
+  const engine = await createConditionEngine();
 
   engine.addRule(
     new Rule({

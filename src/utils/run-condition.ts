@@ -1,13 +1,13 @@
-import { Rule } from "json-rules-engine";
-
 import { Condition } from "../types";
 
 import { Answers } from "../types";
 
 import { buildRuleConditions, createConditionEngine, hasRuleConditions } from "./condition-engine";
+import { loadJsonRulesEngine } from "./load-json-rules-engine";
 
-export const getEngine = (conditions: Condition["condition"]) => {
-  const engine = createConditionEngine();
+export const getEngine = async (conditions: Condition["condition"]) => {
+  const { Rule } = await loadJsonRulesEngine();
+  const engine = await createConditionEngine();
 
   const conditionalBranches = conditions.filter((condition) => !condition.isDefault);
 
@@ -36,7 +36,7 @@ export const runCondition = async (
   answers: Answers,
 ): Promise<{ nodeId: number | null } | null> => {
   const defaultBranch = conditions.find((condition) => condition.isDefault);
-  const engine = getEngine(conditions);
+  const engine = await getEngine(conditions);
   const answersWithAliases = {
     ...answers,
     ...Object.fromEntries(

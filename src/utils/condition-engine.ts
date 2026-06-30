@@ -1,9 +1,10 @@
-import { Engine, TopLevelCondition } from "json-rules-engine";
+import type { Engine, TopLevelCondition } from "json-rules-engine";
 
 import { Condition } from "../types";
 
 import { StorageFormat } from "../types";
 
+import { loadJsonRulesEngine } from "./load-json-rules-engine";
 import { mapOperator } from "./map-operator";
 
 type RuleConditions = NonNullable<Condition["condition"][number]["rules"]> | StorageFormat;
@@ -128,8 +129,9 @@ const registerStringOperators = (engine: Engine) => {
   });
 };
 
-export const createConditionEngine = () => {
-  const engine = new Engine([], { allowUndefinedFacts: true });
+export const createConditionEngine = async () => {
+  const { Engine: EngineCtor } = await loadJsonRulesEngine();
+  const engine = new EngineCtor([], { allowUndefinedFacts: true });
   registerStringOperators(engine);
   return engine;
 };
