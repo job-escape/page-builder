@@ -592,6 +592,12 @@ export interface RequestTiming {
   order?: number;
   /** http_action only: utm_source from the runtime answers, for attribution. */
   utm_source?: PrimitiveValue | string[];
+  /** http_action only: email from the runtime answers. */
+  email?: PrimitiveValue | string[];
+  /** http_action only: language from the runtime answers. */
+  language?: PrimitiveValue | string[];
+  /** http_action only: full window.location.href at request time. */
+  href?: string;
   /** http_action only: the outbound request body that was sent. */
   request_body?: unknown;
 }

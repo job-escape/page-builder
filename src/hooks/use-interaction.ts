@@ -650,10 +650,17 @@ export const useInteraction = () => {
             triggerPayload: context?.triggerPayload,
           });
 
-          // utm_source for attribution — tolerate bare or funnel_data-prefixed keys.
+          // Attribution/context for the request logs — tolerate bare or
+          // funnel_data-prefixed answer keys.
           const loggedUtmSource =
             runtimeAnswers["utm_source"] ??
             runtimeAnswers["funnel_data-utm_source"];
+          const loggedEmail =
+            runtimeAnswers["email"] ?? runtimeAnswers["funnel_data-email"];
+          const loggedLanguage =
+            runtimeAnswers["lang"] ?? runtimeAnswers["funnel_data-lang"];
+          const loggedHref =
+            typeof window !== "undefined" ? window.location.href : undefined;
 
           // ── Pending lifecycle ──────────────────────────────────────────────
           await runLifecycle(
@@ -708,6 +715,9 @@ export const useInteraction = () => {
               ok: res.ok,
               duration_ms: Math.round(performance.now() - fetchStart),
               utm_source: loggedUtmSource,
+              email: loggedEmail,
+              language: loggedLanguage,
+              href: loggedHref,
               request_body: bodyObject,
             } satisfies RequestTiming);
 
@@ -731,6 +741,9 @@ export const useInteraction = () => {
               action_params: action.params,
               answers: pickLoggedAnswers(runtimeAnswers),
               utm_source: loggedUtmSource,
+              email: loggedEmail,
+              language: loggedLanguage,
+              href: loggedHref,
               request_body: bodyObject,
               local_states: runtimeLocalStates,
               url: fullUrl,
@@ -747,6 +760,9 @@ export const useInteraction = () => {
               ok: false,
               duration_ms: Math.round(performance.now() - fetchStart),
               utm_source: loggedUtmSource,
+              email: loggedEmail,
+              language: loggedLanguage,
+              href: loggedHref,
               request_body: bodyObject,
             } satisfies RequestTiming);
 
