@@ -1,7 +1,5 @@
 import { useUnit } from "effector-react";
 
-import { useLogger } from "next-axiom";
-
 import { Answers } from "../types";
 import { buildConditionFacts } from "../utils/build-condition-facts";
 import { runCondition } from "../utils/run-condition";
@@ -12,14 +10,14 @@ import { usePage } from "./use-page";
 export const useNavigation = () => {
   const page = usePage();
   const model = useBuilderModel();
-  const logger = useLogger().with({ page_id: page.id });
-  const { nextPage, prevPage, prevAnswers, finish, subscriptionFacts } = useUnit({
-    nextPage: model.nextPageEvt,
-    prevPage: model.prevPageEvt,
-    prevAnswers: model.$answers,
-    finish: model.finishEvt,
-    subscriptionFacts: model.$subscriptionFacts,
-  });
+  const { nextPage, prevPage, prevAnswers, finish, subscriptionFacts } =
+    useUnit({
+      nextPage: model.nextPageEvt,
+      prevPage: model.prevPageEvt,
+      prevAnswers: model.$answers,
+      finish: model.finishEvt,
+      subscriptionFacts: model.$subscriptionFacts,
+    });
 
   const next = async (partialAnswers?: Answers) => {
     const answers = { ...prevAnswers, ...partialAnswers };
@@ -34,13 +32,8 @@ export const useNavigation = () => {
         if (result?.nodeId) {
           return nextPage(result.nodeId);
         }
-      } catch (error) {
-        logger.error("next action condition evaluation failed", {
-          answers,
-          next_node_id: page.next_node_id ?? null,
-          page_condition: page.condition.condition,
-          error,
-        });
+      } catch {
+        // condition evaluation failed; fall through to default navigation
       }
     }
 

@@ -1,5 +1,4 @@
 import { useUnit } from "effector-react";
-import Cookies from "js-cookie";
 import { v4 as uuidv4 } from "uuid";
 
 import { useLogger } from "next-axiom";
@@ -56,7 +55,9 @@ export interface WriteUserDataOptions {
 export interface GbFeatureOptions {
   // Resolve a GrowthBook feature value by name. Lives in the host app because
   // page-builder is GrowthBook-agnostic (same pattern as write_user_data).
-  getFeatureValue: (featureName: string) => PrimitiveValue | string[] | undefined;
+  getFeatureValue: (
+    featureName: string,
+  ) => PrimitiveValue | string[] | undefined;
 }
 
 export interface OpenDialogOptions {
@@ -107,7 +108,10 @@ interface ActionContext {
 const getFactKey = (fact: string, factDataType?: string): string =>
   factDataType ? `${factDataType}-${fact}` : fact;
 
-const getActionDataType = (source?: string, valueDataType?: string): string | undefined => {
+const getActionDataType = (
+  source?: string,
+  valueDataType?: string,
+): string | undefined => {
   if (valueDataType) {
     return valueDataType;
   }
@@ -153,19 +157,6 @@ const BASE_URLS: Record<RequestEnv, string> = {
   funnel: process.env.NEXT_PUBLIC_FUNNEL_API_URL ?? "",
 };
 
-// Facebook attribution cookies, read straight off the browser via js-cookie and
-// logged on every http_request so we can debug why an outbound payload did or
-// didn't pick them up. SSR-guarded — `document` is absent on the server.
-const FB_COOKIE_NAMES = ["_fbc", "_fbp", "fbclid"] as const;
-
-const readFbCookies = (): Record<string, string | undefined> => {
-  if (typeof document === "undefined") return {};
-  return FB_COOKIE_NAMES.reduce<Record<string, string | undefined>>((acc, name) => {
-    acc[name] = Cookies.get(name);
-    return acc;
-  }, {});
-};
-
 // The full answers object is too large/noisy to ship to Axiom on every
 // http_request, so we log only this curated allow-list — attribution,
 // device, and identity fields we actually need to debug an outbound payload.
@@ -204,10 +195,13 @@ const LOGGED_ANSWER_KEYS = [
 const pickLoggedAnswers = (
   answers: Record<string, PrimitiveValue | string[]>,
 ): Record<string, PrimitiveValue | string[]> =>
-  LOGGED_ANSWER_KEYS.reduce<Record<string, PrimitiveValue | string[]>>((acc, key) => {
-    if (answers[key] !== undefined) acc[key] = answers[key];
-    return acc;
-  }, {});
+  LOGGED_ANSWER_KEYS.reduce<Record<string, PrimitiveValue | string[]>>(
+    (acc, key) => {
+      if (answers[key] !== undefined) acc[key] = answers[key];
+      return acc;
+    },
+    {},
+  );
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -278,7 +272,11 @@ export const useInteraction = () => {
     const pendingTimeoutActions = new Set<Promise<void>>();
 
     const getRuntimeFacts = (): Answers =>
-      buildConditionFacts(runtimeAnswers, runtimeLocalStates, runtimeSubscriptionFacts);
+      buildConditionFacts(
+        runtimeAnswers,
+        runtimeLocalStates,
+        runtimeSubscriptionFacts,
+      );
     const getAnalyticsContext = () => ({
       answers: runtimeAnswers,
       localStates: runtimeLocalStates,
@@ -287,19 +285,22 @@ export const useInteraction = () => {
     });
 
     // ── async so http_request can await fetch ─────────────────────────────────
-    const runAction = async (action: LogicAction, context?: ActionContext): Promise<void> => {
+    const runAction = async (
+      action: LogicAction,
+      context?: ActionContext,
+    ): Promise<void> => {
       switch (action.type) {
         case "write_local_state": {
-          const { fact, factName, source, value, valueDataType, valueTransforms } = action.params;
+          const {
+            fact,
+            factName,
+            source,
+            value,
+            valueDataType,
+            valueTransforms,
+          } = action.params;
           const key = fact ?? factName;
           if (key === undefined) {
-            logger.warn("write_local_state action missing key", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              source,
-            });
             break;
           }
 
@@ -314,21 +315,20 @@ export const useInteraction = () => {
                   localStates: runtimeLocalStates,
                   triggerPayload: context?.triggerPayload,
                 }) ?? (resolvedDataType === undefined ? value : undefined));
-          const nextValue = applyValueTransforms(resolvedValue, valueTransforms);
+          const nextValue = applyValueTransforms(
+            resolvedValue,
+            valueTransforms,
+          );
 
           if (nextValue === undefined) {
-            logger.warn("write_local_state action missing value", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              key,
-              source,
-            });
             break;
           }
 
-          if (key !== undefined && nextValue !== null && nextValue !== undefined) {
+          if (
+            key !== undefined &&
+            nextValue !== null &&
+            nextValue !== undefined
+          ) {
             runtimeLocalStates = { ...runtimeLocalStates, [key]: nextValue };
             setLocalState({ key, value: nextValue });
           }
@@ -344,14 +344,23 @@ export const useInteraction = () => {
 
           if (value !== undefined) {
             const stringValue = String(value);
-            runtimeLocalStates = { ...runtimeLocalStates, [factName]: stringValue };
+            runtimeLocalStates = {
+              ...runtimeLocalStates,
+              [factName]: stringValue,
+            };
             setLocalState({ key: factName, value: stringValue });
           }
           break;
         }
 
         case "write_response_data": {
-          const { factName, path, factNameDataType, factDataType, __responseData } = action.params;
+          const {
+            factName,
+            path,
+            factNameDataType,
+            factDataType,
+            __responseData,
+          } = action.params;
           if (!factName || !path) break;
 
           const responseData = tryParse(__responseData ?? "null");
@@ -359,7 +368,10 @@ export const useInteraction = () => {
           if (value !== undefined) {
             const key = getFactKey(factName, factNameDataType ?? factDataType);
             localUser = { ...localUser, [key]: value };
-            runtimeAnswers = { ...runtimeAnswers, [key as keyof Answers]: value };
+            runtimeAnswers = {
+              ...runtimeAnswers,
+              [key as keyof Answers]: value,
+            };
 
             setAnswers({ key, value });
           }
@@ -369,23 +381,19 @@ export const useInteraction = () => {
         case "go_to_link": {
           const { link } = action.params;
           if (!link) {
-            logger.warn("go_to_link action missing link", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
-
             break;
           }
 
-          const resolvedLink = link.replace(/\$\{([^}]+)\}/g, (_match, rawKey) => {
-            const key = rawKey.trim();
-            const value = runtimeAnswers[key as keyof Answers];
-            if (value === undefined || value === null) return "";
-            if (Array.isArray(value)) return value.join(",");
-            return String(value);
-          });
+          const resolvedLink = link.replace(
+            /\$\{([^}]+)\}/g,
+            (_match, rawKey) => {
+              const key = rawKey.trim();
+              const value = runtimeAnswers[key as keyof Answers];
+              if (value === undefined || value === null) return "";
+              if (Array.isArray(value)) return value.join(",");
+              return String(value);
+            },
+          );
 
           window.location.href = resolvedLink;
 
@@ -393,15 +401,15 @@ export const useInteraction = () => {
         }
 
         case "write_user_data": {
-          const { fact, factDataType, source, value, valueDataType, valueTransforms } =
-            action.params;
+          const {
+            fact,
+            factDataType,
+            source,
+            value,
+            valueDataType,
+            valueTransforms,
+          } = action.params;
           if (!fact) {
-            logger.warn("write_user_data action missing fact", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -424,7 +432,10 @@ export const useInteraction = () => {
 
           if (resolvedValue !== undefined) {
             localUser = { ...localUser, [key]: resolvedValue };
-            runtimeAnswers = { ...runtimeAnswers, [key as keyof Answers]: resolvedValue };
+            runtimeAnswers = {
+              ...runtimeAnswers,
+              [key as keyof Answers]: resolvedValue,
+            };
             setAnswers({ key, value: resolvedValue });
           }
           break;
@@ -434,44 +445,33 @@ export const useInteraction = () => {
           const { featureName, fact, factDataType } = action.params;
 
           if (!featureName || !fact) {
-            logger.warn("gb_feature action missing featureName or destination key", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
           const getFeatureValue = options?.gb_feature?.getFeatureValue;
           if (!getFeatureValue) {
-            logger.warn("gb_feature action has no host resolver", {
-              action_type: action.type,
-              action_params: action.params,
-            });
             break;
           }
 
           const featureValue = getFeatureValue(featureName);
           if (featureValue === undefined || featureValue === null) {
-            logger.warn("gb_feature value could not be resolved", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              feature_name: featureName,
-            });
             break;
           }
 
           // factDataType === "local" → local state; otherwise → user data fact.
           if (factDataType === "local") {
-            runtimeLocalStates = { ...runtimeLocalStates, [fact]: featureValue };
+            runtimeLocalStates = {
+              ...runtimeLocalStates,
+              [fact]: featureValue,
+            };
             setLocalState({ key: fact, value: featureValue });
           } else {
             const key = getFactKey(fact, factDataType);
             localUser = { ...localUser, [key]: featureValue };
-            runtimeAnswers = { ...runtimeAnswers, [key as keyof Answers]: featureValue };
+            runtimeAnswers = {
+              ...runtimeAnswers,
+              [key as keyof Answers]: featureValue,
+            };
             setAnswers({ key, value: featureValue });
           }
           break;
@@ -483,15 +483,6 @@ export const useInteraction = () => {
           const dialog = dialogs?.find((d) => d.uuid === dialogId);
           if (dialog) {
             setActiveDialog(dialog.uuid);
-          } else {
-            logger.warn("open_dialog target dialog not found", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              available_dialog_ids: dialogs?.map((d) => d.uuid) ?? [],
-              dialog_id: dialogId,
-            });
           }
           break;
         }
@@ -505,10 +496,6 @@ export const useInteraction = () => {
           const opener = options?.open_intercom?.open;
           if (opener) {
             opener();
-          } else {
-            logger.warn("open_intercom action has no opener registered", {
-              action_type: action.type,
-            });
           }
           break;
         }
@@ -518,16 +505,9 @@ export const useInteraction = () => {
           if (refresh) {
             try {
               await refresh();
-            } catch (err) {
-              logger.warn("refresh_session action failed", {
-                action_type: action.type,
-                error: err instanceof Error ? err.message : String(err),
-              });
+            } catch {
+              // refresh_session action failed; ignore and continue
             }
-          } else {
-            logger.warn("refresh_session action has no handler registered", {
-              action_type: action.type,
-            });
           }
           break;
         }
@@ -557,32 +537,23 @@ export const useInteraction = () => {
         }
 
         case "scroll_to": {
-          if (typeof window === "undefined" || typeof document === "undefined") {
+          if (
+            typeof window === "undefined" ||
+            typeof document === "undefined"
+          ) {
             break;
           }
 
-          const { targetId, containerId, block, behavior, behaviour, inline } = action.params;
+          const { targetId, containerId, block, behavior, behaviour, inline } =
+            action.params;
           const elementId = containerId ?? targetId;
 
           if (!elementId) {
-            logger.warn("scroll_to action missing target id", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
           const element = document.getElementById(elementId);
           if (!element) {
-            logger.warn("scroll_to target element not found", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              element_id: elementId,
-            });
             break;
           }
 
@@ -600,24 +571,11 @@ export const useInteraction = () => {
           const { targetId, withSound = true, restart = true } = action.params;
 
           if (!targetId) {
-            logger.warn("play_video action missing targetId", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
           const el = document.getElementById(targetId);
           if (!(el instanceof HTMLVideoElement)) {
-            logger.warn("play_video target is not a <video>", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              element_id: targetId,
-            });
             break;
           }
 
@@ -627,13 +585,8 @@ export const useInteraction = () => {
           // Signals to the host video component that the user took control —
           // its IntersectionObserver stops auto-pausing on scroll.
           el.dataset.userControlled = "true";
-          el.play().catch((err) => {
-            logger.warn("play_video rejected — likely lost user gesture", {
-              action_type: action.type,
-              action_params: action.params,
-              element_id: targetId,
-              err: String(err),
-            });
+          el.play().catch(() => {
+            // play_video rejected — likely lost user gesture
           });
           break;
         }
@@ -644,24 +597,11 @@ export const useInteraction = () => {
           const { targetId } = action.params;
 
           if (!targetId) {
-            logger.warn("unmute_video action missing targetId", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
           const el = document.getElementById(targetId);
           if (!(el instanceof HTMLVideoElement)) {
-            logger.warn("unmute_video target is not a <video>", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              element_id: targetId,
-            });
             break;
           }
 
@@ -679,13 +619,8 @@ export const useInteraction = () => {
           el.muted = false;
           el.dataset.userControlled = "true";
           if (el.paused) {
-            el.play().catch((err) => {
-              logger.warn("unmute_video rejected — likely lost user gesture", {
-                action_type: action.type,
-                action_params: action.params,
-                element_id: targetId,
-                err: String(err),
-              });
+            el.play().catch(() => {
+              // unmute_video rejected — likely lost user gesture
             });
           }
           break;
@@ -694,20 +629,15 @@ export const useInteraction = () => {
         case "http_request": {
           const requestConfig = tryParse<RequestConfig>(action.params.request);
           if (!requestConfig) {
-            logger.error("http_request action config is invalid", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              raw_request: action.params.request,
-            });
             break;
           }
 
           const fullUrl = `${BASE_URLS[requestConfig.env] ?? ""}${requestConfig.url}`;
 
           // ── Headers ────────────────────────────────────────────────────────
-          const headers: Record<string, string> = { "Content-Type": "application/json" };
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
           for (const h of requestConfig.headers) {
             if (h.key && h.value) headers[h.key] = h.value;
           }
@@ -720,24 +650,13 @@ export const useInteraction = () => {
             triggerPayload: context?.triggerPayload,
           });
 
-          logger.info("http_request action started", {
-            action_type: action.type,
-            action_params: action.params,
-            answers: pickLoggedAnswers(runtimeAnswers),
-            local_states: runtimeLocalStates,
-            url: fullUrl,
-            page_url: typeof window !== "undefined" ? window.location.href : undefined,
-            method: requestConfig.method,
-            env: requestConfig.env,
-            request_url: requestConfig.url,
-            request_headers_count: requestConfig.headers.length,
-            request_body: bodyObject,
-            cookies: readFbCookies(),
-            lifecycle_actions_count: requestConfig.lifecycleActions.length,
-          });
-
           // ── Pending lifecycle ──────────────────────────────────────────────
-          await runLifecycle(requestConfig.lifecycleActions, "pending", runAction, context);
+          await runLifecycle(
+            requestConfig.lifecycleActions,
+            "pending",
+            runAction,
+            context,
+          );
 
           // ── Fetch ──────────────────────────────────────────────────────────
           const extraHeaders = model.getHttpRequestHeaders?.() ?? {};
@@ -749,7 +668,10 @@ export const useInteraction = () => {
                 ...extraHeaders,
                 ...headers,
               },
-              body: requestConfig.method !== "GET" ? JSON.stringify(bodyObject) : undefined,
+              body:
+                requestConfig.method !== "GET"
+                  ? JSON.stringify(bodyObject)
+                  : undefined,
             });
 
             // ── Parse response body once ───────────────────────────────────
@@ -761,25 +683,17 @@ export const useInteraction = () => {
             }
 
             // ── Match specific status first, then generic ──────────────────
-            const specificKey = `${res.ok ? "success" : "error"}_${res.status}` as RequestStatus;
+            const specificKey =
+              `${res.ok ? "success" : "error"}_${res.status}` as RequestStatus;
             const genericKey: RequestStatus = res.ok ? "success" : "error";
 
             const matched =
-              requestConfig.lifecycleActions.find((b) => b.status === specificKey) ??
-              requestConfig.lifecycleActions.find((b) => b.status === genericKey);
-
-            logger[res.ok ? "info" : "warn"]("http_request action completed", {
-              action_type: action.type,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              url: fullUrl,
-              method: requestConfig.method,
-              status: res.status,
-              ok: res.ok,
-              matched_lifecycle_status: matched?.status ?? null,
-              response_has_body: responseData !== null,
-              duration_ms: Math.round(performance.now() - fetchStart),
-            });
+              requestConfig.lifecycleActions.find(
+                (b) => b.status === specificKey,
+              ) ??
+              requestConfig.lifecycleActions.find(
+                (b) => b.status === genericKey,
+              );
 
             logger[res.ok ? "info" : "warn"]("request_timing", {
               kind: "http_action",
@@ -794,7 +708,8 @@ export const useInteraction = () => {
               for (const a of matched.actions) {
                 if (!a.type) continue;
                 const enriched =
-                  a.type === "map_local_state" || a.type === "write_response_data"
+                  a.type === "map_local_state" ||
+                  a.type === "write_response_data"
                     ? injectResponseData(
                         a as MapLocalStateAction | WriteResponseDataAction,
                         responseData,
@@ -824,7 +739,12 @@ export const useInteraction = () => {
               duration_ms: Math.round(performance.now() - fetchStart),
             } satisfies RequestTiming);
 
-            await runLifecycle(requestConfig.lifecycleActions, "error_network", runAction, context);
+            await runLifecycle(
+              requestConfig.lifecycleActions,
+              "error_network",
+              runAction,
+              context,
+            );
           }
 
           break;
@@ -832,8 +752,12 @@ export const useInteraction = () => {
 
         case "conditional": {
           const conditionalAction = action as ConditionalAction;
-          const { conditions, thenActions, elseActions } = conditionalAction.params;
-          const matched = await evaluateConditionalAction(conditions, getRuntimeFacts());
+          const { conditions, thenActions, elseActions } =
+            conditionalAction.params;
+          const matched = await evaluateConditionalAction(
+            conditions,
+            getRuntimeFacts(),
+          );
           const actionsToRun = matched ? thenActions : elseActions;
 
           await runActions(actionsToRun, context);
@@ -855,30 +779,35 @@ export const useInteraction = () => {
             storeType: "manual" | "local" | "fact";
           }>;
 
-          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
-            if (!field.analyticsName) return acc;
+          const resolvedFields = fields.reduce<Record<string, unknown>>(
+            (acc, field) => {
+              if (!field.analyticsName) return acc;
 
-            let resolvedValue: unknown;
+              let resolvedValue: unknown;
 
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
+              switch (field.storeType) {
+                case "local":
+                  resolvedValue = runtimeLocalStates[field.localName];
+                  break;
+                case "fact":
+                  resolvedValue =
+                    runtimeAnswers[field.localName as keyof Answers];
+                  break;
+                case "manual":
+                default:
+                  resolvedValue = field.localName;
+                  break;
+              }
 
-            setByPath(acc, field.analyticsName, resolvedValue);
-            return acc;
-          }, {});
+              setByPath(acc, field.analyticsName, resolvedValue);
+              return acc;
+            },
+            {},
+          );
 
           const triggerPayloadProps =
-            context?.triggerPayload && typeof context.triggerPayload === "object"
+            context?.triggerPayload &&
+            typeof context.triggerPayload === "object"
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
@@ -889,19 +818,14 @@ export const useInteraction = () => {
           );
 
           interactionAnalytics.track(event, props);
-          logger.info("analytics interaction track", {
-            event: event,
-            href: window.location.href,
-            ...props,
-          });
           break;
         }
 
         case "set_timeout": {
           const delay = Number(action.params.delay);
-          const timeoutAction = wait(Number.isFinite(delay) ? Math.max(0, delay) : 0).then(() =>
-            runActions(action.params.actions, context),
-          );
+          const timeoutAction = wait(
+            Number.isFinite(delay) ? Math.max(0, delay) : 0,
+          ).then(() => runActions(action.params.actions, context));
 
           pendingTimeoutActions.add(timeoutAction);
           timeoutAction.then(
@@ -913,14 +837,9 @@ export const useInteraction = () => {
 
         case "pixel_track": {
           const pixelTrackAction = action as PixelTrackAction;
-          const { eventName, eventId, eventIdDataType } = pixelTrackAction.params;
+          const { eventName, eventId, eventIdDataType } =
+            pixelTrackAction.params;
           if (!eventName) {
-            logger.warn("pixel_track action missing event name", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -932,19 +851,9 @@ export const useInteraction = () => {
             triggerPayload: context?.triggerPayload,
           });
 
-          if (eventId && eventIdDataType && !resolvedEventId) {
-            logger.warn("pixel_track event id could not be resolved", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              event_name: eventName,
-              event_id: eventId,
-              event_id_data_type: eventIdDataType,
-            });
-          }
-
-          const eventExtra = resolvedEventId ? { eventID: String(resolvedEventId) } : undefined;
+          const eventExtra = resolvedEventId
+            ? { eventID: String(resolvedEventId) }
+            : undefined;
 
           const pixelFields = (pixelTrackAction.params.fields ?? []) as Array<{
             id: string;
@@ -953,7 +862,9 @@ export const useInteraction = () => {
             storeType: "manual" | "local" | "fact";
           }>;
 
-          const resolvedPixelFields = pixelFields.reduce<Record<string, unknown>>((acc, field) => {
+          const resolvedPixelFields = pixelFields.reduce<
+            Record<string, unknown>
+          >((acc, field) => {
             if (!field.analyticsName) return acc;
 
             let resolvedValue: unknown;
@@ -963,7 +874,8 @@ export const useInteraction = () => {
                 resolvedValue = runtimeLocalStates[field.localName];
                 break;
               case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
+                resolvedValue =
+                  runtimeAnswers[field.localName as keyof Answers];
                 break;
               case "manual":
               default:
@@ -976,7 +888,8 @@ export const useInteraction = () => {
           }, {});
 
           const pixelTriggerPayloadProps =
-            context?.triggerPayload && typeof context.triggerPayload === "object"
+            context?.triggerPayload &&
+            typeof context.triggerPayload === "object"
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
@@ -1020,12 +933,6 @@ export const useInteraction = () => {
           const event = gtmPushAction.params.event;
 
           if (!event) {
-            logger.warn("gtm_push action missing event name", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -1036,30 +943,35 @@ export const useInteraction = () => {
             storeType: "manual" | "local" | "fact";
           }>;
 
-          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
-            if (!field.analyticsName) return acc;
+          const resolvedFields = fields.reduce<Record<string, unknown>>(
+            (acc, field) => {
+              if (!field.analyticsName) return acc;
 
-            let resolvedValue: unknown;
+              let resolvedValue: unknown;
 
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
+              switch (field.storeType) {
+                case "local":
+                  resolvedValue = runtimeLocalStates[field.localName];
+                  break;
+                case "fact":
+                  resolvedValue =
+                    runtimeAnswers[field.localName as keyof Answers];
+                  break;
+                case "manual":
+                default:
+                  resolvedValue = field.localName;
+                  break;
+              }
 
-            setByPath(acc, field.analyticsName, resolvedValue);
-            return acc;
-          }, {});
+              setByPath(acc, field.analyticsName, resolvedValue);
+              return acc;
+            },
+            {},
+          );
 
           const triggerPayloadProps =
-            context?.triggerPayload && typeof context.triggerPayload === "object"
+            context?.triggerPayload &&
+            typeof context.triggerPayload === "object"
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
@@ -1079,12 +991,6 @@ export const useInteraction = () => {
           const event = tiktokPushAction.params.event;
 
           if (!event) {
-            logger.warn("tiktok_push action missing event name", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -1095,30 +1001,35 @@ export const useInteraction = () => {
             storeType: "manual" | "local" | "fact";
           }>;
 
-          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
-            if (!field.analyticsName) return acc;
+          const resolvedFields = fields.reduce<Record<string, unknown>>(
+            (acc, field) => {
+              if (!field.analyticsName) return acc;
 
-            let resolvedValue: unknown;
+              let resolvedValue: unknown;
 
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
+              switch (field.storeType) {
+                case "local":
+                  resolvedValue = runtimeLocalStates[field.localName];
+                  break;
+                case "fact":
+                  resolvedValue =
+                    runtimeAnswers[field.localName as keyof Answers];
+                  break;
+                case "manual":
+                default:
+                  resolvedValue = field.localName;
+                  break;
+              }
 
-            setByPath(acc, field.analyticsName, resolvedValue);
-            return acc;
-          }, {});
+              setByPath(acc, field.analyticsName, resolvedValue);
+              return acc;
+            },
+            {},
+          );
 
           const triggerPayloadProps =
-            context?.triggerPayload && typeof context.triggerPayload === "object"
+            context?.triggerPayload &&
+            typeof context.triggerPayload === "object"
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
@@ -1138,12 +1049,6 @@ export const useInteraction = () => {
           const event = axonPushAction.params.event;
 
           if (!event) {
-            logger.warn("axon_push action missing event name", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -1154,30 +1059,35 @@ export const useInteraction = () => {
             storeType: "manual" | "local" | "fact";
           }>;
 
-          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
-            if (!field.analyticsName) return acc;
+          const resolvedFields = fields.reduce<Record<string, unknown>>(
+            (acc, field) => {
+              if (!field.analyticsName) return acc;
 
-            let resolvedValue: unknown;
+              let resolvedValue: unknown;
 
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
+              switch (field.storeType) {
+                case "local":
+                  resolvedValue = runtimeLocalStates[field.localName];
+                  break;
+                case "fact":
+                  resolvedValue =
+                    runtimeAnswers[field.localName as keyof Answers];
+                  break;
+                case "manual":
+                default:
+                  resolvedValue = field.localName;
+                  break;
+              }
 
-            setByPath(acc, field.analyticsName, resolvedValue);
-            return acc;
-          }, {});
+              setByPath(acc, field.analyticsName, resolvedValue);
+              return acc;
+            },
+            {},
+          );
 
           const triggerPayloadProps =
-            context?.triggerPayload && typeof context.triggerPayload === "object"
+            context?.triggerPayload &&
+            typeof context.triggerPayload === "object"
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
@@ -1197,12 +1107,6 @@ export const useInteraction = () => {
           const event = xPushAction.params.event;
 
           if (!event) {
-            logger.warn("x_push action missing event name", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: runtimeAnswers,
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -1213,30 +1117,35 @@ export const useInteraction = () => {
             storeType: "manual" | "local" | "fact";
           }>;
 
-          const resolvedFields = fields.reduce<Record<string, unknown>>((acc, field) => {
-            if (!field.analyticsName) return acc;
+          const resolvedFields = fields.reduce<Record<string, unknown>>(
+            (acc, field) => {
+              if (!field.analyticsName) return acc;
 
-            let resolvedValue: unknown;
+              let resolvedValue: unknown;
 
-            switch (field.storeType) {
-              case "local":
-                resolvedValue = runtimeLocalStates[field.localName];
-                break;
-              case "fact":
-                resolvedValue = runtimeAnswers[field.localName as keyof Answers];
-                break;
-              case "manual":
-              default:
-                resolvedValue = field.localName;
-                break;
-            }
+              switch (field.storeType) {
+                case "local":
+                  resolvedValue = runtimeLocalStates[field.localName];
+                  break;
+                case "fact":
+                  resolvedValue =
+                    runtimeAnswers[field.localName as keyof Answers];
+                  break;
+                case "manual":
+                default:
+                  resolvedValue = field.localName;
+                  break;
+              }
 
-            setByPath(acc, field.analyticsName, resolvedValue);
-            return acc;
-          }, {});
+              setByPath(acc, field.analyticsName, resolvedValue);
+              return acc;
+            },
+            {},
+          );
 
           const triggerPayloadProps =
-            context?.triggerPayload && typeof context.triggerPayload === "object"
+            context?.triggerPayload &&
+            typeof context.triggerPayload === "object"
               ? (context.triggerPayload as Record<string, unknown>)
               : {};
 
@@ -1253,28 +1162,16 @@ export const useInteraction = () => {
 
         // ── Swiper ────────────────────────────────────────────────────────────
         case "slide_swiper": {
-          const { swiper_id: swiperId, slide_index: slideIndex } = action.params;
+          const { swiper_id: swiperId, slide_index: slideIndex } =
+            action.params;
 
           if (!swiperId || slideIndex === undefined) {
-            logger.warn("slide_to action missing id or index", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
           const resolvedIndex = Number(slideIndex);
 
           if (!Number.isFinite(resolvedIndex) || resolvedIndex < 0) {
-            logger.warn("slide_to action index is invalid", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              resolved_index: resolvedIndex,
-            });
             break;
           }
 
@@ -1286,12 +1183,6 @@ export const useInteraction = () => {
           const { swiper_id: swiperId } = action.params;
 
           if (!swiperId) {
-            logger.warn("swiper_slide_next action missing id", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -1303,12 +1194,6 @@ export const useInteraction = () => {
           const { swiper_id: swiperId } = action.params;
 
           if (!swiperId) {
-            logger.warn("swiper_slide_prev action missing id", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
 
@@ -1329,18 +1214,10 @@ export const useInteraction = () => {
         case "set_selected_subscription": {
           const resolve = options?.set_selected_subscription?.resolve;
           if (!resolve) {
-            logger.warn("set_selected_subscription action has no host resolver", {
-              action_type: action.type,
-              action_params: action.params,
-            });
             break;
           }
           const { mode, subscriptionId, selectionType } = action.params;
           if (mode === "by_id" && !subscriptionId) {
-            logger.warn("set_selected_subscription by_id missing subscriptionId", {
-              action_type: action.type,
-              action_params: action.params,
-            });
             break;
           }
           resolve({ mode, subscriptionId, selectionType });
@@ -1351,20 +1228,10 @@ export const useInteraction = () => {
         case "slides_next": {
           const next = options?.slides?.next;
           if (!next) {
-            logger.warn("slides_next action has no host resolver", {
-              action_type: action.type,
-              action_params: action.params,
-            });
             break;
           }
           const { slides_id: slidesId } = action.params;
           if (!slidesId) {
-            logger.warn("slides_next action missing slides_id", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
           next({ id: slidesId });
@@ -1374,20 +1241,10 @@ export const useInteraction = () => {
         case "slides_prev": {
           const prev = options?.slides?.prev;
           if (!prev) {
-            logger.warn("slides_prev action has no host resolver", {
-              action_type: action.type,
-              action_params: action.params,
-            });
             break;
           }
           const { slides_id: slidesId } = action.params;
           if (!slidesId) {
-            logger.warn("slides_prev action missing slides_id", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
           prev({ id: slidesId });
@@ -1397,31 +1254,15 @@ export const useInteraction = () => {
         case "slides_goto": {
           const goto = options?.slides?.goto;
           if (!goto) {
-            logger.warn("slides_goto action has no host resolver", {
-              action_type: action.type,
-              action_params: action.params,
-            });
             break;
           }
-          const { slides_id: slidesId, slide_index: slideIndex } = action.params;
+          const { slides_id: slidesId, slide_index: slideIndex } =
+            action.params;
           if (!slidesId || slideIndex === undefined) {
-            logger.warn("slides_goto action missing slides_id or slide_index", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
           const resolvedIndex = Number(slideIndex);
           if (!Number.isFinite(resolvedIndex) || resolvedIndex < 0) {
-            logger.warn("slides_goto action index is invalid", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-              resolved_index: resolvedIndex,
-            });
             break;
           }
           goto({ id: slidesId, index: resolvedIndex });
@@ -1432,20 +1273,10 @@ export const useInteraction = () => {
         case "spin_start": {
           const startSpin = options?.spin_start?.startSpin;
           if (!startSpin) {
-            logger.warn("spin_start action has no host resolver", {
-              action_type: action.type,
-              action_params: action.params,
-            });
             break;
           }
           const { wheel_id: wheelId } = action.params;
           if (!wheelId) {
-            logger.warn("spin_start action missing wheel_id", {
-              action_type: action.type,
-              action_params: action.params,
-              answers: pickLoggedAnswers(runtimeAnswers),
-              local_states: runtimeLocalStates,
-            });
             break;
           }
           startSpin({ wheelId });
@@ -1457,9 +1288,13 @@ export const useInteraction = () => {
       }
     };
 
-    const runActions = (actions: LogicAction[], context?: ActionContext): Promise<void> =>
+    const runActions = (
+      actions: LogicAction[],
+      context?: ActionContext,
+    ): Promise<void> =>
       actions.reduce(
-        (promise, currentAction) => promise.then(() => runAction(currentAction, context)),
+        (promise, currentAction) =>
+          promise.then(() => runAction(currentAction, context)),
         Promise.resolve(),
       );
 
@@ -1469,7 +1304,9 @@ export const useInteraction = () => {
       }
     };
 
-    const runInteractionIfIdle = async (callback: () => Promise<void>): Promise<void> => {
+    const runInteractionIfIdle = async (
+      callback: () => Promise<void>,
+    ): Promise<void> => {
       if (isInteractionPending) return;
 
       isInteractionPending = true;
@@ -1481,7 +1318,10 @@ export const useInteraction = () => {
       }
     };
 
-    const handleAction = async (action: LogicAction, triggerPayload?: unknown): Promise<void> => {
+    const handleAction = async (
+      action: LogicAction,
+      triggerPayload?: unknown,
+    ): Promise<void> => {
       await runInteractionIfIdle(async () => {
         await runAction(action, { triggerPayload });
       });
@@ -1494,7 +1334,9 @@ export const useInteraction = () => {
     ): Promise<void> => {
       await runInteractionIfIdle(async () => {
         await runActions(
-          logicValue.filter((rule) => rule.trigger === trigger).flatMap((rule) => rule.actions),
+          logicValue
+            .filter((rule) => rule.trigger === trigger)
+            .flatMap((rule) => rule.actions),
           { triggerPayload },
         );
       });

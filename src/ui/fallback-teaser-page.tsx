@@ -1,9 +1,8 @@
 "use client";
 
-import { useLogger } from "next-axiom";
 import { useRouter } from "next/navigation";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "./internal/button";
 
@@ -26,19 +25,6 @@ export function FallbackTeaserPage({
 }: FallbackTeaserPageProps) {
   const router = useRouter();
   const [isRetrying, setIsRetrying] = useState(false);
-  const logger = useLogger().with({
-    fallback_reason: reason,
-    fallback_page_id: currentPageId,
-  });
-
-  useEffect(() => {
-    const payload = {
-      fallback_reason: reason,
-      fallback_page_id: currentPageId,
-    };
-
-    logger.warn("Page builder fallback teaser rendered", payload);
-  }, [currentPageId, logger, reason]);
 
   return (
     <div
@@ -69,12 +55,6 @@ export function FallbackTeaserPage({
           disabled={isRetrying}
           className="min-w-[320px] rounded-full bg-[#2d2219] text-white hover:bg-[#46352a]"
           onClick={() => {
-            const payload = {
-              fallback_reason: reason,
-              fallback_page_id: currentPageId,
-            };
-
-            logger.info("Page builder fallback teaser retry clicked", payload);
             setIsRetrying(true);
             router.refresh();
           }}
@@ -89,10 +69,5 @@ export function FallbackTeaserPage({
 export function FallbackTeaserPageWithNavigation() {
   const page = usePage();
 
-  return (
-    <FallbackTeaserPage
-      currentPageId={page.id}
-      reason="missing_html"
-    />
-  );
+  return <FallbackTeaserPage currentPageId={page.id} reason="missing_html" />;
 }

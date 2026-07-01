@@ -3,8 +3,6 @@
 import { useUnit } from "effector-react";
 import { domToReact, Element } from "html-react-parser";
 
-import { useLogger } from "next-axiom";
-
 import { memo, useEffect, useMemo, useState } from "react";
 
 import { Condition } from "../../types";
@@ -123,12 +121,18 @@ const ConditionBranchRenderer = memo(
   (prevProps, nextProps) => {
     if (prevProps.targetChild !== nextProps.targetChild) return false;
     if (prevProps.config !== nextProps.config) return false;
-    if (prevProps.hiddenChildren.length !== nextProps.hiddenChildren.length) return false;
-    return prevProps.hiddenChildren.every((child, i) => child === nextProps.hiddenChildren[i]);
+    if (prevProps.hiddenChildren.length !== nextProps.hiddenChildren.length)
+      return false;
+    return prevProps.hiddenChildren.every(
+      (child, i) => child === nextProps.hiddenChildren[i],
+    );
   },
 );
 
-export default function ConditionRegistry({ domNode, config }: ComponentRegistryProps) {
+export default function ConditionRegistry({
+  domNode,
+  config,
+}: ComponentRegistryProps) {
   const model = useBuilderModel();
   const localModel = useLocalModel();
   const [answers, localStates, subscriptionFacts] = useUnit([
@@ -137,20 +141,14 @@ export default function ConditionRegistry({ domNode, config }: ComponentRegistry
     model.$subscriptionFacts,
   ]);
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
-  const baseLogger = useLogger();
-  const logger = useMemo(
-    () =>
-      baseLogger.with({
-        component_type: "condition",
-        component_id: domNode.attribs["data-id"] ?? null,
-      }),
-    [baseLogger, domNode.attribs],
-  );
   const branches = useMemo(
     () => tryParse<Condition["condition"]>(domNode.attribs["branches"]) ?? [],
     [domNode.attribs],
   );
-  const dependencies = useMemo(() => getConditionDependencies(branches), [branches]);
+  const dependencies = useMemo(
+    () => getConditionDependencies(branches),
+    [branches],
+  );
   const relevantSignature = useMemo(
     () =>
       buildRelevantStateSignature({
@@ -184,14 +182,7 @@ export default function ConditionRegistry({ domNode, config }: ComponentRegistry
         if (!isCancelled) {
           setTargetNodeId(result?.nodeId ? String(result.nodeId) : null);
         }
-      } catch (error) {
-        logger.error("page builder condition query failed", {
-          error: error instanceof Error ? error.message : String(error),
-          branches,
-          answers,
-          local_states: localStates,
-        });
-
+      } catch {
         if (!isCancelled) {
           setTargetNodeId(null);
         }
@@ -203,7 +194,7 @@ export default function ConditionRegistry({ domNode, config }: ComponentRegistry
     return () => {
       isCancelled = true;
     };
-  }, [answers, branches, localStates, subscriptionFacts, logger, relevantSignature]);
+  }, [answers, branches, localStates, subscriptionFacts, relevantSignature]);
 
   const elementChildren = useMemo(
     () => domNode.children.filter((c): c is Element => c instanceof Element),
@@ -213,7 +204,8 @@ export default function ConditionRegistry({ domNode, config }: ComponentRegistry
   const targetChild = useMemo(
     () =>
       targetNodeId
-        ? (elementChildren.find((c) => c.attribs["data-id"] === targetNodeId) ?? null)
+        ? (elementChildren.find((c) => c.attribs["data-id"] === targetNodeId) ??
+          null)
         : null,
     [elementChildren, targetNodeId],
   );
