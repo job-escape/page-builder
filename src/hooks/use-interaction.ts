@@ -650,6 +650,11 @@ export const useInteraction = () => {
             triggerPayload: context?.triggerPayload,
           });
 
+          // utm_source for attribution — tolerate bare or funnel_data-prefixed keys.
+          const loggedUtmSource =
+            runtimeAnswers["utm_source"] ??
+            runtimeAnswers["funnel_data-utm_source"];
+
           // ── Pending lifecycle ──────────────────────────────────────────────
           await runLifecycle(
             requestConfig.lifecycleActions,
@@ -702,6 +707,8 @@ export const useInteraction = () => {
               status: res.status,
               ok: res.ok,
               duration_ms: Math.round(performance.now() - fetchStart),
+              utm_source: loggedUtmSource,
+              request_body: bodyObject,
             } satisfies RequestTiming);
 
             if (matched) {
@@ -723,6 +730,8 @@ export const useInteraction = () => {
               action_type: action.type,
               action_params: action.params,
               answers: pickLoggedAnswers(runtimeAnswers),
+              utm_source: loggedUtmSource,
+              request_body: bodyObject,
               local_states: runtimeLocalStates,
               url: fullUrl,
               method: requestConfig.method,
@@ -737,6 +746,8 @@ export const useInteraction = () => {
               method: requestConfig.method,
               ok: false,
               duration_ms: Math.round(performance.now() - fetchStart),
+              utm_source: loggedUtmSource,
+              request_body: bodyObject,
             } satisfies RequestTiming);
 
             await runLifecycle(

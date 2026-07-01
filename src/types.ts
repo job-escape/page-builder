@@ -49,7 +49,8 @@ export type NodeStatesValue = NodeStateRule[];
 // Library stays decoupled from Meta Pixel / Facebook SDK; the consumer plugs in
 // an adapter that receives these events via the PixelAdapterProvider.
 
-export type PixelStandardEventName = "PageView" | "Lead" | "InitiateCheckout" | "test_inititate";
+export type PixelStandardEventName =
+  "PageView" | "Lead" | "InitiateCheckout" | "test_inititate";
 export type PixelPurchaseEventName = "Purchase";
 
 export type PixelBaseEventProps = {
@@ -80,9 +81,7 @@ export type PixelPurchaseTrackEvent = PixelBaseEventProps & {
 };
 
 export type PixelTrackEvent =
-  | PixelCustomTrackEvent
-  | PixelStandardTrackEvent
-  | PixelPurchaseTrackEvent;
+  PixelCustomTrackEvent | PixelStandardTrackEvent | PixelPurchaseTrackEvent;
 
 export type BuilderPageBase = {
   id: number;
@@ -95,7 +94,8 @@ export type BuilderPageBase = {
   pageId: number;
 };
 
-export type BuilderPage<Extra extends object = object> = BuilderPageBase & Extra;
+export type BuilderPage<Extra extends object = object> = BuilderPageBase &
+  Extra;
 
 export type BuilderDialog = {
   id: number;
@@ -107,7 +107,10 @@ export type BuilderDialog = {
   force_mount?: boolean;
 };
 
-export type ComponentRegistryProps = { domNode: Element; config: HTMLReactParserOptions };
+export type ComponentRegistryProps = {
+  domNode: Element;
+  config: HTMLReactParserOptions;
+};
 export type ComponentRegisry = Record<string, FC<ComponentRegistryProps>>;
 export type PrimitiveValue = string | number | boolean;
 export type StoredValue = PrimitiveValue | string[];
@@ -525,7 +528,10 @@ export type LogicActionType = LogicAction["type"];
 
 // ─── Param extractor helper ───────────────────────────────────────────────────
 
-export type ParamsOf<T extends LogicActionType> = Extract<LogicAction, { type: T }>["params"];
+export type ParamsOf<T extends LogicActionType> = Extract<
+  LogicAction,
+  { type: T }
+>["params"];
 
 export interface LogicRule {
   id: string;
@@ -584,6 +590,10 @@ export interface RequestTiming {
   method?: string;
   lang?: string;
   order?: number;
+  /** http_action only: utm_source from the runtime answers, for attribution. */
+  utm_source?: PrimitiveValue | string[];
+  /** http_action only: the outbound request body that was sent. */
+  request_body?: unknown;
 }
 
 export type RequestStatus =
