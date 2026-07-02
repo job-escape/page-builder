@@ -81,8 +81,6 @@ const ORDERED_RULES: { category: DeclineCategory; needles: string[] }[] = [
       "expired card",
       "expired_card", // Primer EXPIRED_CARD
       "expiration date",
-      "life cycle",
-      "lifecycle",
     ],
   },
   {
@@ -132,6 +130,8 @@ const ORDERED_RULES: { category: DeclineCategory; needles: string[] }[] = [
       "stop payment",
       "declined by issuer",
       "call your bank",
+      "life cycle",
+      "lifecycle",
     ],
   },
   {

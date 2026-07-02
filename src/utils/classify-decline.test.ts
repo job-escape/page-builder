@@ -29,7 +29,7 @@ const MESSAGE_MAPPING: [string, DeclineCategory][] = [
   ["78 : Blocked, first used", "CARD_RESTRICTED_OR_INACTIVE"],
   ["5C : Transaction not supported/blocked by issuer", "CARD_RESTRICTED_OR_INACTIVE"],
   ["Restricted Card", "CARD_RESTRICTED_OR_INACTIVE"],
-  ["79 : Life cycle", "EXPIRED_OR_OUTDATED_CARD"],
+  ["79 : Life cycle", "GENERIC_BANK_DECLINE"],
   ["Decline for CVV2 Failure", "INVALID_CVV"],
   ["54 : Expired card", "EXPIRED_OR_OUTDATED_CARD"],
   ["58 : Transaction not permitted to acquirer/terminal", "CARD_RESTRICTED_OR_INACTIVE"],
@@ -56,7 +56,7 @@ const MESSAGE_MAPPING: [string, DeclineCategory][] = [
   ["46 : Closed account", "CARD_RESTRICTED_OR_INACTIVE"],
   ["30 : Format error", "INVALID_CARD_DETAILS"],
   ["62 : Restricted card", "CARD_RESTRICTED_OR_INACTIVE"],
-  ["Lifecycle", "EXPIRED_OR_OUTDATED_CARD"],
+  ["Lifecycle", "GENERIC_BANK_DECLINE"],
   ["Invalid Card Number", "INVALID_CARD_DETAILS"],
   [
     "Blocked, first use - transaction from new cardholder, and card not properly unblocked",
