@@ -5,11 +5,10 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import dynamic from "next/dynamic";
 
-import { useLogger } from "next-axiom";
-
 import { ComponentType, useEffect, useRef, useState } from "react";
 
 import { usePreloadChunk } from "../hooks/use-preload-chunk";
+import { useLogger } from "../utils/logger";
 import { BuilderClientModel } from "../model/gate";
 import { BuilderModel } from "../model/store";
 import LocalProvider from "../providers/local-provider";

@@ -1,11 +1,10 @@
 import { useUnit } from "effector-react";
 import { v4 as uuidv4 } from "uuid";
 
-import { useLogger } from "next-axiom";
-
 import { useRef } from "react";
 
 import { slideNext, slidePrev, slideTo } from "../model/swiper-store";
+import { useLogger } from "../utils/logger";
 import { useInteractionAnalytics } from "../providers/interaction-analytics-context";
 import { useInteractionOptions } from "../providers/interaction-options-context";
 import { useAxonPixelAdapter } from "../providers/axon-pixel-context";
