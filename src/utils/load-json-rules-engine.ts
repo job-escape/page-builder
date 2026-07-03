@@ -6,7 +6,13 @@ let cached: Promise<typeof import("json-rules-engine")> | null = null;
 
 export const loadJsonRulesEngine = () => {
   if (!cached) {
-    cached = import("json-rules-engine");
+    // Don't memoize a failed chunk load: a rejected promise would brick every
+    // condition evaluation for the rest of the session. Reset so the next
+    // caller retries the network request.
+    cached = import("json-rules-engine").catch((error) => {
+      cached = null;
+      throw error;
+    });
   }
   return cached;
 };

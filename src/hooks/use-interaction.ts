@@ -781,13 +781,20 @@ export const useInteraction = () => {
           const conditionalAction = action as ConditionalAction;
           const { conditions, thenActions, elseActions } =
             conditionalAction.params;
-          const matched = await evaluateConditionalAction(
-            conditions,
-            getRuntimeFacts(),
-          );
-          const actionsToRun = matched ? thenActions : elseActions;
+          // Contain failures (e.g. the rules-engine chunk failing to load) to
+          // this action: skip the branch but keep running the rest of the
+          // chain so navigation actions after it still fire.
+          try {
+            const matched = await evaluateConditionalAction(
+              conditions,
+              getRuntimeFacts(),
+            );
+            const actionsToRun = matched ? thenActions : elseActions;
 
-          await runActions(actionsToRun, context);
+            await runActions(actionsToRun, context);
+          } catch {
+            // skip
+          }
           break;
         }
 

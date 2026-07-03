@@ -183,8 +183,13 @@ export default function ConditionRegistry({
           setTargetNodeId(result?.nodeId ? String(result.nodeId) : null);
         }
       } catch {
+        // Engine failed to load/evaluate — show the default branch instead of
+        // nothing, matching what runCondition returns when no rule matches.
         if (!isCancelled) {
-          setTargetNodeId(null);
+          const defaultBranch = branches.find((branch) => branch.isDefault);
+          setTargetNodeId(
+            defaultBranch?.nodeId ? String(defaultBranch.nodeId) : null,
+          );
         }
       }
     };
