@@ -9,6 +9,8 @@ export interface Logger {
   warn: (message: string, data?: LogData) => void;
   error: (message: string, data?: LogData) => void;
   with: (context: LogData) => Logger;
+  /** Push a Faro measurement (survives log-only transport filters in the host app). */
+  measurement: (type: string, values: Record<string, number>, data?: LogData) => void;
 }
 
 // Faro log context must be a flat Record<string, string> to stay queryable in
@@ -40,6 +42,10 @@ export function createLogger(base: LogData = {}): Logger {
     warn: (message, data) => push(LogLevel.WARN, message, data),
     error: (message, data) => push(LogLevel.ERROR, message, data),
     with: (context) => createLogger({ ...base, ...context }),
+    measurement: (type, values, data) => {
+      const faro = getInternalFaroFromGlobalObject();
+      faro?.api?.pushMeasurement({ type, values }, { context: toContext(base, data) });
+    },
   };
 }
 

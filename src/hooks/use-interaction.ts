@@ -720,6 +720,25 @@ export const useInteraction = () => {
               request_body: bodyObject,
             } satisfies RequestTiming);
 
+            // Single measurement carrying timing + request/response bodies (a Faro
+            // measurement survives log-only transport filters in the host app).
+            logger.measurement(
+              "backend_request",
+              { duration: Math.round(performance.now() - fetchStart) },
+              {
+                url: fullUrl,
+                method: requestConfig.method,
+                status: res.status,
+                ok: res.ok,
+                request_body: bodyObject,
+                response_body: responseData,
+                utm_source: loggedUtmSource,
+                email: loggedEmail,
+                language: loggedLanguage,
+                href: loggedHref,
+              },
+            );
+
             if (matched) {
               for (const a of matched.actions) {
                 if (!a.type) continue;
@@ -751,6 +770,22 @@ export const useInteraction = () => {
               duration_ms: Math.round(performance.now() - fetchStart),
               error,
             });
+
+            logger.measurement(
+              "backend_request",
+              { duration: Math.round(performance.now() - fetchStart) },
+              {
+                url: fullUrl,
+                method: requestConfig.method,
+                ok: false,
+                request_body: bodyObject,
+                error: error instanceof Error ? error.message : String(error),
+                utm_source: loggedUtmSource,
+                email: loggedEmail,
+                language: loggedLanguage,
+                href: loggedHref,
+              },
+            );
 
             logger.warn("request_timing", {
               kind: "http_action",
