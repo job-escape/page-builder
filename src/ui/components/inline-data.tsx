@@ -7,12 +7,24 @@ import { useBuilderModel } from "../../hooks/use-builder-model";
 import { useLocalModel } from "../../hooks/use-local-model";
 import { useStyledNode } from "../../hooks/use-styled-node";
 import { Answers, ComponentRegistryProps, PrimitiveValue } from "../../types";
+import { applyValueTransforms } from "../../utils/apply-value-transforms";
 
 const FACT_ATTR = "inline-data-fact";
 const DATA_FACT_ATTR = "data-lexical-inline-data-fact";
+const TRANSFORM_ATTR = "inline-data-transform";
+const DATA_TRANSFORM_ATTR = "data-lexical-inline-data-transform";
 
 const getFact = (attribs: Record<string, string>) => {
   return attribs[FACT_ATTR] ?? attribs[DATA_FACT_ATTR] ?? attribs.fact ?? "";
+};
+
+const getTransforms = (attribs: Record<string, string>): string[] | undefined => {
+  const raw = attribs[TRANSFORM_ATTR] ?? attribs[DATA_TRANSFORM_ATTR];
+  if (!raw) return undefined;
+  return raw
+    .split("|")
+    .map((transform) => transform.trim())
+    .filter(Boolean);
 };
 
 const getInlineValue = (
@@ -63,7 +75,8 @@ export default function InlineDataRegistry({ domNode }: ComponentRegistryProps) 
   const localModel = useLocalModel();
   const answers = useUnit(model.$answers);
   const localStates = useUnit(localModel.$localStates);
-  const value = normalizeValue(getInlineValue(answers, localStates, getFact(attribs)));
+  const rawValue = normalizeValue(getInlineValue(answers, localStates, getFact(attribs)));
+  const value = applyValueTransforms(rawValue, getTransforms(attribs));
 
   return <ClassNames>{({ css }) => <span className={css(styledCss)}>{value}</span>}</ClassNames>;
 }
