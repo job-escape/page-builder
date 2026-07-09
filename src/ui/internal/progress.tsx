@@ -22,7 +22,11 @@ const Progress = React.forwardRef<
     <ProgressPrimitive.Indicator
       className={twMerge("h-full w-full flex-1 bg-brand transition-all", indicatorClassName)}
       style={{
-        transform: `translateX(-${100 - (value || 0)}%)`,
+        // Fill by width (anchored to the inline-start) rather than translateX, so
+        // the bar follows text direction: LTR fills from the left, RTL from the
+        // right. translateX is physical and ignores `dir`. Inline width overrides
+        // the `w-full` class.
+        width: `${value || 0}%`,
         ...(transitionDuration ? { transitionDuration } : {}),
         ...indicatorStyle,
       }}
