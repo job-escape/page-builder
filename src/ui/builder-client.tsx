@@ -162,7 +162,12 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
 
       if (isActive) {
         return (
-          <div key={page.id} style={{ display: "contents" }}>
+          <div
+            key={page.id}
+            style={{ display: "contents" }}
+            data-bevr-active-page="true"
+            data-bevr-page-id={String(page.id)}
+          >
             <LocalProvider>
               <PageProvider<Page> page={page as Page}>
                 <Parser content={page.html as string} registry={registry} />
@@ -174,7 +179,12 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
       }
 
       return (
-        <div key={page.id} style={{ display: "none" }} aria-hidden>
+        <div
+          key={page.id}
+          style={{ display: "none" }}
+          aria-hidden
+          data-bevr-page-id={String(page.id)}
+        >
           <PreloadProvider preload>
             <LocalProvider>
               <PageProvider<Page> page={page as Page}>

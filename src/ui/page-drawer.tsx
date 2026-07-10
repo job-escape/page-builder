@@ -92,7 +92,13 @@ export default function PageDrawer({
       <PageDrawerContext.Provider value={{ onOpenChange, onDismissRef }}>
         <Drawer.Root modal={false} open={open} onOpenChange={handleOpenChange}>
           <Drawer.Portal forceMount={dialog.force_mount || undefined}>
-            <div aria-hidden={!open} style={{ display: open ? "contents" : "none" }}>
+            <div
+              aria-hidden={!open}
+              style={{ display: open ? "contents" : "none" }}
+              {...(open
+                ? { "data-bevr-active-dialog": "true", "data-bevr-dialog-id": String(dialog.id) }
+                : { "data-bevr-dialog-id": String(dialog.id) })}
+            >
               <Parser content={dialog.html} registry={drawerRegistry} />
             </div>
           </Drawer.Portal>

@@ -76,6 +76,9 @@ export default function PageDialog({
             <div
               aria-hidden={!open}
               style={{ display: open ? "contents" : "none" }}
+              {...(open
+                ? { "data-bevr-active-dialog": "true", "data-bevr-dialog-id": String(dialog.id) }
+                : { "data-bevr-dialog-id": String(dialog.id) })}
             >
               <Parser content={dialog.html} registry={dialogRegistry} />
             </div>
