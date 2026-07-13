@@ -50,6 +50,10 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
   const itemBg = attribs["marquee-item-bg"] || "#fff";
   const itemColor = attribs["marquee-item-color"] || undefined;
 
+  // Few items make a track narrower than the container, and translateX(-100%) would
+  // then leave a visible gap. Repeat the items so one track always overflows.
+  const repeat = Math.max(1, getNumberAttr(attribs["marquee-repeat"], 4));
+
   const visibleRows = rows.filter((row) => Array.isArray(row) && row.length > 0);
   if (!visibleRows.length) return null;
 
@@ -103,9 +107,6 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                 css={{
                   display: "flex",
                   flex: "0 0 auto",
-                  // Each track must be at least as wide as the viewport, otherwise
-                  // translateX(-100%) moves it less than a screen and a gap appears.
-                  minWidth: "100%",
                   alignItems: "center",
                   gap: `${gap}px`,
                   paddingRight: `${gap}px`,
@@ -120,7 +121,9 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                     : {}),
                 }}
               >
-                {row.map((item, itemIndex) => (
+                {Array.from({ length: repeat }, () => row)
+                  .flat()
+                  .map((item, itemIndex) => (
                   <div
                     // eslint-disable-next-line react/no-array-index-key
                     key={itemIndex}
