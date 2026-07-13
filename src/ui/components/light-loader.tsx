@@ -136,7 +136,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
       <Progress
         value={targetValue}
         className={cn("w-full", VARIANT_HEIGHT[variant] ?? VARIANT_HEIGHT.default)}
-        indicatorClassName={cssReady ? "transition-transform ease-linear" : "transition-none"}
+        indicatorClassName={cssReady ? "transition-all ease-linear" : "transition-none"}
         indicatorStyle={color ? { backgroundColor: color } : undefined}
         transitionDuration={cssReady ? `${transitionDuration}ms` : undefined}
       />

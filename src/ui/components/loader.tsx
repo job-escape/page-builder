@@ -127,7 +127,7 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
 
   return (
     <Progress
-      indicatorClassName={cssReady ? "transition-transform ease-linear" : "transition-none"}
+      indicatorClassName={cssReady ? "transition-all ease-linear" : "transition-none"}
       indicatorStyle={color ? { backgroundColor: color } : undefined}
       transitionDuration={cssReady ? `${speed}ms` : undefined}
       value={cssReady ? visualTarget : 0}

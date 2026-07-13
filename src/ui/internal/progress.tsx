@@ -27,7 +27,12 @@ const Progress = React.forwardRef<
         // right. translateX is physical and ignores `dir`. Inline width overrides
         // the `w-full` class.
         width: `${value || 0}%`,
-        ...(transitionDuration ? { transitionDuration } : {}),
+        // Width is the animated property now, so width is what must transition.
+        // Callers that sweep the bar hand us the FINAL value plus a duration and
+        // let CSS do the animation; a leftover `transition-transform` class from
+        // the old translateX fill would transition nothing, snapping the bar
+        // straight to `value`. Pin the property inline so it beats that class.
+        ...(transitionDuration ? { transitionProperty: "width", transitionDuration } : {}),
         ...indicatorStyle,
       }}
     />
