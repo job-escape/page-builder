@@ -8,6 +8,7 @@ import InlineDataRegistry from "../ui/components/inline-data";
 import LightLoaderRegistry from "../ui/components/light-loader";
 import LoaderRegistry from "../ui/components/loader";
 import LottieRegistry from "../ui/components/lottie";
+import MarqueeRegistry from "../ui/components/marquee";
 import SwiperRegistry from "../ui/components/swiper";
 
 export const DEFAULT_REGISTRY: ComponentRegisry = {
@@ -19,6 +20,7 @@ export const DEFAULT_REGISTRY: ComponentRegisry = {
   loader: LoaderRegistry,
   "light-loader": LightLoaderRegistry,
   lottie: LottieRegistry,
+  marquee: MarqueeRegistry,
   "percentage-animation": AnimatedPercentageRegistry,
   swiper: SwiperRegistry,
 };

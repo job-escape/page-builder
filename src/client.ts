@@ -119,6 +119,7 @@ export { default as InlineDataRegistry } from "./ui/components/inline-data";
 export { default as LightLoaderRegistry } from "./ui/components/light-loader";
 export { default as LoaderRegistry } from "./ui/components/loader";
 export { default as LottieRegistry } from "./ui/components/lottie";
+export { default as MarqueeRegistry } from "./ui/components/marquee";
 export { default as SwiperRegistry } from "./ui/components/swiper";
 export { default as SwiperView } from "./ui/components/swiper-view";
 
