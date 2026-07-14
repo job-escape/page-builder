@@ -49,6 +49,14 @@ export default function ButtonRegistry(props: ComponentRegistryProps) {
       disabled={isDisabled}
       onClick={handleClick}
       data-state={activeState ?? undefined}
+      // Every call to action in a funnel is this one component — "Continue", "GET MY PLAN",
+      // "Claim my discount" are all just different children. Until now the only way to click
+      // one from an automated test was to match its visible text, so a copy change (or a
+      // translation) broke every test that touched it. `data-button-type` names it, matching
+      // the convention the option components already use, and `data-testid` lets a specific
+      // CTA be labelled in the constructor when a funnel needs one pinned by name.
+      data-button-type={attribs["button-type"] || "cta"}
+      data-testid={attribs["data-testid"] || undefined}
     >
       {domNode.children?.length ? domToReact(domNode.children as DOMNode[], config) : "Continue"}
     </button>
