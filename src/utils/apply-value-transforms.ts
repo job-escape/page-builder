@@ -1,9 +1,39 @@
-export type ValueTransform = "lowercase" | "uppercase" | "trim";
+export type ValueTransform = "lowercase" | "uppercase" | "trim" | "date";
 
 const splitTransformSpec = (transform: string): [string, string | undefined] => {
   const separatorIndex = transform.indexOf(":");
   if (separatorIndex === -1) return [transform, undefined];
   return [transform.slice(0, separatorIndex), transform.slice(separatorIndex + 1)];
+};
+
+const MS_PER_DAY = 86_400_000;
+
+const parseDayOffset = (spec: string | undefined): number => {
+  if (!spec) return 0;
+  const match = spec.trim().match(/^([+-]?\d+)\s*([dw]?)$/i);
+  if (!match) return 0;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return 0;
+  return match[2].toLowerCase() === "w" ? amount * 7 : amount;
+};
+
+const DATE_FORMATS: Record<string, Intl.DateTimeFormatOptions> = {
+  short: { month: "short", day: "numeric" }, // "Aug 12"
+  long: { month: "long", day: "numeric" }, // "August 12"
+  full: { weekday: "short", month: "short", day: "numeric" }, // "Mon, Aug 12"
+  numeric: { year: "numeric", month: "2-digit", day: "2-digit" }, // locale numeric
+};
+
+const applyDateTransform = (currentValue: string, arg: string | undefined): string => {
+  const [offsetSpec, formatKey] = splitTransformSpec(arg ?? "");
+  const days = parseDayOffset(offsetSpec);
+  const date = new Date(Date.now() + days * MS_PER_DAY);
+  const options = DATE_FORMATS[(formatKey ?? "short").trim()] ?? DATE_FORMATS.short;
+  try {
+    return new Intl.DateTimeFormat(undefined, options).format(date);
+  } catch {
+    return currentValue;
+  }
 };
 
 const applyOneTransform = (currentValue: string, transform: string): string => {
@@ -48,6 +78,8 @@ const applyOneTransform = (currentValue: string, transform: string): string => {
         return currentValue;
       }
     }
+    case "date":
+      return applyDateTransform(currentValue, arg);
     default:
       return currentValue;
   }
