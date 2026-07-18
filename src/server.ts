@@ -105,6 +105,11 @@ export {
   createConditionEngine,
 } from "./utils/condition-engine";
 export { mapOperator } from "./utils/map-operator";
+// Faro-backed logger. Exported so host apps can emit `backend_request`
+// measurements through the same code path as the builder's own http_request
+// telemetry, instead of reimplementing the context flattening.
+export { createLogger, useLogger } from "./utils/logger";
+export type { Logger } from "./utils/logger";
 export {
   normalizePageHistory,
   pagePointsToPage,
