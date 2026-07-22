@@ -152,8 +152,14 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
     });
   };
 
+  // Dialogs normally gate the page so it can't paint mid-way through opening one.
+  // But once loading has timed out that gate produced a blank screen: `renderFallback`
+  // returns null for a page that *has* html, while this filter simultaneously excluded
+  // it for missing dialogs — so nothing rendered at all. After the timeout, prefer
+  // showing the page without its dialogs over showing nothing.
   const readyPages = visiblePages.filter(
-    (p) => typeof p.html === "string" && dialogsByPage[p.id] !== undefined,
+    (p) =>
+      typeof p.html === "string" && (dialogsByPage[p.id] !== undefined || loadingTimedOut),
   );
 
   const renderPrerenderedPages = () =>

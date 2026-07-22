@@ -159,9 +159,15 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     return pages[currentPageId] ?? null;
   });
 
+  // Settles per page rather than per batch: `Promise.all` rejected the whole batch
+  // as soon as one MDX failed, so html that had already downloaded successfully was
+  // thrown away and every page in the batch stayed html-less — which kept the
+  // re-fetch condition below permanently true.
   const fetchPageHtmlFx = createEffect(
-    async (pages: Page[]): Promise<{ id: number; html: string }[]> => {
-      const result = await Promise.all(
+    async (
+      pages: Page[],
+    ): Promise<{ loaded: { id: number; html: string }[]; failedIds: number[] }> => {
+      const settled = await Promise.allSettled(
         pages.map(async (page) => {
           const start = performance.now();
           let response: Response;
@@ -201,7 +207,18 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
           return { id: page.id, html };
         }),
       );
-      return result;
+
+      const loaded: { id: number; html: string }[] = [];
+      const failedIds: number[] = [];
+      settled.forEach((outcome, index) => {
+        if (outcome.status === "fulfilled") {
+          loaded.push(outcome.value);
+          return;
+        }
+        failedIds.push(pages[index].id);
+      });
+
+      return { loaded, failedIds };
     },
   );
 
@@ -237,8 +254,9 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
 
   sample({
     clock: fetchPageHtmlFx.doneData,
-    fn: (result) => {
-      return Object.fromEntries(result.map((p) => [p.id, p.html])) as Record<number, string>;
+    filter: ({ loaded }) => loaded.length > 0,
+    fn: ({ loaded }) => {
+      return Object.fromEntries(loaded.map((p) => [p.id, p.html])) as Record<number, string>;
     },
     target: setPageHtmlEvt,
   });
@@ -426,15 +444,64 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     target: setPagesEvt,
   });
 
+  // Pages whose html request is currently in flight. `$pageHtml` is only written
+  // once a batch resolves, so without this every intervening `$pages` update
+  // re-queued a fetch for pages already downloading — with several writers to
+  // `$pages` (forward prefetch, previous-page resolve, self-heal) that piled up
+  // duplicate MDX requests and starved the browser's ~6-connection budget, so
+  // unrelated requests (dialogs) queued behind them for minutes.
+  const $pendingHtmlIds = createStore<Record<number, true>>({})
+    .on(fetchPageHtmlFx, (state, pages) => ({
+      ...state,
+      ...Object.fromEntries(pages.map((page) => [page.id, true as const])),
+    }))
+    .on(fetchPageHtmlFx.finally, (state, { params }) => {
+      const next = { ...state };
+      params.forEach((page) => delete next[page.id]);
+      return next;
+    });
+
+  // Pages whose html request failed. Excluded from re-fetching so a permanently
+  // broken `mdx_url` can't spin in a retry loop; cleared whenever the page object
+  // is written again, so a genuine retry is still possible.
+  const $failedHtmlIds = createStore<Record<number, true>>({})
+    .on(fetchPageHtmlFx.doneData, (state, { failedIds }) => ({
+      ...state,
+      ...Object.fromEntries(failedIds.map((id) => [id, true as const])),
+    }))
+    .on(setPagesEvt, (state, payload) => {
+      const next = { ...state };
+      Object.keys(payload).forEach((id) => delete next[Number(id)]);
+      return next;
+    });
+
+  const pagesNeedingHtml = ({
+    pageHtml,
+    pages,
+    pending,
+    failed,
+  }: {
+    pageHtml: Record<number, string | undefined>;
+    pages: Record<number, Page | undefined>;
+    pending: Record<number, true>;
+    failed: Record<number, true>;
+  }): Page[] =>
+    Object.values(pages).filter((page): page is Page =>
+      Boolean(page && !pageHtml[page.id] && !pending[page.id] && !failed[page.id]),
+    );
+
   sample({
-    source: { pageHtml: $pageHtml, pages: $pages },
-    filter: ({ pageHtml, pages }) =>
-      Object.values(pages).some((page) => Boolean(page && !pageHtml[page.id])),
-    fn: ({ pageHtml, pages }) => {
-      return Object.values(pages).filter((page): page is Page =>
-        Boolean(page && !pageHtml[page.id]),
-      );
+    // Explicit clock. This previously relied on `sample` falling back to clocking
+    // on `source`, which made every `$pageHtml` write re-enter the same fetch.
+    clock: [$pages, $pageHtml, fetchPageHtmlFx.finally],
+    source: {
+      pageHtml: $pageHtml,
+      pages: $pages,
+      pending: $pendingHtmlIds,
+      failed: $failedHtmlIds,
     },
+    filter: (source) => pagesNeedingHtml(source).length > 0,
+    fn: pagesNeedingHtml,
     target: fetchPageHtmlFx,
   });
 
@@ -453,7 +520,9 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     .on(fetchPagesQuery.finished.success, (state, { params }) =>
       params.pageIds.length > 0 ? false : state,
     )
-    .on(fetchPageHtmlFx.done, () => false);
+    // The effect now settles per page instead of rejecting the batch, so success
+    // alone no longer means everything loaded — read the per-page outcome.
+    .on(fetchPageHtmlFx.doneData, (_, { failedIds }) => failedIds.length > 0);
 
   const finishEvt = createEvent();
 
