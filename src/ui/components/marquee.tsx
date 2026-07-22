@@ -7,14 +7,66 @@ import { useStyledNode } from "../../hooks/use-styled-node";
 import { ComponentRegistryProps } from "../../types";
 import { tryParse } from "../../utils/try-parse";
 
+/** Per-row / per-item style override. Only set keys win over the level above.
+ *  Mirrors the constructor's MarqueeItemStyle keys; all optional. */
+export type MarqueeStyleOverride = {
+  layout?: "row" | "column";
+  itemBg?: string;
+  itemColor?: string;
+  itemBorderWidth?: number;
+  itemBorderColor?: string;
+  itemBorderStyle?: string;
+  itemRadius?: number;
+  itemPaddingY?: number;
+  itemPaddingX?: number;
+  itemGap?: number;
+  fontSize?: number;
+  fontWeight?: number;
+  shadow?: boolean;
+  imageWidth?: number;
+  imageHeight?: number;
+  imageRadius?: number;
+  imageFit?: string;
+  imageBorderWidth?: number;
+  imageBorderColor?: string;
+};
+
 export type MarqueeItem = {
   text: string;
   image?: string;
   alt?: string;
+  style?: MarqueeStyleOverride;
 };
 
-/** Rows scroll independently; even rows go one way, odd rows the other. */
-export type MarqueeRow = MarqueeItem[];
+/** Rows scroll independently; even rows go one way, odd rows the other.
+ *  Legacy pages store a row as a bare `MarqueeItem[]`; current pages store
+ *  `{ items, style }`. Both are handled at read time. */
+export type MarqueeRow = MarqueeItem[] | { items: MarqueeItem[]; style?: MarqueeStyleOverride };
+
+type NormalizedRow = { items: MarqueeItem[]; style?: MarqueeStyleOverride };
+
+/** The full resolved style used to render one card. */
+type ResolvedItemStyle = {
+  layout: "row" | "column";
+  itemBg: string;
+  itemColor: string | undefined;
+  itemBorderWidth: number;
+  itemBorderColor: string;
+  itemBorderStyle: string;
+  itemRadius: number;
+  itemPaddingY: number;
+  itemPaddingX: number;
+  itemGap: number;
+  fontSize: number;
+  fontWeight: number;
+  shadow: boolean;
+  imageWidth: number;
+  imageHeight: number;
+  imageRadius: number;
+  imageFit: string;
+  imageBorderWidth: number;
+  imageBorderColor: string;
+};
 
 const scrollX = keyframes({
   from: { transform: "translateX(0)" },
@@ -53,36 +105,47 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
   const pauseOnHover = getBooleanAttr(attribs["marquee-pause-on-hover"]);
   const fade = getBooleanAttr(attribs["marquee-fade"]);
   const fadeWidth = getNumberAttr(attribs["marquee-fade-width"], 64);
-  const shadow = getBooleanAttr(attribs["marquee-shadow"]);
 
-  // ── Item / image customization (all optional, default to the classic pill) ──
-  const layout = attribs["marquee-layout"] === "column" ? "column" : "row";
-  const itemBg = attribs["marquee-item-bg"] || "#fff";
-  const itemColor = attribs["marquee-item-color"] || undefined;
-  const itemBorderWidth = getNumberAttrAny(attribs["marquee-item-border-width"], 0);
-  const itemBorderColor = attribs["marquee-item-border-color"] || "#e4e4e7";
-  const itemBorderStyle = attribs["marquee-item-border-style"] || "solid";
-  const itemRadius = getNumberAttrAny(attribs["marquee-item-radius"], 100);
-  const itemPaddingY = getNumberAttrAny(attribs["marquee-item-padding-y"], 16);
-  const itemPaddingX = getNumberAttrAny(attribs["marquee-item-padding-x"], 24);
-  const itemGap = getNumberAttrAny(attribs["marquee-item-gap"], 8);
-  const fontSize = getNumberAttrAny(attribs["marquee-font-size"], 0);
-  const fontWeight = getNumberAttrAny(attribs["marquee-font-weight"], 0);
-
+  // ── Marquee-level base style. Rows/items override individual keys of this. ──
   // `marquee-avatar-size` is the legacy square-size attr; new attrs win when present.
   const legacyAvatar = getNumberAttr(attribs["marquee-avatar-size"], 40);
-  const imageWidth = getNumberAttrAny(attribs["marquee-image-width"], legacyAvatar);
-  const imageHeight = getNumberAttrAny(attribs["marquee-image-height"], legacyAvatar);
-  const imageRadius = getNumberAttrAny(attribs["marquee-image-radius"], 50);
-  const imageFit = attribs["marquee-image-fit"] || "cover";
-  const imageBorderWidth = getNumberAttrAny(attribs["marquee-image-border-width"], 0);
-  const imageBorderColor = attribs["marquee-image-border-color"] || "#e4e4e7";
+  const baseStyle: ResolvedItemStyle = {
+    layout: attribs["marquee-layout"] === "column" ? "column" : "row",
+    itemBg: attribs["marquee-item-bg"] || "#fff",
+    itemColor: attribs["marquee-item-color"] || undefined,
+    itemBorderWidth: getNumberAttrAny(attribs["marquee-item-border-width"], 0),
+    itemBorderColor: attribs["marquee-item-border-color"] || "#e4e4e7",
+    itemBorderStyle: attribs["marquee-item-border-style"] || "solid",
+    itemRadius: getNumberAttrAny(attribs["marquee-item-radius"], 100),
+    itemPaddingY: getNumberAttrAny(attribs["marquee-item-padding-y"], 16),
+    itemPaddingX: getNumberAttrAny(attribs["marquee-item-padding-x"], 24),
+    itemGap: getNumberAttrAny(attribs["marquee-item-gap"], 8),
+    fontSize: getNumberAttrAny(attribs["marquee-font-size"], 0),
+    fontWeight: getNumberAttrAny(attribs["marquee-font-weight"], 0),
+    shadow: getBooleanAttr(attribs["marquee-shadow"]),
+    imageWidth: getNumberAttrAny(attribs["marquee-image-width"], legacyAvatar),
+    imageHeight: getNumberAttrAny(attribs["marquee-image-height"], legacyAvatar),
+    imageRadius: getNumberAttrAny(attribs["marquee-image-radius"], 50),
+    imageFit: attribs["marquee-image-fit"] || "cover",
+    imageBorderWidth: getNumberAttrAny(attribs["marquee-image-border-width"], 0),
+    imageBorderColor: attribs["marquee-image-border-color"] || "#e4e4e7",
+  };
+
+  // A row can be legacy (bare array) or current ({ items, style }). Normalize both.
+  const normalizeRow = (row: MarqueeRow): NormalizedRow =>
+    Array.isArray(row) ? { items: row } : { items: row?.items ?? [], style: row?.style };
+
+  // marquee base → row override → item override; only set keys win at each level.
+  const resolveStyle = (
+    rowStyle?: MarqueeStyleOverride,
+    itemStyle?: MarqueeStyleOverride,
+  ): ResolvedItemStyle => ({ ...baseStyle, ...(rowStyle ?? {}), ...(itemStyle ?? {}) });
 
   // Few items make a track narrower than the container, and translateX(-100%) would
   // then leave a visible gap. Repeat the items so one track always overflows.
   const repeat = Math.max(1, getNumberAttr(attribs["marquee-repeat"], 4));
 
-  const visibleRows = rows.filter((row) => Array.isArray(row) && row.length > 0);
+  const visibleRows = rows.map(normalizeRow).filter((row) => row.items.length > 0);
   if (!visibleRows.length) return null;
 
   const maskImage = fade
@@ -149,9 +212,12 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                     : {}),
                 }}
               >
-                {Array.from({ length: repeat }, () => row)
+                {Array.from({ length: repeat }, () => row.items)
                   .flat()
-                  .map((item, itemIndex) => (
+                  .map((item, itemIndex) => {
+                    // marquee base → this row's override → this item's override.
+                    const s = resolveStyle(row.style, item.style);
+                    return (
                   <div
                     // eslint-disable-next-line react/no-array-index-key
                     key={itemIndex}
@@ -159,28 +225,28 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                     // eslint-disable-next-line react/no-unknown-property
                     css={{
                       display: "flex",
-                      flexDirection: layout === "column" ? "column" : "row",
+                      flexDirection: s.layout === "column" ? "column" : "row",
                       flex: "0 0 auto",
                       alignItems: "center",
-                      gap: item.image ? `${itemGap}px` : 0,
+                      gap: item.image ? `${s.itemGap}px` : 0,
                       // Tighter on the left so the avatar sits flush inside the pill.
                       padding:
-                        item.image && layout === "row" && itemPaddingX > itemGap
-                          ? `${itemPaddingY}px ${itemPaddingX}px ${itemPaddingY}px ${Math.max(
+                        item.image && s.layout === "row" && s.itemPaddingX > s.itemGap
+                          ? `${s.itemPaddingY}px ${s.itemPaddingX}px ${s.itemPaddingY}px ${Math.max(
                               0,
-                              itemPaddingX - 8,
+                              s.itemPaddingX - 8,
                             )}px`
-                          : `${itemPaddingY}px ${itemPaddingX}px`,
-                      borderRadius: `${itemRadius}px`,
-                      background: itemBg,
-                      color: itemColor,
+                          : `${s.itemPaddingY}px ${s.itemPaddingX}px`,
+                      borderRadius: `${s.itemRadius}px`,
+                      background: s.itemBg,
+                      color: s.itemColor,
                       border:
-                        itemBorderWidth > 0
-                          ? `${itemBorderWidth}px ${itemBorderStyle} ${itemBorderColor}`
+                        s.itemBorderWidth > 0
+                          ? `${s.itemBorderWidth}px ${s.itemBorderStyle} ${s.itemBorderColor}`
                           : undefined,
-                      boxShadow: shadow ? "0 2px 10px rgba(16, 24, 40, 0.06)" : undefined,
-                      fontSize: fontSize > 0 ? `${fontSize}px` : undefined,
-                      fontWeight: fontWeight > 0 ? fontWeight : undefined,
+                      boxShadow: s.shadow ? "0 2px 10px rgba(16, 24, 40, 0.06)" : undefined,
+                      fontSize: s.fontSize > 0 ? `${s.fontSize}px` : undefined,
+                      fontWeight: s.fontWeight > 0 ? s.fontWeight : undefined,
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -191,13 +257,18 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                         loading="lazy"
                         decoding="async"
                         css={{
-                          width: `${imageWidth}px`,
-                          height: `${imageHeight}px`,
-                          borderRadius: `${imageRadius}%`,
-                          objectFit: imageFit as "cover" | "contain" | "fill" | "none" | "scale-down",
+                          width: `${s.imageWidth}px`,
+                          height: `${s.imageHeight}px`,
+                          borderRadius: `${s.imageRadius}%`,
+                          objectFit: s.imageFit as
+                            | "cover"
+                            | "contain"
+                            | "fill"
+                            | "none"
+                            | "scale-down",
                           border:
-                            imageBorderWidth > 0
-                              ? `${imageBorderWidth}px solid ${imageBorderColor}`
+                            s.imageBorderWidth > 0
+                              ? `${s.imageBorderWidth}px solid ${s.imageBorderColor}`
                               : undefined,
                           flex: "0 0 auto",
                         }}
@@ -205,7 +276,8 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                     ) : null}
                     {item.text ? <span>{item.text}</span> : null}
                   </div>
-                ))}
+                    );
+                  })}
               </div>
             ))}
           </div>
