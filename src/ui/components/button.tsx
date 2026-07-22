@@ -4,6 +4,8 @@
 import { useUnit } from "effector-react";
 import { DOMNode, domToReact } from "html-react-parser";
 
+import { useMemo } from "react";
+
 import { NodeStatesValue } from "../../types";
 import { useActiveState } from "../../hooks/use-active-state";
 import { useBuilderModel } from "../../hooks/use-builder-model";
@@ -18,8 +20,10 @@ export default function ButtonRegistry(props: ComponentRegistryProps) {
   const { domNode, config } = props;
   const attribs = domNode?.attribs ?? {};
 
-  const logic = tryParse<LogicValue>(attribs.logic) || [];
-  const states = tryParse<NodeStatesValue>(attribs.states) || [];
+  // Memoised by raw attribute (as `loader.tsx` does): this component re-renders
+  // on every local-state change, and re-parsing produced a fresh array each time.
+  const logic = useMemo(() => tryParse<LogicValue>(attribs.logic) || [], [attribs.logic]);
+  const states = useMemo(() => tryParse<NodeStatesValue>(attribs.states) || [], [attribs.states]);
 
   const styledCss = useStyledNode(attribs);
   const { createInteraction } = useInteraction();

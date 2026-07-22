@@ -1,6 +1,6 @@
 {
   "name": "@job-escape/page-builder",
-  "version": "0.2.78",
+  "version": "0.2.79",
   "description": "Generic page-builder engine: Effector-backed state, MDX → React parser, logic-action executor, navigation & dialogs. Extracted from the Job Escape funnel.",
   "license": "UNLICENSED",
   "private": false,

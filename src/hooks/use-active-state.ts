@@ -1,7 +1,16 @@
-import { createEffect, createStore, sample, Store } from "effector";
+import {
+  clearNode,
+  createEffect,
+  createNode,
+  createStore,
+  sample,
+  Store,
+  StoreWritable,
+  withRegion,
+} from "effector";
 import { useUnit } from "effector-react";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { Answers, Condition, NodeStatesValue, PrimitiveValue } from "../types";
 import { buildConditionFacts } from "../utils/build-condition-facts";
@@ -31,59 +40,69 @@ function mergeAnswers(
 
 // ─── Model factory ────────────────────────────────────────────────────────────
 
+// Every unit below is created inside a `region` node so the whole graph — the
+// store, the effect, and the `sample` subscriptions to $answers/$localModel —
+// can be torn down in one `clearNode` when the component unmounts. Without that
+// teardown the subscriptions outlive the component and keep re-running
+// `runCondition` on every answer/local-state change, forever.
 function createActiveStateModel(
   states: NodeStatesValue,
   $answers: Store<Answers>,
   $localModel: Store<Record<string, PrimitiveValue | string[]>>,
   $subscriptionFacts: Store<Record<string, PrimitiveValue>>,
 ) {
-  const $activeState = createStore<string | null>(null);
+  const region = createNode();
+  let $activeState!: StoreWritable<string | null>;
 
-  const evaluateFx = createEffect(
-    async ({
-      answers,
-      local,
-      subscription,
-    }: {
-      answers: Answers;
-      local: Record<string, PrimitiveValue | string[]>;
-      subscription: Record<string, PrimitiveValue>;
-    }): Promise<string | null> => {
-      if (!states.length) return null;
+  withRegion(region, () => {
+    $activeState = createStore<string | null>(null);
 
-      const branches = toConditionBranches(states);
+    const evaluateFx = createEffect(
+      async ({
+        answers,
+        local,
+        subscription,
+      }: {
+        answers: Answers;
+        local: Record<string, PrimitiveValue | string[]>;
+        subscription: Record<string, PrimitiveValue>;
+      }): Promise<string | null> => {
+        if (!states.length) return null;
 
-      const nonEmpty = branches.filter((b) => {
-        if ("all" in b.rules && b.rules.all) return b.rules.all.length > 0;
-        if ("any" in b.rules && b.rules.any) return b.rules.any.length > 0;
-        return false;
-      });
+        const branches = toConditionBranches(states);
 
-      if (!nonEmpty.length) return null;
+        const nonEmpty = branches.filter((b) => {
+          if ("all" in b.rules && b.rules.all) return b.rules.all.length > 0;
+          if ("any" in b.rules && b.rules.any) return b.rules.any.length > 0;
+          return false;
+        });
 
-      // merge local model + subscription facts into answers before passing to engine
-      const mergedAnswers = mergeAnswers(answers, local, subscription);
+        if (!nonEmpty.length) return null;
 
-      const matched = await runCondition(nonEmpty, mergedAnswers);
-      return matched?.nodeId ? String(matched.nodeId) : null;
-    },
-  );
+        // merge local model + subscription facts into answers before passing to engine
+        const mergedAnswers = mergeAnswers(answers, local, subscription);
 
-  $activeState.on(evaluateFx.doneData, (_, result) => result);
+        const matched = await runCondition(nonEmpty, mergedAnswers);
+        return matched?.nodeId ? String(matched.nodeId) : null;
+      },
+    );
 
-  sample({
-    clock: [$answers, $localModel, $subscriptionFacts],
-    source: { answers: $answers, local: $localModel, subscription: $subscriptionFacts },
-    target: evaluateFx,
+    $activeState.on(evaluateFx.doneData, (_, result) => result);
+
+    sample({
+      clock: [$answers, $localModel, $subscriptionFacts],
+      source: { answers: $answers, local: $localModel, subscription: $subscriptionFacts },
+      target: evaluateFx,
+    });
+
+    evaluateFx({
+      answers: $answers.getState(),
+      local: $localModel.getState(),
+      subscription: $subscriptionFacts.getState(),
+    });
   });
 
-  evaluateFx({
-    answers: $answers.getState(),
-    local: $localModel.getState(),
-    subscription: $subscriptionFacts.getState(),
-  });
-
-  return { $activeState };
+  return { $activeState, destroy: () => clearNode(region, { deep: true }) };
 }
 
 type ActiveStateModel = ReturnType<typeof createActiveStateModel>;
@@ -96,9 +115,33 @@ export function useActiveState(
   $localModel: Store<Record<string, PrimitiveValue | string[]>>,
   $subscriptionFacts: Store<Record<string, PrimitiveValue>>,
 ): string | null {
-  const modelRef = useRef<ActiveStateModel>(
-    createActiveStateModel(states, $answers, $localModel, $subscriptionFacts),
-  ).current;
+  // `useRef(createActiveStateModel(...))` would evaluate the argument on EVERY
+  // render and throw all but the first result away — each discarded model having
+  // already subscribed to $answers/$localModel and fired an async rules-engine
+  // run. Callers such as `button.tsx` re-render on every local-state change and
+  // pass a freshly-parsed `states` array each time, so that leaked one model per
+  // button per render: on a loader page (which writes local state every 30ms)
+  // the orphans compound until the main thread is saturated. Build lazily
+  // instead, keyed on the *content* of `states` rather than its identity.
+  const statesKey = JSON.stringify(states);
+  const ref = useRef<{ key: string; model: ActiveStateModel } | null>(null);
 
-  return useUnit(modelRef.$activeState);
+  if (ref.current === null || ref.current.key !== statesKey) {
+    ref.current?.model.destroy();
+    ref.current = {
+      key: statesKey,
+      model: createActiveStateModel(states, $answers, $localModel, $subscriptionFacts),
+    };
+  }
+
+  const model = ref.current.model;
+
+  useEffect(() => {
+    return () => {
+      ref.current?.model.destroy();
+      ref.current = null;
+    };
+  }, []);
+
+  return useUnit(model.$activeState);
 }
