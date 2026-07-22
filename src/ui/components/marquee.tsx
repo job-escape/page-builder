@@ -28,6 +28,14 @@ const getNumberAttr = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+/** Like getNumberAttr but accepts 0 and negatives — for widths/paddings. */
+const getNumberAttrAny = (value: string | undefined, fallback: number) => {
+  if (value === undefined || value === "") return fallback;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const getBooleanAttr = (value: string | undefined, fallback = false) => {
   if (value === undefined) return fallback;
 
@@ -46,9 +54,29 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
   const fade = getBooleanAttr(attribs["marquee-fade"]);
   const fadeWidth = getNumberAttr(attribs["marquee-fade-width"], 64);
   const shadow = getBooleanAttr(attribs["marquee-shadow"]);
-  const avatarSize = getNumberAttr(attribs["marquee-avatar-size"], 40);
+
+  // ── Item / image customization (all optional, default to the classic pill) ──
+  const layout = attribs["marquee-layout"] === "column" ? "column" : "row";
   const itemBg = attribs["marquee-item-bg"] || "#fff";
   const itemColor = attribs["marquee-item-color"] || undefined;
+  const itemBorderWidth = getNumberAttrAny(attribs["marquee-item-border-width"], 0);
+  const itemBorderColor = attribs["marquee-item-border-color"] || "#e4e4e7";
+  const itemBorderStyle = attribs["marquee-item-border-style"] || "solid";
+  const itemRadius = getNumberAttrAny(attribs["marquee-item-radius"], 100);
+  const itemPaddingY = getNumberAttrAny(attribs["marquee-item-padding-y"], 16);
+  const itemPaddingX = getNumberAttrAny(attribs["marquee-item-padding-x"], 24);
+  const itemGap = getNumberAttrAny(attribs["marquee-item-gap"], 8);
+  const fontSize = getNumberAttrAny(attribs["marquee-font-size"], 0);
+  const fontWeight = getNumberAttrAny(attribs["marquee-font-weight"], 0);
+
+  // `marquee-avatar-size` is the legacy square-size attr; new attrs win when present.
+  const legacyAvatar = getNumberAttr(attribs["marquee-avatar-size"], 40);
+  const imageWidth = getNumberAttrAny(attribs["marquee-image-width"], legacyAvatar);
+  const imageHeight = getNumberAttrAny(attribs["marquee-image-height"], legacyAvatar);
+  const imageRadius = getNumberAttrAny(attribs["marquee-image-radius"], 50);
+  const imageFit = attribs["marquee-image-fit"] || "cover";
+  const imageBorderWidth = getNumberAttrAny(attribs["marquee-image-border-width"], 0);
+  const imageBorderColor = attribs["marquee-image-border-color"] || "#e4e4e7";
 
   // Few items make a track narrower than the container, and translateX(-100%) would
   // then leave a visible gap. Repeat the items so one track always overflows.
@@ -131,15 +159,28 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                     // eslint-disable-next-line react/no-unknown-property
                     css={{
                       display: "flex",
+                      flexDirection: layout === "column" ? "column" : "row",
                       flex: "0 0 auto",
                       alignItems: "center",
-                      gap: "8px",
+                      gap: item.image ? `${itemGap}px` : 0,
                       // Tighter on the left so the avatar sits flush inside the pill.
-                      padding: item.image ? "16px 24px 16px 16px" : "16px 24px",
-                      borderRadius: "100px",
+                      padding:
+                        item.image && layout === "row" && itemPaddingX > itemGap
+                          ? `${itemPaddingY}px ${itemPaddingX}px ${itemPaddingY}px ${Math.max(
+                              0,
+                              itemPaddingX - 8,
+                            )}px`
+                          : `${itemPaddingY}px ${itemPaddingX}px`,
+                      borderRadius: `${itemRadius}px`,
                       background: itemBg,
                       color: itemColor,
+                      border:
+                        itemBorderWidth > 0
+                          ? `${itemBorderWidth}px ${itemBorderStyle} ${itemBorderColor}`
+                          : undefined,
                       boxShadow: shadow ? "0 2px 10px rgba(16, 24, 40, 0.06)" : undefined,
+                      fontSize: fontSize > 0 ? `${fontSize}px` : undefined,
+                      fontWeight: fontWeight > 0 ? fontWeight : undefined,
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -150,15 +191,19 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
                         loading="lazy"
                         decoding="async"
                         css={{
-                          width: `${avatarSize}px`,
-                          height: `${avatarSize}px`,
-                          borderRadius: "50%",
-                          objectFit: "cover",
+                          width: `${imageWidth}px`,
+                          height: `${imageHeight}px`,
+                          borderRadius: `${imageRadius}%`,
+                          objectFit: imageFit as "cover" | "contain" | "fill" | "none" | "scale-down",
+                          border:
+                            imageBorderWidth > 0
+                              ? `${imageBorderWidth}px solid ${imageBorderColor}`
+                              : undefined,
                           flex: "0 0 auto",
                         }}
                       />
                     ) : null}
-                    <span>{item.text}</span>
+                    {item.text ? <span>{item.text}</span> : null}
                   </div>
                 ))}
               </div>
