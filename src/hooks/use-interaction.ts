@@ -85,6 +85,21 @@ export interface OpenIntercomOptions {
   open: () => void;
 }
 
+export interface GoToLinkOptions {
+  // Resolve a named link type (e.g. "privacy" / "terms" / "subscription" /
+  // "login" / "support") to a concrete URL. Lives in the host because the URL
+  // set is legal-entity/brand-specific (page-builder stays host-agnostic). When
+  // the action carries a plain `link`, this is not used.
+  resolveLink?: (linkType: string) => string | undefined;
+}
+
+export interface OpenCookieBannerOptions {
+  // Host-provided consent re-open. When present it fully replaces the built-in
+  // Cookiebot.renew() so the host can branch (e.g. landing-CBID opens its own
+  // modal instead of Cookiebot). Absent → the built-in renew runs.
+  open?: () => void;
+}
+
 export interface RefreshSessionOptions {
   refresh: () => Promise<void> | void;
 }
@@ -94,6 +109,8 @@ export interface InteractionOptions {
   gb_feature?: GbFeatureOptions;
   open_dialog?: OpenDialogOptions;
   open_intercom?: OpenIntercomOptions;
+  go_to_link?: GoToLinkOptions;
+  open_cookie_banner?: OpenCookieBannerOptions;
   refresh_session?: RefreshSessionOptions;
   set_selected_subscription?: SetSelectedSubscriptionOptions;
   spin_start?: SpinStartOptions;
@@ -378,7 +395,19 @@ export const useInteraction = () => {
         }
 
         case "go_to_link": {
-          const { link } = action.params;
+          const { link, linkType } = action.params;
+
+          // Named link type (e.g. "privacy"/"terms"/"login") → host resolves the
+          // concrete URL, which is legal-entity/brand-specific. Takes precedence
+          // over a literal `link` so content can stay brand-agnostic.
+          if (linkType) {
+            const resolved = options?.go_to_link?.resolveLink?.(linkType);
+            if (resolved) {
+              window.location.href = resolved;
+            }
+            break;
+          }
+
           if (!link) {
             break;
           }
@@ -512,11 +541,16 @@ export const useInteraction = () => {
         }
 
         case "open_cookie_banner": {
-          // Re-open the Cookiebot consent banner. Cookiebot is a domain-wide CMP
+          // Re-open the consent banner. When the host supplies an opener it wins,
+          // so the host can branch (e.g. landing-CBID opens its own modal). Absent
+          // → the built-in Cookiebot renew runs. Cookiebot is a domain-wide CMP
           // (loaded once in the host's root layout), so the same consent state is
           // shared across the landing and every funnel page — this just re-prompts.
-          // Mirrors the host's `renewCookieConsent`; self-contained so page-builder
-          // stays host-agnostic (no resolver needed).
+          const hostOpen = options?.open_cookie_banner?.open;
+          if (hostOpen) {
+            hostOpen();
+            break;
+          }
           if (typeof window === "undefined") break;
           const w = window as Window &
             typeof globalThis & {

@@ -408,7 +408,14 @@ export interface GoToLink {
   id: string;
   type: "go_to_link";
   params: {
-    link: string;
+    /** Literal URL (supports `${answer_key}` interpolation). */
+    link?: string;
+    /**
+     * Named link type resolved to a concrete URL by the host (brand/legal-entity
+     * specific, e.g. "privacy" / "terms" / "subscription" / "login" / "support").
+     * When set it takes precedence over `link`.
+     */
+    linkType?: string;
   };
 }
 
