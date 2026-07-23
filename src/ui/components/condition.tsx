@@ -3,7 +3,7 @@
 import { useUnit } from "effector-react";
 import { domToReact, Element } from "html-react-parser";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 import { Condition } from "../../types";
 
@@ -169,15 +169,24 @@ export default function ConditionRegistry({
     ],
   );
 
+  // Read the live fact objects through refs so the effect below can depend ONLY
+  // on `relevantSignature` (which changes exactly when a fact this condition
+  // references changes) and not on the raw `answers`/`localStates`/
+  // `subscriptionFacts` identities. Those objects get a new reference on every
+  // unrelated state write — e.g. a loader ticking `loader_value` every 30ms — and
+  // including them here made every condition component re-run `runCondition` (and
+  // rebuild a json-rules-engine) on each tick, saturating the main thread on
+  // pages with many condition components.
+  const factsRef = useRef({ answers, localStates, subscriptionFacts });
+  factsRef.current = { answers, localStates, subscriptionFacts };
+
   useEffect(() => {
     let isCancelled = false;
 
     const evaluateCondition = async () => {
+      const { answers: a, localStates: l, subscriptionFacts: s } = factsRef.current;
       try {
-        const result = await runCondition(
-          branches,
-          buildConditionFacts(answers, localStates, subscriptionFacts),
-        );
+        const result = await runCondition(branches, buildConditionFacts(a, l, s));
 
         if (!isCancelled) {
           setTargetNodeId(result?.nodeId ? String(result.nodeId) : null);
@@ -199,7 +208,7 @@ export default function ConditionRegistry({
     return () => {
       isCancelled = true;
     };
-  }, [answers, branches, localStates, subscriptionFacts, relevantSignature]);
+  }, [branches, relevantSignature]);
 
   const elementChildren = useMemo(
     () => domNode.children.filter((c): c is Element => c instanceof Element),
