@@ -162,7 +162,13 @@ export default function MarqueeRegistry({ domNode }: ComponentRegistryProps) {
           flexDirection: "column",
           gap: `${gap}px`,
           width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
           overflow: "hidden",
+          // The track (items × repeat, nowrap) has a huge max-content width. overflow:hidden
+          // only clips it visually — it still propagates into auto-sized ancestors and adds
+          // horizontal page scroll. inline-size containment zeroes that contribution.
+          contain: "inline-size",
           maskImage,
           WebkitMaskImage: maskImage,
         },
