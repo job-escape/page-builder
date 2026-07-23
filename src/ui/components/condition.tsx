@@ -11,6 +11,7 @@ import { useBuilderModel } from "../../hooks/use-builder-model";
 import { useLocalModel } from "../../hooks/use-local-model";
 import { Answers, ComponentRegistryProps, PrimitiveValue } from "../../types";
 import { buildConditionFacts } from "../../utils/build-condition-facts";
+import { getDefaultBranchNodeId } from "../../utils/get-default-branch";
 import { runCondition } from "../../utils/run-condition";
 import { tryParse } from "../../utils/try-parse";
 
@@ -140,10 +141,18 @@ export default function ConditionRegistry({
     localModel.$localStates,
     model.$subscriptionFacts,
   ]);
-  const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
   const branches = useMemo(
     () => tryParse<Condition["condition"]>(domNode.attribs["branches"]) ?? [],
     [domNode.attribs],
+  );
+  // Seed with the default branch so the condition renders its fallback content on
+  // the first paint instead of an empty gap while the async engine resolves the
+  // matched branch. Condition evaluation awaits a lazily-loaded rules engine, so
+  // targetNodeId would otherwise be null for one-or-more async ticks after mount —
+  // long enough, when the engine chunk load loses the warm-up race, to flash a
+  // blank/white page (worst on heavier localized pages and slower devices).
+  const [targetNodeId, setTargetNodeId] = useState<string | null>(() =>
+    getDefaultBranchNodeId(branches),
   );
   const dependencies = useMemo(
     () => getConditionDependencies(branches),
@@ -195,10 +204,7 @@ export default function ConditionRegistry({
         // Engine failed to load/evaluate — show the default branch instead of
         // nothing, matching what runCondition returns when no rule matches.
         if (!isCancelled) {
-          const defaultBranch = branches.find((branch) => branch.isDefault);
-          setTargetNodeId(
-            defaultBranch?.nodeId ? String(defaultBranch.nodeId) : null,
-          );
+          setTargetNodeId(getDefaultBranchNodeId(branches));
         }
       }
     };
