@@ -6,6 +6,7 @@ import { Answers } from "../types";
 
 import { buildRuleConditions, createConditionEngine, hasRuleConditions } from "./condition-engine";
 import { loadJsonRulesEngine } from "./load-json-rules-engine";
+import { navDiag } from "./nav-diag";
 
 const buildEngine = async (conditions: Condition["condition"]): Promise<Engine> => {
   const { Rule } = await loadJsonRulesEngine();
@@ -61,7 +62,9 @@ export const runCondition = async (
   answers: Answers,
 ): Promise<{ nodeId: number | null } | null> => {
   const defaultBranch = conditions.find((condition) => condition.isDefault);
+  const t0 = performance.now();
   const engine = await getEngine(conditions);
+  const tEngine = performance.now();
   const answersWithAliases = {
     ...answers,
     ...Object.fromEntries(
@@ -72,6 +75,16 @@ export const runCondition = async (
     ),
   };
   const result = await engine.run(answersWithAliases);
+  // Only surface slow evaluations (runCondition runs constantly) to pinpoint a
+  // hang: whether it's getEngine (import/build) or engine.run.
+  const runMs = performance.now() - tEngine;
+  const engineMs = tEngine - t0;
+  if (engineMs + runMs > 800) {
+    navDiag("run_condition_slow", {
+      getEngineMs: Math.round(engineMs),
+      runMs: Math.round(runMs),
+    });
+  }
 
   if (result.events.length > 0) {
     const first = result.events[0];
