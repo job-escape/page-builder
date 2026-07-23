@@ -89,7 +89,18 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
     setTargetValue(0);
     setTransitionDuration(speed);
 
-    const rafId = requestAnimationFrame(() => {
+    // Start once — whichever signal arrives first. We PREFER the next animation
+    // frame so the 0% state paints before the transition to 100% (the bar sweeps
+    // instead of jumping). But requestAnimationFrame is PAUSED while the page is
+    // not painting — a backgrounded tab, the screen dimming, or mid-gesture on iOS
+    // Safari — and this loader schedules its half_load/full_load timers ONLY from
+    // inside the rAF callback. If the frame never comes, hasStarted stays false,
+    // the timers never schedule, and the loader sits frozen at 0% with no dialog
+    // until the page repaints (observed: ~1 min, zero network activity, then a
+    // lurch forward). A timeout fallback (which still fires when rAF is paused) and
+    // a visibilitychange handler guarantee the loader always starts and progresses.
+    const start = () => {
+      if (hasStartedRef.current) return;
       hasStartedRef.current = true;
       startTimeRef.current  = performance.now();
 
@@ -97,10 +108,19 @@ export default function LoaderRegistry({ domNode }: ComponentRegistryProps) {
       setTargetValue(100);
       setTransitionDuration(speed);
       scheduleTimers(0, speed);
-    });
+    };
+
+    const rafId      = requestAnimationFrame(start);
+    const fallbackId = setTimeout(start, 200);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") start();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       cancelAnimationFrame(rafId);
+      clearTimeout(fallbackId);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       clearTimers();
     };
   }, [logic, speed]);
