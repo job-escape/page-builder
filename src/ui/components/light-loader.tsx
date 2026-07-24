@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimationEvent, CSSProperties, useMemo, useRef } from "react";
+import { AnimationEvent, CSSProperties, useMemo } from "react";
 
 import { NodeStatesValue } from "../../types";
 import { useActiveState } from "../../hooks/use-active-state";
@@ -85,37 +85,29 @@ export default function LightLoaderRegistry({ domNode }: ComponentRegistryProps)
   const activeState = useActiveState(states, model.$answers, localModel.$localStates, model.$subscriptionFacts);
   const isStopped = activeState === "stopped";
 
-  // Always call through the latest interaction without re-arming anything.
-  const triggerRef = useRef<((trigger: string, logicValue: LogicValue) => Promise<void>) | null>(null);
-  triggerRef.current = createInteraction().handleTrigger;
-
-  // Re-arm the triggers if the loader is reconfigured; the `key` below restarts
-  // the animations for the same reason.
+  // Restarts the sweep (and therefore re-arms both triggers) if the loader is
+  // reconfigured, matching the old effect that reset on [logic, speed].
   const animationKey = `${logicRaw}|${speed}`;
-  const keyRef = useRef(animationKey);
-  const halfFiredRef = useRef(false);
-  const fullFiredRef = useRef(false);
-  if (keyRef.current !== animationKey) {
-    keyRef.current = animationKey;
-    halfFiredRef.current = false;
-    fullFiredRef.current = false;
-  }
 
-  // `animationend` bubbles, so one handler on the wrapper covers both bars;
-  // `animationName` says which one finished.
+  // Each animation runs once, so `animationend` fires once per run — no
+  // already-fired bookkeeping needed. (Guarding with refs would actively break
+  // the hidden→visible case: the elements remount and the sweep restarts, but
+  // refs survive because the component stays mounted rendering null.)
+  //
+  // `animationend` bubbles, so one handler on the wrapper covers both bars and
+  // `animationName` says which finished. The interaction is built at fire time,
+  // as `button.tsx` does, rather than on every render.
   const handleAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
-    if (event.animationName === HALF_ANIMATION) {
-      if (halfFiredRef.current) return;
-      halfFiredRef.current = true;
-      triggerRef.current?.("half_load", logic).catch(() => undefined);
-      return;
-    }
+    const trigger =
+      event.animationName === HALF_ANIMATION
+        ? "half_load"
+        : event.animationName === FILL_ANIMATION
+          ? "full_load"
+          : null;
+    if (!trigger) return;
 
-    if (event.animationName === FILL_ANIMATION) {
-      if (fullFiredRef.current) return;
-      fullFiredRef.current = true;
-      triggerRef.current?.("full_load", logic).catch(() => undefined);
-    }
+    const { handleTrigger } = createInteraction();
+    handleTrigger(trigger, logic).catch(() => undefined);
   };
 
   if (activeState === "hidden") return null;
