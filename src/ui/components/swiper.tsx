@@ -3,17 +3,20 @@
 import { ClassNames } from "@emotion/react";
 import { DOMNode, Element, Text, domToReact } from "html-react-parser";
 
-import dynamic from "next/dynamic";
-
 import { ReactNode, useMemo } from "react";
 
-import { usePreloadChunk } from "../../hooks/use-preload-chunk";
 import { useStyledNode } from "../../hooks/use-styled-node";
 import { usePreload } from "../../providers/preload-context";
 import { ComponentRegistryProps } from "../../types";
 
-const loadSwiperView = () => import("./swiper-view");
-const SwiperView = dynamic(loadSwiperView, { ssr: false });
+// Statically imported (in the main bundle) instead of a `dynamic(ssr:false)`
+// chunk. The lazy chunk was warmed via usePreloadChunk during the hidden
+// pre-render of the loader page — a heavy on-demand fetch competing for
+// connections while that page's HTML + dialogs loaded. In-bundle, the carousel
+// code is already present, so nothing is fetched on navigation. SwiperView is a
+// "use client" component; Swiper only touches the DOM inside effects, so SSR is
+// safe.
+import SwiperView from "./swiper-view";
 
 const getBooleanAttr = (value: string | undefined, fallback = false) => {
   if (value === undefined) return fallback;
@@ -37,9 +40,6 @@ const isSlideNode = (node: unknown): node is DOMNode => {
 
 export default function SwiperRegistry({ domNode, config }: ComponentRegistryProps) {
   const preload = usePreload();
-  // Warm the swiper chunk in the background (incl. during the hidden pre-render)
-  // so it's ready when the carousel goes active.
-  usePreloadChunk(loadSwiperView);
   const attribs = domNode?.attribs ?? {};
   const styledCss = useStyledNode(attribs);
   // Memoized so we don't re-parse the slide HTML into fresh React trees on every
@@ -51,7 +51,7 @@ export default function SwiperRegistry({ domNode, config }: ComponentRegistryPro
   );
   // During pre-render, still render the slide content (so its images/components
   // warm), but skip the swiper carousel itself — it would init in a hidden,
-  // zero-width container. The swiper chunk is warmed via usePreloadChunk above.
+  // zero-width container.
   if (preload) return <>{slides}</>;
   const autoplay = attribs['swiper-autoplay'] === 'true'
   const loop = attribs['swiper-loop'] === 'true'
