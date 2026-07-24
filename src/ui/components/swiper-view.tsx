@@ -11,6 +11,11 @@ import { $swiperCommands, clearSwiperCommand } from "../../model/swiper-store";
 
 import "swiper/css";
 
+// Stable module arrays so ReactSwiper doesn't see a new `modules` reference every
+// render (which can force it to re-process).
+const AUTOPLAY_MODULES = [Autoplay];
+const NO_MODULES: never[] = [];
+
 type SwiperViewProps = {
   id: string;
   autoplay: boolean;
@@ -69,7 +74,7 @@ export default function SwiperView({
       centeredSlides={centeredSlides}
       className={className}
       loop={loop}
-      modules={autoplay ? [Autoplay] : []}
+      modules={autoplay ? AUTOPLAY_MODULES : NO_MODULES}
       slidesPerView={slidesPerView}
       spaceBetween={spaceBetween}
       onSwiper={(swiper) => {

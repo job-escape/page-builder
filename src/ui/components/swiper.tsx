@@ -5,7 +5,7 @@ import { DOMNode, Element, Text, domToReact } from "html-react-parser";
 
 import dynamic from "next/dynamic";
 
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 
 import { usePreloadChunk } from "../../hooks/use-preload-chunk";
 import { useStyledNode } from "../../hooks/use-styled-node";
@@ -42,8 +42,13 @@ export default function SwiperRegistry({ domNode, config }: ComponentRegistryPro
   usePreloadChunk(loadSwiperView);
   const attribs = domNode?.attribs ?? {};
   const styledCss = useStyledNode(attribs);
-  const slideNodes = domNode.children.filter(isSlideNode);
-  const slides = slideNodes.map((child) => domToReact([child], config) as ReactNode);
+  // Memoized so we don't re-parse the slide HTML into fresh React trees on every
+  // render — which handed Swiper new children each pass and forced it to
+  // re-process/restart. Stable now that `config` is stable (see parser.tsx).
+  const slides = useMemo(
+    () => domNode.children.filter(isSlideNode).map((child) => domToReact([child], config) as ReactNode),
+    [domNode.children, config],
+  );
   // During pre-render, still render the slide content (so its images/components
   // warm), but skip the swiper carousel itself — it would init in a hidden,
   // zero-width container. The swiper chunk is warmed via usePreloadChunk above.
