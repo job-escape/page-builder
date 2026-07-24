@@ -18,6 +18,8 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   registry,
   preloadRegistry,
   getHttpRequestHeaders,
+  preloadAhead = 1,
+  preloadBehind = 1,
 }: {
   fetchPage: ({ id, lang }: { id: number; lang?: string }) => Promise<Page>;
   fetchPagesByOrder?: (params: { order: number; lang?: string }) => Promise<Page[]>;
@@ -30,6 +32,17 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
    * reads the JWT from cookies.
    */
   getHttpRequestHeaders?: () => Record<string, string>;
+  /**
+   * How many pages ahead of the current one to keep mounted (prerendered,
+   * `display:none`) and to prefetch node-data for. Default 1. Set to 0 to render
+   * ONLY the current page and prefetch nothing ahead — the next page's HTML and
+   * dialogs are then fetched on-demand at navigation time (a brief loading state
+   * appears). Lowers upfront work/connection contention at the cost of instant
+   * forward navigation.
+   */
+  preloadAhead?: number;
+  /** How many pages behind the current one to keep mounted. Default 1 (smooth back nav). */
+  preloadBehind?: number;
 }) {
   // Single normalized timing stream for every request this model makes. Logged
   // to Axiom as `request_timing` by the React layer (see builder-client.tsx).
@@ -265,7 +278,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     if (currentPage === null) return [];
     return Object.values(pages)
       .filter((page): page is Page => Boolean(page))
-      .filter((p) => p.order <= currentPage.order + 1 && p.order >= currentPage.order - 1)
+      .filter((p) => p.order <= currentPage.order + preloadAhead && p.order >= currentPage.order - preloadBehind)
       .map((page) => ({ ...page, html: pageHtml[page.id] }));
   });
 
@@ -391,7 +404,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     source: { currentPage: $currentPage, lang: $lang },
     filter: ({ currentPage }) => Boolean(currentPage),
     fn: ({ currentPage, lang }) => {
-      if (!currentPage) {
+      if (!currentPage || preloadAhead <= 0) {
         return { pageIds: [], lang };
       }
 
