@@ -55,7 +55,10 @@ function createActiveStateModel(
   let $activeState!: StoreWritable<string | null>;
 
   withRegion(region, () => {
-    $activeState = createStore<string | null>(null);
+    // One per component instance, so it can carry no stable sid; it is derived
+    // from answers on the client anyway. Declared non-serializable so Builder's
+    // `serialize(scope)` stops warning about it on every server render.
+    $activeState = createStore<string | null>(null, { serialize: "ignore" });
 
     const evaluateFx = createEffect(
       async ({

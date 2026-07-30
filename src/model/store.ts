@@ -463,7 +463,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   // `$pages` (forward prefetch, previous-page resolve, self-heal) that piled up
   // duplicate MDX requests and starved the browser's ~6-connection budget, so
   // unrelated requests (dialogs) queued behind them for minutes.
-  const $pendingHtmlIds = createStore<Record<number, true>>({})
+  const $pendingHtmlIds = createStore<Record<number, true>>({}, { serialize: "ignore" })
     .on(fetchPageHtmlFx, (state, pages) => ({
       ...state,
       ...Object.fromEntries(pages.map((page) => [page.id, true as const])),
@@ -477,7 +477,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   // Pages whose html request failed. Excluded from re-fetching so a permanently
   // broken `mdx_url` can't spin in a retry loop; cleared whenever the page object
   // is written again, so a genuine retry is still possible.
-  const $failedHtmlIds = createStore<Record<number, true>>({})
+  const $failedHtmlIds = createStore<Record<number, true>>({}, { serialize: "ignore" })
     .on(fetchPageHtmlFx.doneData, (state, { failedIds }) => ({
       ...state,
       ...Object.fromEntries(failedIds.map((id) => [id, true as const])),
@@ -527,7 +527,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
     (...pending) => pending.some(Boolean),
   );
 
-  const $hasFetchFailed = createStore(false)
+  const $hasFetchFailed = createStore(false, { serialize: "ignore" })
     .on(fetchPageHtmlFx.fail, () => true)
     .on(fetchPagesQuery.finished.failure, () => true)
     .on(fetchPagesQuery.finished.success, (state, { params }) =>
@@ -540,7 +540,7 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   const finishEvt = createEvent();
 
   const setActiveDialogEvt = createEvent<BuilderDialog["uuid"] | null>();
-  const $activeDialog = createStore<null | BuilderDialog["uuid"]>(null).on(
+  const $activeDialog = createStore<null | BuilderDialog["uuid"]>(null, { serialize: "ignore" }).on(
     setActiveDialogEvt,
     (state, payload) => payload,
   );

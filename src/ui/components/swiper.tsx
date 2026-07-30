@@ -3,7 +3,7 @@
 import { ClassNames } from "@emotion/react";
 import { DOMNode, Element, Text, domToReact } from "html-react-parser";
 
-import { ReactNode, useMemo } from "react";
+import { Fragment, ReactNode, useMemo } from "react";
 
 import { useStyledNode } from "../../hooks/use-styled-node";
 import { usePreload } from "../../providers/preload-context";
@@ -45,8 +45,17 @@ export default function SwiperRegistry({ domNode, config }: ComponentRegistryPro
   // Memoized so we don't re-parse the slide HTML into fresh React trees on every
   // render — which handed Swiper new children each pass and forced it to
   // re-process/restart. Stable now that `config` is stable (see parser.tsx).
+  // Keyed here rather than only in SwiperView: on a pre-rendered page this
+  // array is returned bare (`<>{slides}</>`), so whatever renders it — an
+  // animated container, say — receives an unkeyed list and React warns. The
+  // authored slide order is what identifies a slide; nothing reorders them.
   const slides = useMemo(
-    () => domNode.children.filter(isSlideNode).map((child) => domToReact([child], config) as ReactNode),
+    () =>
+      domNode.children
+        .filter(isSlideNode)
+        .map((child, index) => (
+          <Fragment key={index}>{domToReact([child], config) as ReactNode}</Fragment>
+        )),
     [domNode.children, config],
   );
   // During pre-render, still render the slide content (so its images/components

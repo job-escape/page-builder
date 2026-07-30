@@ -88,7 +88,11 @@ export const createBuilderClientModel = ({
   // starved the browser's ~6-connection budget, so the loader page — which has a
   // real dialog to fetch — stayed un-`pageReady` for minutes ("stuck before the
   // loader").
-  const $pendingDialogIds = createStore<Record<number, true>>({})
+  // `serialize: "ignore"`: created per gate instance, so it can have no stable
+  // sid. Without this, Builder's `serialize(scope)` warns "one or more stores
+  // dont have sids" on every server render — for in-flight request bookkeeping
+  // that must not cross to the client anyway. Same for the stores below.
+  const $pendingDialogIds = createStore<Record<number, true>>({}, { serialize: "ignore" })
     .on(dialogsQuery, (state, pages) => ({
       ...state,
       ...Object.fromEntries(pages.map((page) => [page.id, true as const])),
@@ -102,7 +106,7 @@ export const createBuilderClientModel = ({
   // Pages whose dialog fetch failed. Excluded from re-fetching so a broken dialog
   // `mdx_url` can't spin in a retry loop; cleared once dialogs are stored for the
   // page (e.g. after navigating back to it), so a genuine retry is still possible.
-  const $failedDialogIds = createStore<Record<number, true>>({})
+  const $failedDialogIds = createStore<Record<number, true>>({}, { serialize: "ignore" })
     .on(dialogsQuery.doneData, (state, { failedIds }) => ({
       ...state,
       ...Object.fromEntries(failedIds.map((id) => [id, true as const])),
@@ -154,7 +158,7 @@ export const createBuilderClientModel = ({
 
   // Reads the per-page outcome now that the effect settles instead of rejecting.
   // Reset when a fresh batch starts so a recovered fetch clears the flag.
-  const $hasDialogsFailed = createStore(false)
+  const $hasDialogsFailed = createStore(false, { serialize: "ignore" })
     .on(dialogsQuery, () => false)
     .on(dialogsQuery.doneData, (_, { failedIds }) => failedIds.length > 0)
     .on(dialogsQuery.fail, () => true);

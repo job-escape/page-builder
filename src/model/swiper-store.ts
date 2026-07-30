@@ -14,7 +14,7 @@ export const slideNext = createEvent<{ id: string }>();
 export const slidePrev = createEvent<{ id: string }>();
 export const clearSwiperCommand = createEvent<string>();
 
-export const $swiperCommands = createStore<SwiperCommands>({})
+export const $swiperCommands = createStore<SwiperCommands>({}, { serialize: "ignore" })
   .on(slideTo, (state, { id, index }) => ({ ...state, [id]: { type: "slide_to", index } }))
   .on(slideNext, (state, { id }) => ({ ...state, [id]: { type: "slide_next" } }))
   .on(slidePrev, (state, { id }) => ({ ...state, [id]: { type: "slide_prev" } }))
