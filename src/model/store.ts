@@ -394,6 +394,42 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
       return result;
     },
   });
+  /** Node ids reachable from `page`: every condition branch, or `next_node_id`. */
+  const neighbourIds = (page: Page): number[] => {
+    if (page.condition) {
+      return page.condition.condition
+        .map((c) => c.nodeId)
+        .filter((id): id is number => Boolean(id));
+    }
+
+    return page.next_node_id ? [page.next_node_id] : [];
+  };
+
+  // Neighbours still worth requesting: the ones absent from `$pages`.
+  //
+  // Without the `$pages` check this re-requested nodes the model already held.
+  // The clock below fires on every change of current page — *backwards*
+  // navigation included — so walking a funnel back and forth re-fetched the same
+  // node on every step, without limit (A→B fetched C, B→A re-fetched B, A→B
+  // re-fetched C…). `createQuery` has no `cache()`, so identical params always
+  // re-ran the handler, and consumers send these with a custom header, so each
+  // duplicate cost a CORS preflight as well. Page html and dialogs already
+  // guarded themselves this way; node data did not.
+  //
+  // The tradeoff is that a node re-authored in the constructor mid-session is
+  // not picked up until reload — which is the better behavior anyway: content
+  // now stays consistent for the length of one run.
+  const pagesToPrefetch = ({
+    currentPage,
+    pages,
+  }: {
+    currentPage: Page | null;
+    pages: Record<number, Page | undefined>;
+  }): number[] => {
+    if (!currentPage || preloadAhead <= 0) return [];
+    return neighbourIds(currentPage).filter((id) => !pages[id]);
+  };
+
   // Clocked on $currentPage (not $currentPageId) so the prefetch re-fires once the
   // current node becomes available — including after the self-heal below loads a page
   // whose forward-prefetch was dropped. Clocking on the id alone would stall the
@@ -401,25 +437,12 @@ export default function createBuilderModel<Page extends BuilderPage = BuilderPag
   // nothing, then never retry).
   sample({
     clock: $currentPage,
-    source: { currentPage: $currentPage, lang: $lang },
-    filter: ({ currentPage }) => Boolean(currentPage),
-    fn: ({ currentPage, lang }) => {
-      if (!currentPage || preloadAhead <= 0) {
-        return { pageIds: [], lang };
-      }
-
-      if (currentPage.condition) {
-        const pageIds = currentPage.condition.condition
-          .map((c) => c.nodeId)
-          .filter((id): id is number => Boolean(id));
-        return { pageIds, lang };
-      }
-      if (currentPage.next_node_id) {
-        return { pageIds: [currentPage.next_node_id], lang };
-      }
-
-      return { pageIds: [], lang };
-    },
+    source: { currentPage: $currentPage, lang: $lang, pages: $pages },
+    filter: (source) => pagesToPrefetch(source).length > 0,
+    fn: ({ currentPage, lang, pages }) => ({
+      pageIds: pagesToPrefetch({ currentPage, pages }),
+      lang,
+    }),
     target: fetchPagesQuery.start,
   });
 
