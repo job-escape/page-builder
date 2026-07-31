@@ -5,7 +5,13 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import dynamic from "next/dynamic";
 
-import { ComponentType, useEffect, useRef, useState } from "react";
+import {
+  ComponentType,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { usePreloadChunk } from "../hooks/use-preload-chunk";
 import { useLogger } from "../utils/logger";
@@ -106,6 +112,21 @@ export default function BuilderClient<Page extends BuilderPage = BuilderPage>({
     pageForCurrent &&
     typeof pageForCurrent.html === "string" &&
     currentPageDialogsLoaded;
+
+  const lastScrolledPageRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (current === null || !pageReady) return;
+
+    if (lastScrolledPageRef.current === null) {
+      lastScrolledPageRef.current = current;
+      return;
+    }
+
+    if (lastScrolledPageRef.current === current) return;
+    lastScrolledPageRef.current = current;
+
+    window.scrollTo(0, 0);
+  }, [current, pageReady]);
 
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
