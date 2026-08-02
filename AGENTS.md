@@ -219,6 +219,38 @@ npm pack --dry-run --ignore-scripts
 There is no lint script. Do not claim lint coverage or invent a repository-wide
 lint command without first adding and configuring that tool intentionally.
 
+`.github/workflows/ci.yml` runs all four on every push and pull request, and
+`publish.yml` runs the typecheck and the tests before it ships. Both are gates:
+a red suite blocks a release.
+
+`typecheck` targets `tsconfig.build.json`, not the base `tsconfig.json`. Only
+the build config sets `jsxImportSource: "@emotion/react"`, and without it the
+`css` prop is untyped — `tsc -p tsconfig.json` reports ten phantom errors across
+the Emotion-styled components. Typechecking the configuration that actually
+ships is also the more honest check. Test files are excluded from both projects
+but ts-jest typechecks them as it runs them, so they are not unchecked.
+
+### Testing against the real rules engine
+
+`json-rules-engine` depends on `jsonpath-plus`, whose exports map serves ESM
+under the `browser` condition that the jsdom environment selects by default and
+CJS under `node`. ts-jest cannot transform the ESM build, which is why most
+condition tests stub the engine out entirely.
+
+To exercise the real engine — branch priority, operators, coercion, missing
+facts — override the resolution condition for that file alone with a docblock:
+
+```ts
+/**
+ * @jest-environment jsdom
+ * @jest-environment-options {"customExportConditions": ["node"]}
+ */
+```
+
+`src/utils/run-condition.test.ts` does this. Do not move the override into
+`jest.config.js`: it changes module resolution for every suite, and the two
+builds of a dependency are not always interchangeable.
+
 Use a packed artifact or published version for final consumer evidence. Local
 source links can hide missing `files`, bad exports, absent client directives,
 stale declarations, peer duplication, and Tailwind scanning problems.
