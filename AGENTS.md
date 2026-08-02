@@ -251,6 +251,41 @@ facts — override the resolution condition for that file alone with a docblock:
 `jest.config.js`: it changes module resolution for every suite, and the two
 builds of a dependency are not always interchangeable.
 
+### Component tests
+
+The runner is **Jest with ts-jest**, not vitest. React Testing Library is
+available (`@testing-library/react`, `user-event`, and `jest-dom` matchers wired
+through `jest.setup.ts`) and is the default for anything that renders.
+
+The three oldest hook tests drive `react-dom/client` and `act` by hand because
+they predate RTL here. Leave them; they work, and rewriting them proves nothing.
+New rendering tests should use RTL.
+
+### Storybook
+
+```bash
+npm run storybook        # dev server on :6006
+npm run build-storybook  # static build; CI runs this
+```
+
+`@storybook/react-vite`, not the Next framework — this is a component library
+with no app to boot, and Next is a peer dependency the consumer provides.
+
+Two things to know before adding a story:
+
+- **This package ships no CSS.** Consumers point their own Tailwind at
+  `node_modules/@job-escape/page-builder/dist`. Storybook therefore builds its
+  own via `@tailwindcss/vite`, and `.storybook/tokens.css` defines the semantic
+  colours (`--color-brand`, `--color-secondary`, …) that the components
+  reference. Those values are a placeholder theme so stories are legible; they
+  are not a design decision and nothing at runtime reads them.
+- **Storyable components are the ones that take no context.** `src/ui/internal/*`
+  qualifies. Most of `src/ui/components/*` reads the builder model, the page,
+  or the interaction options through context, so a story needs those providers
+  stubbed first.
+
+CI builds Storybook, so a story that throws fails the build.
+
 Use a packed artifact or published version for final consumer evidence. Local
 source links can hide missing `files`, bad exports, absent client directives,
 stale declarations, peer duplication, and Tailwind scanning problems.

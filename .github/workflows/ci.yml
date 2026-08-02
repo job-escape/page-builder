@@ -56,3 +56,8 @@ jobs:
         # `files` and the exports map decide what consumers actually receive.
         # A local build passing says nothing about either; packing does.
         run: npm pack --dry-run --ignore-scripts
+
+      - name: Build Storybook
+        # A story that throws is a component that throws. Building here catches
+        # it without anyone having to open the browser.
+        run: npm run build-storybook --quiet
