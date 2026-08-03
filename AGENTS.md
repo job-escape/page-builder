@@ -187,6 +187,57 @@ published HTML.
 - `sideEffects` is `false`; new import-time effects or implicit style imports
   require an explicit packaging decision.
 
+## Styling — the class names you emit are a public contract
+
+This package **ships no CSS**. It emits Tailwind class-name strings in its compiled
+output, and each consumer (`funnel`, `sart-funnel`) compiles them by pointing Tailwind
+at `node_modules/@job-escape/page-builder/dist` with `@source`. So a class name here is
+an API, and the usual library rule applies: renaming one is a breaking change that
+needs a consumer CSS rebuild, and deleting one renders published funnels unstyled.
+
+### Practices
+
+1. **Never construct a class name at runtime.** `` `bg-${tone}` `` and
+   `"text-" + size` produce no CSS in any consumer — Tailwind's scanner reads literal
+   strings out of `dist` and cannot evaluate an expression. Write the complete name in
+   each branch, or put the axes in a `cva` recipe (`src/ui/internal/button.tsx` is the
+   pattern). This currently holds everywhere; keep it that way, because the failure is
+   silent here and only visible in someone else's app.
+2. **Prefer stock utilities to arbitrary values.** `w-[327px]` still compiles in
+   consumers, but every arbitrary value is a literal the consumer's theme cannot
+   retheme. Semantic utilities (`bg-primary`, `bg-secondary`) are better still — but
+   see 3.
+3. **A semantic utility is a demand on the consumer.** Custom names like `bg-primary`
+   generate no CSS unless the consumer maps them; `sart-funnel` carries an explicit
+   mapping block in `globals.css` for exactly the ones used here. Introducing a new
+   semantic name means updating both consumers, so weigh it against a stock utility.
+4. **Merge with `cn()`** from `src/lib/cn.ts`, never string concatenation. It is
+   `clsx` + `extendTailwindMerge` with `rounded-cta` registered in the `rounded` group.
+   **A new custom utility that collides with a Tailwind class group must be registered
+   there too**, or merging keeps both classes and source order decides the winner.
+5. **Forward `className` last** so a consumer can adjust a component from its call site
+   instead of forking it.
+6. **Never import a stylesheet.** `sideEffects: false` lets consumers drop it, so the
+   import would silently do nothing. Shipping CSS from this package is a packaging
+   decision, not a styling one.
+
+### Emotion is the runtime pipeline for authored content
+
+`src/hooks/use-styled-node.ts` parses `style`, `hover-style`, `disabled-style` and
+their `desktop-` / `mobile-` variants off authored HTML attributes and turns them into
+Emotion objects at render time. That is what makes constructor-authored CSS work, and
+Tailwind structurally cannot do it — it is a compile-time scanner with no knowledge of
+what a designer will type next week.
+
+**Emotion for content-driven styles, Tailwind class names for the component's own
+chrome.** Never reach for Emotion to style a component you are writing.
+
+One consequence to know: those Emotion classes are load-bearing and lose to
+high-specificity CSS. Both consumers keep `cascade-layers` off in `postcss.config.mjs`
+because the polyfill rewrites Tailwind's `@layer base` to ID-level specificity and
+beats them — stripping backgrounds and collapsing controls. If you change how styled
+nodes emit, that interaction is what to re-check.
+
 ## Telemetry, external effects, and sensitive data
 
 Host adapters may navigate, open dialogs, mutate cookies/state, make HTTP
