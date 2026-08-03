@@ -202,6 +202,28 @@ pixel/tag-manager integrations.
 - Keep logger behavior a safe no-op when the host has not initialized Grafana
   Faro.
 
+### Log names and measurements are a public contract
+
+This package emits telemetry but does not own any alerts — the consuming
+runtimes do, against the shared `jobescapelogdrain` Grafana stack. That makes
+the strings here a contract exactly like the exported types:
+
+- An **event name** passed to `logger.error`/`warn`/`info`, and a **measurement
+  type** passed to `logger.measurement`, are selected on by alert rules in the
+  consumers. `backend_request` is already load-bearing: the *Backend API* alert
+  folder queries `type="backend_request"` with `context_status=~"5.."`. Renaming
+  one, or changing the context keys under it, silently blinds an alert with no
+  compile error anywhere. Treat it as a breaking change: add the new name
+  alongside the old one and let the consumers migrate.
+- Adding a new failure path means adding a **log line with a stable name** on
+  it, so a consumer *can* alert on it. Landing a silent failure mode is landing
+  something nobody can see break.
+- Keep log context flat `Record<string, string>` (see `src/utils/logger.ts`). A
+  nested object is a value no alert can select on and no dashboard can group by.
+
+The consumer-side rules live in `sart-funnel/observability/`; that README lists
+what already exists before you invent a new name.
+
 ## Commands and validation
 
 Run commands from this repository with npm:
