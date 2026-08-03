@@ -58,8 +58,22 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
         disabled={loading || disabled}
       >
-        {loading && <LoaderCircle className="animate-spin" />}
-        {children}
+        {/*
+          A ternary rather than `{loading && <spinner/>}{children}`: the latter
+          always renders two children — `false` and the children — and `Slot`
+          calls `React.Children.only`, so every `asChild` button threw
+          "expected to receive a single React element child". `asChild` is a
+          public prop on a public export, so that crash was reachable from any
+          consumer rendering a CTA as a link.
+        */}
+        {loading ? (
+          <>
+            <LoaderCircle className="animate-spin" />
+            {children}
+          </>
+        ) : (
+          children
+        )}
       </Comp>
     );
   },

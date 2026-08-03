@@ -1,0 +1,63 @@
+name: CI
+
+# This package is a published contract, consumed by `funnel` and
+# `frontend-alpha` at pinned versions. Until now the only workflow here was
+# `publish.yml`, which builds but never runs the tests or the typecheck — so a
+# suite could go red, or `tsc` could stop passing, and nothing said so until a
+# consumer broke. This runs the checks AGENTS.md already prescribes, on every
+# push and pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  verify:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: "@job-escape"
+          cache: npm
+
+      - run: npm ci
+        env:
+          # The tracked .npmrc sets always-auth for the @job-escape scope. No
+          # dependency currently comes from there, but the token keeps `npm ci`
+          # working if one ever does.
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        # --runInBand as AGENTS.md prescribes: the condition-engine cache is
+        # module-level state and parallel workers make its assertions flaky.
+        run: npm test -- --runInBand
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack
+        # `files` and the exports map decide what consumers actually receive.
+        # A local build passing says nothing about either; packing does.
+        run: npm pack --dry-run --ignore-scripts
+
+      - name: Build Storybook
+        # A story that throws is a component that throws. Building here catches
+        # it without anyone having to open the browser.
+        run: npm run build-storybook --quiet

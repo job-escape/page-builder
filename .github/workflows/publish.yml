@@ -29,6 +29,14 @@ jobs:
 
       - run: npm ci
 
+      # Publishing is irreversible — a version number cannot be reused, and two
+      # runtimes install from here. Verify before shipping, not after.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test -- --runInBand
+
       - run: npm run build
 
       - name: Skip if version already published

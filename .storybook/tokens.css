@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* Scan the library source so the classes written in the components exist. */
+@source "../src";
+
+/*
+ * The components reference semantic colour variables — `bg-brand`,
+ * `text-destructive-foreground`, `bg-secondary` — that the *consumer* defines.
+ * This package deliberately ships no theme, so Storybook supplies a neutral one
+ * purely so stories render. These values are not a design decision and no
+ * runtime reads them; they exist to make variant differences visible.
+ */
+@theme {
+  --color-brand: #1d4ed8;
+  --color-brand-foreground: #ffffff;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-secondary: #f1f5f9;
+  --color-secondary-foreground: #0f172a;
+  --color-accent: #e2e8f0;
+  --color-accent-foreground: #0f172a;
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-input: #cbd5e1;
+  --color-ring: #1d4ed8;
+}
