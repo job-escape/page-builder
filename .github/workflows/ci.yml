@@ -1,0 +1,57 @@
+name: CI
+
+# This package had no CI. `publish.yml` builds and publishes on a version bump, but nothing
+# ran the 93 unit tests, so a change could be released with a red suite and nobody would know
+# until a consumer noticed — and the consumers here are the funnels, in production.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      # The story tests drive a real chromium rather than jsdom, because a story asserts what
+      # a component PAINTS — layout, CSS, an animation that writes straight to the DOM — and
+      # jsdom cannot tell you about any of that.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Story tests
+        # Every story becomes a test: it must render without throwing, and any `play()`
+        # function runs as an interaction test. Storybook otherwise only proves the package
+        # BUILDS, which a component that throws on mount does perfectly well.
+        run: npm run test:storybook
+
+      - name: Build
+        run: npm run build
+
+      - name: Build Storybook
+        # Catches a story that compiles under Vite's test transform but breaks the real
+        # Storybook build — a different pipeline, and the one a human actually opens.
+        run: npm run build-storybook
