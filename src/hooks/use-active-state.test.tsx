@@ -13,7 +13,8 @@
  * state every 30ms) the orphans compounded until the main thread was saturated
  * and the UI stopped responding to clicks.
  */
-import { createEvent, createStore, StoreWritable } from "effector";
+import { createEvent, createStore, fork, StoreWritable } from "effector";
+import { Provider } from "effector-react";
 
 import { act } from "react";
 import { createRoot, Root } from "react-dom/client";
@@ -136,4 +137,36 @@ it("stops evaluating once unmounted", async () => {
   });
 
   expect(runCondition).not.toHaveBeenCalled();
+});
+
+/*
+ * The production shape: `Builder` hydrates answers into a forked Scope, so the
+ * store's DEFAULT state is empty — only the scope holds the visitor's answers.
+ * The initial evaluation used to run `evaluateFx($answers.getState())` outside
+ * any scope, so the engine judged an empty answer set, computed "disabled",
+ * and nothing re-evaluated until some later store change happened to land.
+ * A returning visitor on a quiet page saw their saved answer in the field and
+ * a Continue button that never enabled.
+ */
+it("evaluates the scope's hydrated answers on mount, and lands the result in the scope", async () => {
+  const scope = fork({
+    values: [[$answers, { "funnel_data-drama_lead": "Isabella" }]],
+  });
+  runCondition.mockResolvedValue({ nodeId: "highlighted" });
+
+  await render(
+    <Provider value={scope}>
+      <Probe tick={0} />
+    </Provider>,
+  );
+
+  // The engine must be consulted with what the scope holds — an initial
+  // evaluation that reads the default (empty) state judges the wrong visit.
+  expect(runCondition).toHaveBeenCalled();
+  for (const call of runCondition.mock.calls as [unknown, Answers][]) {
+    expect(call[1]["funnel_data-drama_lead"]).toBe("Isabella");
+  }
+
+  // And its verdict must be visible where the component reads it: in the scope.
+  expect(container.textContent).toBe("0:highlighted");
 });

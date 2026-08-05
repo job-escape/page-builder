@@ -1,12 +1,14 @@
 import {
   clearNode,
   createEffect,
+  createEvent,
   createNode,
   createStore,
   sample,
   Store,
   StoreWritable,
   withRegion,
+  type EventCallable,
 } from "effector";
 import { useUnit } from "effector-react";
 
@@ -53,12 +55,23 @@ function createActiveStateModel(
 ) {
   const region = createNode();
   let $activeState!: StoreWritable<string | null>;
+  let init!: EventCallable<void>;
 
   withRegion(region, () => {
     // One per component instance, so it can carry no stable sid; it is derived
     // from answers on the client anyway. Declared non-serializable so Builder's
     // `serialize(scope)` stops warning about it on every server render.
     $activeState = createStore<string | null>(null, { serialize: "ignore" });
+
+    // Fired from the hook through `useUnit`, so the first evaluation runs in
+    // the AMBIENT SCOPE. It used to be a direct `evaluateFx($answers.getState())`
+    // call here — which executes outside any scope, reads the store's default
+    // (empty) state instead of the hydrated answers, and judges the wrong
+    // visit: a returning visitor's gated Continue button computed "disabled"
+    // from an answer set with nothing in it, and stayed dead until some later
+    // store change happened to re-evaluate. Whether that change ever came
+    // depended on the environment, which is why it walked like a flake.
+    init = createEvent();
 
     const evaluateFx = createEffect(
       async ({
@@ -93,19 +106,13 @@ function createActiveStateModel(
     $activeState.on(evaluateFx.doneData, (_, result) => result);
 
     sample({
-      clock: [$answers, $localModel, $subscriptionFacts],
+      clock: [init, $answers, $localModel, $subscriptionFacts],
       source: { answers: $answers, local: $localModel, subscription: $subscriptionFacts },
       target: evaluateFx,
     });
-
-    evaluateFx({
-      answers: $answers.getState(),
-      local: $localModel.getState(),
-      subscription: $subscriptionFacts.getState(),
-    });
   });
 
-  return { $activeState, destroy: () => clearNode(region, { deep: true }) };
+  return { $activeState, init, destroy: () => clearNode(region, { deep: true }) };
 }
 
 type ActiveStateModel = ReturnType<typeof createActiveStateModel>;
@@ -145,6 +152,14 @@ export function useActiveState(
       ref.current = null;
     };
   }, []);
+
+  // Bound through `useUnit` so it fires inside the scope the Builder's
+  // provider supplies — the whole point of the event. A new model (fresh
+  // `states` content) re-arms the effect and re-evaluates.
+  const init = useUnit(model.init);
+  useEffect(() => {
+    init();
+  }, [init]);
 
   return useUnit(model.$activeState);
 }
