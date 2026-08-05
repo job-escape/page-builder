@@ -1,8 +1,8 @@
 /** @jsxImportSource @emotion/react */
-import { Dialog, DialogContent, DialogPortal } from "@radix-ui/react-dialog";
 import { domToReact, Element, type DOMNode } from "html-react-parser";
 
-import { createContext } from "react";
+import { createContext, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { useBuilderModel } from "../hooks/use-builder-model";
 import { useInteraction } from "../hooks/use-interaction";
@@ -34,19 +34,13 @@ function Overlay({ domNode }: { domNode: Element }) {
 function DialogContentReg({ domNode, config }: ComponentRegistryProps) {
   const css = useStyledNode(domNode.attribs);
 
+  // The old Radix DialogContent ran with modal={false} and preventDefault on
+  // both outside-interaction and Escape — i.e. no dismissal at all (closing a
+  // dialog mid-3DS would lose the payment). A plain div is the same contract.
   return (
-    <DialogContent
-      css={css}
-      style={{ pointerEvents: "auto" }}
-      onInteractOutside={(e) => {
-        e.preventDefault();
-      }}
-      onEscapeKeyDown={(e) => {
-        e.preventDefault();
-      }}
-    >
+    <div role="dialog" css={css} style={{ pointerEvents: "auto" }}>
       {domToReact(domNode.children as DOMNode[], config)}
-    </DialogContent>
+    </div>
   );
 }
 
@@ -62,31 +56,45 @@ export default function PageDialog({
   registry?: ComponentRegisry;
 }) {
   const model = useBuilderModel();
+  // createPortal needs a browser document; this component is loaded with
+  // next/dynamic({ ssr: false }), the guard just keeps it SSR-safe.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const dialogRegistry = {
     ...(registryProp ?? model.registry ?? {}),
     overlay: Overlay,
     "dialog-content": DialogContentReg,
   };
 
-  if (dialog.html) {
-    return (
-      <PageDialogContext.Provider value={{ onOpenChange }}>
-        <Dialog modal={false} open={open} onOpenChange={onOpenChange}>
-          <DialogPortal forceMount={dialog.force_mount || undefined}>
-            <div
-              aria-hidden={!open}
-              style={{ display: open ? "contents" : "none" }}
-              {...(open
-                ? { "data-bevr-active-dialog": "true", "data-bevr-dialog-id": String(dialog.id) }
-                : { "data-bevr-dialog-id": String(dialog.id) })}
-            >
-              <Parser content={dialog.html} registry={dialogRegistry} />
-            </div>
-          </DialogPortal>
-        </Dialog>
-      </PageDialogContext.Provider>
-    );
+  if (!dialog.html || !mounted) {
+    return null;
   }
 
-  return null;
+  // force_mount keeps the subtree in the DOM while the dialog is closed:
+  // Solidgate/Primer payment iframes hold per-session state that a remount
+  // would destroy. Visibility is toggled purely via display, matching the
+  // previous Radix Portal + forceMount behavior.
+  if (!open && !dialog.force_mount) {
+    return null;
+  }
+
+  return (
+    <PageDialogContext.Provider value={{ onOpenChange }}>
+      {createPortal(
+        <div
+          aria-hidden={!open}
+          style={{ display: open ? "contents" : "none" }}
+          {...(open
+            ? { "data-bevr-active-dialog": "true", "data-bevr-dialog-id": String(dialog.id) }
+            : { "data-bevr-dialog-id": String(dialog.id) })}
+        >
+          <Parser content={dialog.html} registry={dialogRegistry} />
+        </div>,
+        document.body,
+      )}
+    </PageDialogContext.Provider>
+  );
 }
