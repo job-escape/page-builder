@@ -32,6 +32,7 @@ import {
   XPushAction,
 } from "../types";
 import { applyValueTransforms } from "../utils/apply-value-transforms";
+import { findAuthoredElement } from "../utils/authored-element";
 import { buildConditionFacts } from "../utils/build-condition-facts";
 import { buildRequestBodyObject } from "../utils/build-request-body-object";
 import { deepMergeAll } from "../utils/deep-merge";
@@ -585,7 +586,10 @@ export const useInteraction = () => {
             break;
           }
 
-          const element = document.getElementById(elementId);
+          // Not getElementById: an authored container carries the id as
+          // `data-id` and nothing else, so the lookup found nothing and the
+          // scroll silently did not happen. See findAuthoredElement.
+          const element = findAuthoredElement(elementId);
           if (!element) {
             break;
           }
