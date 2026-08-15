@@ -63,6 +63,52 @@ const size = (value: FrameProps["width"]): string | number | undefined => {
   return value;
 };
 
+/**
+ * What makes any brick clickable, in one place.
+ *
+ * Shared by `Frame` and `Text` rather than written twice: neither is a
+ * `<button>`, so both need the keyboard handler and the roles spelled out, and
+ * two copies of that is two chances for one of them to lose a click. `Text`
+ * had no copy at all, and its `onClick` went nowhere.
+ */
+function interactionProps({
+  onClick,
+  disabled,
+  role,
+  ariaLabel,
+  ariaChecked,
+  testId,
+}: {
+  onClick?: () => void;
+  disabled?: boolean;
+  role?: FrameProps["role"];
+  ariaLabel?: string;
+  ariaChecked?: boolean;
+  testId?: string;
+}) {
+  const interactive = Boolean(onClick) && !disabled;
+
+  return {
+    onClick: interactive ? onClick : undefined,
+    // Space and Enter, because a div and a span are not buttons and a keyboard
+    // user would otherwise have no way to choose an option.
+    onKeyDown: interactive
+      ? (event: KeyboardEvent) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onClick?.();
+          }
+        }
+      : undefined,
+    role,
+    tabIndex: interactive ? 0 : undefined,
+    "aria-label": ariaLabel,
+    "aria-checked": ariaChecked,
+    "aria-disabled": disabled || undefined,
+    "data-testid": testId,
+  };
+}
+
 const pad = (value: FrameProps["padding"]): string | number | undefined => {
   if (value === undefined) return undefined;
   if (typeof value === "number") return value;
@@ -121,25 +167,7 @@ export function Frame({
   return (
     <div
       style={css}
-      onClick={interactive ? onClick : undefined}
-      // Space and Enter on an interactive frame, because a div is not a button
-      // and a keyboard user would otherwise have no way to choose an option.
-      onKeyDown={
-        interactive
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onClick?.();
-              }
-            }
-          : undefined
-      }
-      role={role}
-      tabIndex={interactive ? 0 : undefined}
-      aria-label={ariaLabel}
-      aria-checked={ariaChecked}
-      aria-disabled={disabled || undefined}
-      data-testid={testId}
+      {...interactionProps({ onClick, disabled, role, ariaLabel, ariaChecked, testId })}
     >
       {children}
     </div>
@@ -152,11 +180,42 @@ export type TextProps = {
   color?: string;
   align?: "left" | "center" | "right";
   lineHeight?: number;
+  /**
+   * Text takes clicks, because designers attach navigation to words.
+   *
+   * It did not, and the prop was simply dropped on the floor: the compiler
+   * emitted `onClick` for a text frame with an interaction, this component
+   * destructured a fixed list that did not include it, and the funnel rendered
+   * a line of copy that did nothing. Nothing failed anywhere — the click just
+   * had no handler. `Frame`'s interactive behaviour, shared rather than copied.
+   */
+  onClick?: () => void;
+  disabled?: boolean;
+  role?: "button" | "radio" | "checkbox" | "group" | "radiogroup" | "dialog";
+  ariaLabel?: string;
+  ariaChecked?: boolean;
+  testId?: string;
   style?: CSSProperties;
   children?: ReactNode;
 };
 
-export function Text({ size: fontSize, weight, color, align, lineHeight, style, children }: TextProps) {
+export function Text({
+  size: fontSize,
+  weight,
+  color,
+  align,
+  lineHeight,
+  onClick,
+  disabled,
+  role,
+  ariaLabel,
+  ariaChecked,
+  testId,
+  style,
+  children,
+}: TextProps) {
+  const interactive = Boolean(onClick) && !disabled;
+
   return (
     <span
       style={{
@@ -166,8 +225,11 @@ export function Text({ size: fontSize, weight, color, align, lineHeight, style, 
         textAlign: align,
         lineHeight: lineHeight ? `${lineHeight}px` : undefined,
         display: "block",
+        cursor: interactive ? "pointer" : undefined,
+        userSelect: interactive ? "none" : undefined,
         ...style,
       }}
+      {...interactionProps({ onClick, disabled, role, ariaLabel, ariaChecked, testId })}
     >
       {children}
     </span>
