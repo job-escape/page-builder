@@ -10,7 +10,7 @@
  * carries its own values and must render identically wherever it is mounted,
  * with no stylesheet to ship, load, or collide with the host page.
  */
-import type { CSSProperties, ReactNode } from "react";
+import { createElement, type CSSProperties, type ReactNode } from "react";
 
 export type FrameLayout = "none" | "row" | "column";
 export type Align = "start" | "center" | "end" | "stretch";
@@ -201,7 +201,37 @@ export function Image({ src, alt = "", width, height, radius, fit = "cover", sty
   );
 }
 
-/** The catalogue a compiled module receives as `ui`. */
-export const ui = { Frame, Text, Image };
+/**
+ * The catalogue a compiled module receives as `ui`.
+ *
+ * **Factories, not components.** A compiled module has no imports — React is not
+ * in its scope — so it cannot use JSX and cannot call `createElement`. It writes
+ * `ui.Frame(props, children)` and gets an element back. Keeping that shape here
+ * is what lets the emitted output stay import-free.
+ *
+ * The components themselves are exported above for anything that *does* have
+ * React in scope and wants JSX.
+ */
+type Children = ReactNode | ReactNode[];
+type Factory<P> = (props?: P, children?: Children) => ReactNode;
+
+/**
+ * Children are spread rather than passed as one array, so React sees positional
+ * children and does not demand keys. Generated code emits a plain array of
+ * siblings; making it key-free is the runtime's job, not the compiler's.
+ */
+const spread = (children: Children): ReactNode[] =>
+  Array.isArray(children) ? children : [children];
+
+export const ui: {
+  Frame: Factory<Omit<FrameProps, "children">>;
+  Text: Factory<Omit<TextProps, "children">>;
+  Image: Factory<ImageProps>;
+} = {
+  Frame: (props, children) =>
+    createElement(Frame, props as FrameProps, ...spread(children)),
+  Text: (props, children) => createElement(Text, props as TextProps, ...spread(children)),
+  Image: (props) => createElement(Image, props as ImageProps),
+};
 
 export type Ui = typeof ui;

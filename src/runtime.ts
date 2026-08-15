@@ -65,3 +65,16 @@ export type {
 } from "./runtime/navigation";
 
 export { createNavigator } from "./runtime/navigation";
+
+export type {
+  SourceAction,
+  SourceBinding,
+  SourceCondition,
+  SourceFrame,
+  SourceFunnel,
+  SourceInteraction,
+  SourceScreen,
+} from "./runtime/compiler/source";
+
+export type { CompiledFunnel } from "./runtime/compiler/emit";
+export { compile, emitCondition, emitScreen } from "./runtime/compiler/emit";
