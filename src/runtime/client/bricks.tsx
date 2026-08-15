@@ -10,7 +10,7 @@
  * carries its own values and must render identically wherever it is mounted,
  * with no stylesheet to ship, load, or collide with the host page.
  */
-import { createElement, type CSSProperties, type ReactNode } from "react";
+import { createElement, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
 export type FrameLayout = "none" | "row" | "column";
 export type Align = "start" | "center" | "end" | "stretch";
@@ -93,7 +93,7 @@ function interactionProps({
     // Space and Enter, because a div and a span are not buttons and a keyboard
     // user would otherwise have no way to choose an option.
     onKeyDown: interactive
-      ? (event: KeyboardEvent) => {
+      ? (event: KeyboardEvent<HTMLElement>) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             onClick?.();
