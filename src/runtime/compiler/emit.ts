@@ -152,11 +152,28 @@ function emitAction(action: SourceAction, indent: string): string {
   }
 }
 
+/**
+ * Does this group reach a backend anywhere inside it?
+ *
+ * The handler has to be `async` if it does, and a submit is routinely nested
+ * inside an `if` — a guard before the call is the normal shape. A plain arrow
+ * around an `await` is not a slow funnel, it is no funnel: the module fails to
+ * parse and the screen renders as nothing.
+ */
+function awaits(actions: SourceAction[]): boolean {
+  return actions.some((action) => {
+    if (action.type === "submit") return true;
+    if (action.type === "conditional") return action.branches.some((branch) => awaits(branch.do));
+    return false;
+  });
+}
+
 function emitHandler(frame: SourceFrame, indent: string): string | null {
   const actions = frame.interactions?.flatMap((interaction) => interaction.do) ?? [];
   if (actions.length === 0) return null;
   const body = actions.map((action) => emitAction(action, `${indent}    `)).join("\n");
-  return `${indent}  onClick: () => {\n${body}\n${indent}  },`;
+  const arrow = awaits(actions) ? "async () =>" : "() =>";
+  return `${indent}  onClick: ${arrow} {\n${body}\n${indent}  },`;
 }
 
 /** Static props merged with bound ones, bound values expressed as ternaries. */

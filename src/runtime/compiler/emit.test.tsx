@@ -379,3 +379,61 @@ describe("submitting to a backend", () => {
     expect(emitted.indexOf('nav.show("s_thanks"')).toBeLessThan(emitted.indexOf("} catch"));
   });
 });
+
+describe("the handler around a backend call", () => {
+  const withSubmit = (steps: unknown[]) => ({
+    id: "f1",
+    name: "Submit",
+    parent: null,
+    kind: "frame" as const,
+    pos: "a0",
+    props: {},
+    textKey: null,
+    bindings: {},
+    interactions: [{ on: { event: "click" as const }, do: steps as never }],
+  });
+
+  it("is async when it awaits, or the module throws on parse", () => {
+    // A plain arrow around an `await` is not a slow funnel, it is no funnel:
+    // the module fails to parse and the screen renders as nothing.
+    const code = emitScreen({
+      id: "s1",
+      name: "Lead",
+      frames: [withSubmit([{ type: "submit", action: "leads.create" }])],
+    });
+
+    expect(code).toContain("onClick: async () =>");
+  });
+
+  it("is async when the call is buried in a branch, which is the normal shape", () => {
+    // A guard before the call — "only submit when the field is filled" — puts
+    // the await one level down, where a shallow check would miss it.
+    const code = emitScreen({
+      id: "s1",
+      name: "Lead",
+      frames: [
+        withSubmit([
+          {
+            type: "conditional",
+            branches: [
+              { when: { op: "isSet", variable: "email" }, do: [{ type: "submit", action: "leads.create" }] },
+            ],
+          },
+        ]),
+      ],
+    });
+
+    expect(code).toContain("onClick: async () =>");
+  });
+
+  it("stays a plain arrow when nothing awaits", () => {
+    const code = emitScreen({
+      id: "s1",
+      name: "Lead",
+      frames: [withSubmit([{ type: "show", target: "s2" }])],
+    });
+
+    expect(code).toContain("onClick: () =>");
+    expect(code).not.toContain("async");
+  });
+});
