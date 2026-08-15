@@ -38,3 +38,16 @@ export {
   meetsMin,
   select,
 } from "./runtime/variables";
+
+export type { PersistenceOptions, StoredAnswers } from "./runtime/persistence";
+
+export {
+  DEFAULT_DAYS,
+  MAX_BYTES,
+  clear,
+  cookieName,
+  deserialize,
+  read,
+  serialize,
+  write,
+} from "./runtime/persistence";
