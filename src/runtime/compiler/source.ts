@@ -88,4 +88,12 @@ export type SourceFunnel = {
   entry: string;
   variables: VariableDecl[];
   screens: SourceScreen[];
+  /**
+   * Copy, by locale: `{ en: { "51.text": "…" } }`.
+   *
+   * A frame carries a `textKey` and never the words. Keeping them apart is what
+   * lets a translation change rewrite one small object and recompile nothing —
+   * and it is why a compiled module contains no literal copy at all.
+   */
+  locales?: Record<string, Record<string, string>>;
 };

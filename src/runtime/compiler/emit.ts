@@ -31,6 +31,8 @@ export type CompiledFunnel = {
     entry: string;
     variables: VariableDecl[];
     overlayDefaults: Record<string, NonNullable<SourceScreen["overlay"]>>;
+    /** Carried through so a published artifact is self-contained. */
+    locales: Record<string, Record<string, string>>;
     screens: Array<{ id: string; next: string[]; overlays: string[] }>;
   };
   /** Screen id → module source. */
@@ -217,6 +219,7 @@ export function compile(funnel: SourceFunnel): CompiledFunnel {
       entry: funnel.entry,
       variables: [...funnel.variables].sort((a, b) => a.name.localeCompare(b.name)),
       overlayDefaults,
+      locales: funnel.locales ?? {},
       screens: screens.map((screen) => ({ id: screen.id, ...reachable(screen) })),
     },
     modules,
