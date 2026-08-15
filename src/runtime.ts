@@ -51,3 +51,7 @@ export {
   serialize,
   write,
 } from "./runtime/persistence";
+
+export type { FunnelStore, FunnelStoreOptions, RequestStatus } from "./runtime/store";
+
+export { createFunnelStore } from "./runtime/store";
