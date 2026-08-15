@@ -50,4 +50,30 @@ export default defineConfig([
       js: `"use client";`,
     },
   },
+  // Beta entry — the compiled-funnel runtime. Built separately so it shares no
+  // chunks with the shipped entries: a consumer resolving `.` or `./client`
+  // must not pull any of this in. Pure logic, so no client banner.
+  {
+    entry: { runtime: "src/runtime.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+  },
+  // Beta client entry — the React half. Own build, own banner, no chunks shared
+  // with `.` or `./client`.
+  {
+    entry: { "runtime-client": "src/runtime-client.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+    banner: { js: `"use client";` },
+  },
 ]);
