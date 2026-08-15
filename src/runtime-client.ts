@@ -9,8 +9,8 @@
  * Isolated from the shipped surface — see `src/runtime/isolation.test.ts`.
  */
 
-export { Frame, Image, Text, ui } from "./runtime/client/bricks";
-export type { FrameProps, ImageProps, TextProps, Ui } from "./runtime/client/bricks";
+export { Frame, Image, Input, Text, ui } from "./runtime/client/bricks";
+export type { FrameProps, ImageProps, InputProps, TextProps, Ui } from "./runtime/client/bricks";
 
 export { Funnel, useFunnel } from "./runtime/client/funnel";
 export type {

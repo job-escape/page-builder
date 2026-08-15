@@ -78,3 +78,12 @@ export type {
 
 export type { CompiledFunnel } from "./runtime/compiler/emit";
 export { compile, emitCondition, emitScreen } from "./runtime/compiler/emit";
+
+export type { RequestOptions } from "./runtime/request";
+
+/**
+ * The one call a compiled module makes to a backend, and the host app's hook
+ * for telling it where that is. The module names an action; this decides what
+ * the name resolves to — see `runtime/request`.
+ */
+export { RequestFailed, configureRequests, request } from "./runtime/request";
