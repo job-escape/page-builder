@@ -272,3 +272,22 @@ describe("compiled output runs", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+describe("copy travels with the artifact", () => {
+  it("carries the locale bundle into the manifest", () => {
+    const withCopy = { ...source, locales: { en: { "s1.title": "Hello" } } };
+    expect(compile(withCopy).manifest.locales.en["s1.title"]).toBe("Hello");
+  });
+
+  it("is an empty map when nothing has been authored", () => {
+    expect(compile(source).manifest.locales).toEqual({});
+  });
+
+  it("never puts the words in a module — only the key", () => {
+    const withCopy = { ...source, locales: { en: { "s_goal.title": "What's your goal?" } } };
+    const { modules } = compile(withCopy);
+    Object.values(modules).forEach((code) => {
+      expect(code).not.toContain("What's your goal?");
+    });
+  });
+});
