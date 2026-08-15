@@ -26,6 +26,7 @@ import { createNavigator, type NavigationState, type Presentation } from "../nav
 import { createFunnelStore, type FunnelStore } from "../store";
 import type { VariableDecl, VariableTable } from "../types";
 import { ui, type Ui } from "./bricks";
+import { request } from "../request";
 import { Overlay } from "./overlay";
 
 /** What a compiled screen module is handed. */
@@ -37,6 +38,11 @@ export type ScreenProps = {
   t: (key: string) => string;
   state: FunnelStore;
   nav: FunnelNav;
+  /**
+   * The one call a compiled module makes to a backend. A *name*, never a URL —
+   * the artifact is a public file and can hold no secret. See `runtime/request`.
+   */
+  req: typeof request;
 };
 
 export type ScreenModule = (props: ScreenProps) => ReactNode;
@@ -151,7 +157,7 @@ export function Funnel({
   );
 
   const value = useMemo<ScreenProps>(
-    () => ({ ui, c: components, t, state: store, nav }),
+    () => ({ ui, c: components, t, state: store, nav, req: request }),
     [components, t, store, nav],
   );
 

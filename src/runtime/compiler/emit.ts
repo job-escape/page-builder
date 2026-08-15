@@ -17,6 +17,9 @@
  *   can reject its own editor's output is a support queue.
  */
 import type { VariableDecl } from "../types";
+
+/** Emitted code is line-based; naming the separator keeps it out of literals. */
+const NL = String.fromCharCode(10);
 import type {
   SourceAction,
   SourceCondition,
@@ -93,6 +96,43 @@ function emitAction(action: SourceAction, indent: string): string {
       const options = Object.keys(presentation).length ? `, ${lit(presentation)}` : "";
       return `${indent}nav.show(${lit(action.target)}${options});`;
     }
+    case "submit": {
+      /**
+       * A real `await` in a real `try`, like everything else here — the guard,
+       * the response mapping and the error branch are generated, not a
+       * serialized onSuccess/onError structure something interprets. That was
+       * the conditions-as-JSON mistake in another costume (§9.6a).
+       */
+      const fields = Object.entries(action.fields ?? {})
+        .map(([key, variable]) => `${indent}      ${lit(key)}: state.get(${lit(variable)}),`)
+        .join(NL);
+
+      const body: string[] = [
+        `${indent}  const r = await req(${lit(action.action)}, {`,
+        fields,
+        `${indent}  });`,
+      ].filter(Boolean);
+
+      Object.entries(action.into ?? {}).forEach(([variable, field]) => {
+        body.push(`${indent}  state.set(${lit(variable)}, r[${lit(field)}] ?? null);`);
+      });
+      (action.onSuccess ?? []).forEach((inner) => body.push(emitAction(inner, `${indent}  `)));
+
+      const rescue: string[] = [];
+      if (action.errorInto) {
+        rescue.push(`${indent}  state.set(${lit(action.errorInto)}, e.message);`);
+      }
+      (action.onError ?? []).forEach((inner) => rescue.push(emitAction(inner, `${indent}  `)));
+      if (!rescue.length) rescue.push(`${indent}  // nothing to do on failure`);
+
+      return [
+        `${indent}try {`,
+        ...body,
+        `${indent}} catch (e) {`,
+        ...rescue,
+        `${indent}}`,
+      ].join(NL);
+    }
     case "conditional": {
       // Real control flow — an `if` chain, not a serialized branch table.
       const lines: string[] = [];
@@ -148,6 +188,19 @@ function emitFrame(frame: SourceFrame, all: SourceFrame[], depth: number): strin
 
   if (frame.kind === "text") {
     return `${indent}ui.Text({\n${emitProps(frame, indent)}\n${indent}}, t(${lit(frame.textKey)}))`;
+  }
+
+  if (frame.kind === "input") {
+    // Bound both ways to the declared variable: the value the visitor sees is
+    // the answer the funnel holds, so navigating away and back keeps it.
+    const variable = lit(frame.variable ?? "");
+    return [
+      `${indent}ui.Input({`,
+      emitProps(frame, indent),
+      `${indent}  value: String(state.get(${variable}) ?? ""),`,
+      `${indent}  onValue: (next) => state.set(${variable}, next),`,
+      `${indent}})`,
+    ].join(NL);
   }
 
   if (frame.kind === "image") {

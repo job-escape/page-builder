@@ -236,6 +236,85 @@ export function Text({
   );
 }
 
+export type InputProps = {
+  /** The declared variable this field reads from and writes to. */
+  value?: string;
+  onValue?: (next: string) => void;
+  placeholder?: string;
+  /**
+   * Chooses the keyboard on a phone as much as the validation — `email` gets an
+   * @ key, `tel` gets a number pad. A funnel is used with a thumb.
+   */
+  type?: "text" | "email" | "tel" | "number";
+  invalid?: boolean;
+  size?: number;
+  color?: string;
+  fill?: string;
+  border?: string;
+  radius?: number;
+  padding?: number | [number, number] | [number, number, number, number];
+  width?: number | "fill" | "hug";
+  height?: number;
+  ariaLabel?: string;
+  testId?: string;
+  style?: CSSProperties;
+};
+
+/**
+ * A field a visitor types into.
+ *
+ * Controlled by the funnel's own state rather than by the DOM: the answer has
+ * to survive navigating away and back, and a value the browser owns does not.
+ * `onValue` writes straight to the declared variable, so a condition can read
+ * what was typed the moment it is typed.
+ */
+export function Input({
+  value = "",
+  onValue,
+  placeholder,
+  type = "text",
+  invalid,
+  size: fontSize,
+  color,
+  fill,
+  border,
+  radius,
+  padding,
+  width,
+  height,
+  ariaLabel,
+  testId,
+  style,
+}: InputProps) {
+  return (
+    <input
+      value={value}
+      onChange={(event) => onValue?.(event.target.value)}
+      placeholder={placeholder}
+      type={type}
+      // Announced, because the placeholder disappears the moment anyone types
+      // and a screen reader user would be left with an unlabelled box.
+      aria-label={ariaLabel ?? placeholder}
+      aria-invalid={invalid || undefined}
+      data-testid={testId}
+      style={{
+        fontSize,
+        color,
+        background: fill,
+        border: border ?? "1px solid rgba(15,23,42,0.15)",
+        borderColor: invalid ? "#dc2626" : undefined,
+        borderRadius: radius,
+        padding: pad(padding) ?? 12,
+        width: size(width) ?? "100%",
+        height,
+        boxSizing: "border-box",
+        outline: "none",
+        ...style,
+      }}
+    />
+  );
+}
+
 export type ImageProps = {
   src: string;
   alt?: string;
@@ -289,11 +368,13 @@ export const ui: {
   Frame: Factory<Omit<FrameProps, "children">>;
   Text: Factory<Omit<TextProps, "children">>;
   Image: Factory<ImageProps>;
+  Input: Factory<InputProps>;
 } = {
   Frame: (props, children) =>
     createElement(Frame, props as FrameProps, ...spread(children)),
   Text: (props, children) => createElement(Text, props as TextProps, ...spread(children)),
   Image: (props) => createElement(Image, props as ImageProps),
+  Input: (props) => createElement(Input, props as InputProps),
 };
 
 export type Ui = typeof ui;

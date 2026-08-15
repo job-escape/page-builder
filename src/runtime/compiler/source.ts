@@ -38,7 +38,29 @@ export type SourceAction =
       closeOnOutside?: boolean;
     }
   | { type: "close" }
-  | { type: "conditional"; branches: Array<{ when?: SourceCondition; do: SourceAction[] }> };
+  | { type: "conditional"; branches: Array<{ when?: SourceCondition; do: SourceAction[] }> }
+  /**
+   * Call a named backend action with the visitor's answers.
+   *
+   * A *name*, never a URL: the compiled module is a public file, so the address
+   * and the key stay on the funnel's own backend, which resolves the name. See
+   * `runtime/request` — this is the one helper the compiler emits a call to.
+   *
+   * `fields` maps the payload key to the variable read for it, so
+   * `{ email: "email" }` compiles to `{ email: state.get("email") }`.
+   */
+  | {
+      type: "submit";
+      action: string;
+      fields?: Record<string, string>;
+      /** Response fields written back into variables, by variable name. */
+      into?: Record<string, string>;
+      /** Run when it succeeds, and when it does not. Real branches, generated. */
+      onSuccess?: SourceAction[];
+      onError?: SourceAction[];
+      /** Variable that receives the error message, so a screen can show it. */
+      errorInto?: string;
+    };
 
 export type SourceInteraction = {
   on: { event: "click" };
@@ -60,7 +82,9 @@ export type SourceFrame = {
   name?: string;
   /** null at the top level of a screen. */
   parent: string | null;
-  kind: "frame" | "text" | "image";
+  kind: "frame" | "text" | "image" | "input";
+  /** For an input: the declared variable it reads from and writes to. */
+  variable?: string;
   /** Static props — layout, fill, radius, padding. */
   props?: Record<string, unknown>;
   /** Props computed per render from funnel state. */

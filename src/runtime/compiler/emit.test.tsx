@@ -10,7 +10,7 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { Funnel, type ScreenModule } from "../client/funnel";
-import { compile, emitCondition } from "./emit";
+import { compile, emitCondition, emitScreen } from "./emit";
 import type { SourceFunnel } from "./source";
 
 /** A two-screen funnel with a choice, a bound appearance and a branch. */
@@ -289,5 +289,93 @@ describe("copy travels with the artifact", () => {
     Object.values(modules).forEach((code) => {
       expect(code).not.toContain("What's your goal?");
     });
+  });
+});
+
+describe("an input field", () => {
+  const inputFrame = {
+    id: "f1",
+    name: "Email",
+    parent: null,
+    kind: "input" as const,
+    pos: "a0",
+    variable: "email",
+    props: { placeholder: "you@example.com", type: "email" },
+    textKey: null,
+    interactions: [],
+    bindings: {},
+  };
+
+  it("binds both ways to the declared variable", () => {
+    const code = emitScreen({ id: "s1", name: "Lead", frames: [inputFrame] });
+
+    // Reading and writing the same name is what makes the answer survive
+    // navigating away and back.
+    expect(code).toContain('value: String(state.get("email") ?? "")');
+    expect(code).toContain('onValue: (next) => state.set("email", next)');
+  });
+
+  it("carries its own props through untouched", () => {
+    const code = emitScreen({ id: "s1", name: "Lead", frames: [inputFrame] });
+
+    expect(code).toContain('"placeholder": "you@example.com"');
+    expect(code).toContain('"type": "email"');
+  });
+});
+
+describe("submitting to a backend", () => {
+  const submitting = {
+    id: "f1",
+    name: "Submit",
+    parent: null,
+    kind: "frame" as const,
+    pos: "a0",
+    props: {},
+    textKey: null,
+    bindings: {},
+    interactions: [
+      {
+        on: { event: "click" as const },
+        do: [
+          {
+            type: "submit" as const,
+            action: "leads.create",
+            fields: { email: "email" },
+            into: { leadId: "id" },
+            errorInto: "submitError",
+            onSuccess: [{ type: "show" as const, target: "s_thanks" }],
+          },
+        ],
+      },
+    ],
+  };
+
+  const code = () => emitScreen({ id: "s1", name: "Lead", frames: [submitting] });
+
+  it("emits a name, never a URL — the artifact is a public file", () => {
+    expect(code()).toContain('await req("leads.create"');
+    expect(code()).not.toMatch(/https?:\/\//);
+  });
+
+  it("reads the payload at click time, so no answer is baked in", () => {
+    expect(code()).toContain('"email": state.get("email")');
+  });
+
+  it("writes the response into the variables asked for", () => {
+    expect(code()).toContain('state.set("leadId", r["id"] ?? null)');
+  });
+
+  it("is a real try/catch, not a serialized error structure", () => {
+    // The whole point of compiling: control flow is control flow. A branch
+    // table would need something at runtime to walk it.
+    expect(code()).toContain("try {");
+    expect(code()).toContain("} catch (e) {");
+    expect(code()).toContain('state.set("submitError", e.message)');
+  });
+
+  it("runs the success branch inside the try, after the call", () => {
+    const emitted = code();
+    expect(emitted.indexOf('nav.show("s_thanks"')).toBeGreaterThan(emitted.indexOf("await req("));
+    expect(emitted.indexOf('nav.show("s_thanks"')).toBeLessThan(emitted.indexOf("} catch"));
   });
 });
