@@ -63,4 +63,17 @@ export default defineConfig([
     target: "es2020",
     external,
   },
+  // Beta client entry — the React half. Own build, own banner, no chunks shared
+  // with `.` or `./client`.
+  {
+    entry: { "runtime-client": "src/runtime-client.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+    banner: { js: `"use client";` },
+  },
 ]);

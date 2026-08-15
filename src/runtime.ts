@@ -55,3 +55,13 @@ export {
 export type { FunnelStore, FunnelStoreOptions, RequestStatus } from "./runtime/store";
 
 export { createFunnelStore } from "./runtime/store";
+
+export type {
+  NavigationState,
+  Navigator,
+  NavigatorOptions,
+  OverlayFrame,
+  Presentation,
+} from "./runtime/navigation";
+
+export { createNavigator } from "./runtime/navigation";
