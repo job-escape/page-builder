@@ -75,6 +75,17 @@ export { AxonPixelAdapterProvider } from "./providers/axon-pixel-provider";
 export { XPixelContext, useXPixelAdapter } from "./providers/x-pixel-context";
 export type { XPixelAdapter, XPixelProps, XPixelRuntimeContext } from "./providers/x-pixel-context";
 export { XPixelAdapterProvider } from "./providers/x-pixel-provider";
+// The X pixel itself, for a host that needs a piece of it outside the provider —
+// resolving the pixel id to report a server-side conversion against, say.
+export {
+  createXPixelRuntime,
+  loadXPixel,
+  pickXParams,
+  resetXPixelConfig,
+  resolveXPixelConfig,
+  xConversionId,
+} from "./lib/x-pixel";
+export type { XPixelResolution, XPixelRuntime } from "./lib/x-pixel";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
