@@ -2,7 +2,12 @@ name: Publish package
 
 on:
   push:
-    branches: [main]
+    # `main` carries the current line; a `<major>.<minor>.x` branch carries a
+    # maintenance one, so a fix can reach the apps still pinned to it without
+    # dragging in whatever main has moved on to. Both publish the same way —
+    # otherwise a maintenance release can only go out by hand, which is a bad
+    # thing to discover during an outage of the endpoint that does it.
+    branches: [main, '[0-9]+.[0-9]+.x']
     paths:
       - 'package.json'
   workflow_dispatch:
