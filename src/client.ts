@@ -54,6 +54,15 @@ export {
 export { InteractionOptionsProvider } from "./providers/interaction-options-provider";
 export { PixelContext, usePixelAdapter } from "./providers/pixel-context";
 export type { PixelAdapter } from "./providers/pixel-context";
+// The Meta pixel itself, for a host that needs a piece of it outside the
+// provider — resolving the ids to report a server-side conversion against, say.
+export {
+  createMetaPixelRuntime,
+  loadMetaPixel,
+  resetMetaPixelConfig,
+  resolveMetaPixelIds,
+} from "./lib/meta-pixel";
+export type { MetaPixelRuntime } from "./lib/meta-pixel";
 export { PixelAdapterProvider } from "./providers/pixel-provider";
 export { TagManagerContext, useTagManagerAdapter } from "./providers/tag-manager-context";
 export type { TagManagerAdapter } from "./providers/tag-manager-context";
