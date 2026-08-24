@@ -26,6 +26,8 @@ import { createNavigator, type NavigationState, type Presentation } from "../nav
 import { createFunnelStore, type FunnelStore } from "../store";
 import type { VariableDecl, VariableTable } from "../types";
 import { ui, type Ui } from "./bricks";
+import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
+import type { ScreenPresentation } from "../compiler/manifest";
 import { request } from "../request";
 import { Overlay } from "./overlay";
 
@@ -60,6 +62,16 @@ export type FunnelManifest = {
   variables: VariableDecl[];
   /** Per-frame presentation defaults for overlays. */
   overlayDefaults?: Record<string, Presentation>;
+  /**
+   * How each screen behaves as a surface, by screen id — scrolls or is fixed,
+   * clears the system chrome or bleeds under it.
+   *
+   * From the artifact, because a funnel contains different kinds of page and the
+   * app cannot know the screen ids of every funnel it might render. Absent for
+   * artifacts published before this existed, which get the same defaults the
+   * compiler would have given them.
+   */
+  screens?: Record<string, ScreenPresentation>;
 };
 
 export type FunnelProps = {
@@ -172,10 +184,14 @@ export function Funnel({
   }, [navigator]);
 
   const Screen = screens[navState.screen];
+  const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 
   return (
     <FunnelContext.Provider value={value}>
-      {Screen ? <Screen {...value} /> : null}
+      {/* The screen's own surface. Overlays get their own, from `Overlay`. */}
+      <ScreenHost presentation={presentation}>
+        {Screen ? <Screen {...value} /> : null}
+      </ScreenHost>
       {navState.overlays.map((overlay) => {
         const Frame = screens[overlay.id];
         if (!Frame) return null;
