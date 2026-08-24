@@ -79,6 +79,21 @@ export type {
 export type { CompiledFunnel } from "./runtime/compiler/emit";
 export { compile, emitCondition, emitScreen } from "./runtime/compiler/emit";
 
+export type { FunnelManifest, ScreenIndex } from "./runtime/compiler/manifest";
+export { buildManifest, readsOf } from "./runtime/compiler/manifest";
+
+/**
+ * The second emitter: the same compile, as data rather than as JavaScript.
+ *
+ * Additive on purpose. `compile` is unchanged and web keeps using it; this is
+ * what a runtime whose engine cannot evaluate downloaded code reads instead —
+ * React Native's Hermes being the case that forced it. Both come from one
+ * traversal and one manifest builder, so the two artifacts cannot describe
+ * different funnels.
+ */
+export type { CompiledTree, ScreenTree, TreeNode } from "./runtime/compiler/tree";
+export { TREE_SCHEMA, compileToTree, emitScreenTree } from "./runtime/compiler/tree";
+
 export type { RequestOptions } from "./runtime/request";
 
 /**

@@ -16,7 +16,7 @@
  * - **Total.** Every document the editor can produce compiles. A compiler that
  *   can reject its own editor's output is a support queue.
  */
-import type { VariableDecl } from "../types";
+import { buildManifest, sortedScreens, type FunnelManifest } from "./manifest";
 
 /** Emitted code is line-based; naming the separator keeps it out of literals. */
 const NL = String.fromCharCode(10);
@@ -29,15 +29,7 @@ import type {
 } from "./source";
 
 export type CompiledFunnel = {
-  manifest: {
-    version: string;
-    entry: string;
-    variables: VariableDecl[];
-    overlayDefaults: Record<string, NonNullable<SourceScreen["overlay"]>>;
-    /** Carried through so a published artifact is self-contained. */
-    locales: Record<string, Record<string, string>>;
-    screens: Array<{ id: string; next: string[]; overlays: string[] }>;
-  };
+  manifest: FunnelManifest;
   /** Screen id → module source. */
   modules: Record<string, string>;
 };
@@ -247,51 +239,14 @@ export function emitScreen(screen: SourceScreen): string {
   ].join("\n");
 }
 
-/** Every screen this one can reach, so the runtime can prefetch (§9.9). */
-function reachable(screen: SourceScreen): { next: string[]; overlays: string[] } {
-  const next = new Set<string>();
-  const overlays = new Set<string>();
-
-  const walk = (actions: SourceAction[]): void => {
-    actions.forEach((action) => {
-      if (action.type === "show") {
-        (action.as === "overlay" ? overlays : next).add(action.target);
-      }
-      if (action.type === "conditional") {
-        action.branches.forEach((branch) => walk(branch.do));
-      }
-    });
-  };
-
-  screen.frames.forEach((frame) =>
-    frame.interactions?.forEach((interaction) => walk(interaction.do)),
-  );
-
-  return { next: [...next].sort(), overlays: [...overlays].sort() };
-}
-
 export function compile(funnel: SourceFunnel): CompiledFunnel {
   const modules: Record<string, string> = {};
-  const overlayDefaults: CompiledFunnel["manifest"]["overlayDefaults"] = {};
 
   // Sorted so the output is byte-identical for the same input regardless of the
   // order rows came back from the database.
-  const screens = [...funnel.screens].sort((a, b) => a.id.localeCompare(b.id));
-
-  screens.forEach((screen) => {
+  sortedScreens(funnel).forEach((screen) => {
     modules[screen.id] = emitScreen(screen);
-    if (screen.overlay) overlayDefaults[screen.id] = screen.overlay;
   });
 
-  return {
-    manifest: {
-      version: funnel.version,
-      entry: funnel.entry,
-      variables: [...funnel.variables].sort((a, b) => a.name.localeCompare(b.name)),
-      overlayDefaults,
-      locales: funnel.locales ?? {},
-      screens: screens.map((screen) => ({ id: screen.id, ...reachable(screen) })),
-    },
-    modules,
-  };
+  return { manifest: buildManifest(funnel), modules };
 }
