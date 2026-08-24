@@ -20,6 +20,10 @@ const external = [
   "swiper/modules",
   "swiper/react",
   "vaul",
+  // React Native and its companions are peers of the native entry only. A web
+  // consumer never resolves them, and bundling them would be absurd.
+  "react-native",
+  "react-native-safe-area-context",
 ];
 
 export default defineConfig([
@@ -67,6 +71,20 @@ export default defineConfig([
   // with `.` or `./client`.
   {
     entry: { "runtime-client": "src/runtime-client.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+    banner: { js: `"use client";` },
+  },
+  // Beta native entry — the React Native half. Its own build for the same reason
+  // the others have theirs: nothing resolving `.` or `./client` may pull
+  // `react-native` in, and nothing here may drag the DOM bricks onto a phone.
+  {
+    entry: { "runtime-native": "src/runtime-native.ts" },
     format: ["esm", "cjs"],
     dts: { resolve: true },
     sourcemap: true,

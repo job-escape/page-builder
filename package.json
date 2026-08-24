@@ -1,6 +1,6 @@
 {
   "name": "@job-escape/page-builder",
-  "version": "0.3.0-beta.8",
+  "version": "0.3.0-beta.9",
   "description": "Generic page-builder engine: Effector-backed state, MDX → React parser, logic-action executor, navigation & dialogs. Extracted from the Job Escape funnel.",
   "license": "UNLICENSED",
   "private": false,
@@ -22,6 +22,11 @@
       "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.mjs",
       "require": "./dist/runtime.js"
+    },
+    "./runtime-native": {
+      "types": "./dist/runtime-native.d.ts",
+      "import": "./dist/runtime-native.mjs",
+      "require": "./dist/runtime-native.js"
     },
     "./runtime-client": {
       "types": "./dist/runtime-client.d.ts",
@@ -77,7 +82,9 @@
     "react-aria-components": "^1.19.0",
     "react-dom": "^18.3.1 || ^19.0.0",
     "swiper": "^11.1.3",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "react-native": ">=0.74",
+    "react-native-safe-area-context": ">=4.10"
   },
   "devDependencies": {
     "@effector/next": "^0.7.2",
@@ -110,6 +117,9 @@
     "react": "^18.3.1",
     "react-aria-components": "^1.19.0",
     "react-dom": "^18.3.1",
+    "react-native": "^0.76.9",
+    "react-native-safe-area-context": "^4.14.1",
+    "react-native-web": "^0.19.13",
     "storybook": "^10.5.5",
     "swiper": "^11.2.10",
     "ts-jest": "^29.1.0",
@@ -118,5 +128,13 @@
     "vaul": "^1.1.2",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    },
+    "react-native-safe-area-context": {
+      "optional": true
+    }
   }
 }

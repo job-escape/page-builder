@@ -1,78 +1,39 @@
 /**
- * Mount a compiled funnel.
+ * Mount a compiled funnel in a browser.
  *
- * `<Funnel>` owns one store and one navigator, and renders whatever screen the
- * navigator says is current with any overlays stacked on top. Screen modules are
- * plain functions of `{ ui, c, t, state, nav }` — exactly what the compiler will
- * emit — so a hand-written module and a compiled one are interchangeable, which
- * is what lets this be exercised before the compiler exists.
+ * Screen modules are plain functions of `{ ui, c, t, state, nav, req }` — exactly
+ * what the compiler emits and exactly what `screenFromTree` produces — so a
+ * hand-written module, a compiled one and a tree are interchangeable here.
  *
- * Re-rendering goes through `useSyncExternalStore` against the store's and the
- * navigator's own subscriptions. No Effector, no context gymnastics: an option
- * re-renders because the value it compares itself against changed.
+ * The state machine is not in this file. The store, the navigator, the locale
+ * lookup and the services a screen receives all come from `useFunnelRuntime`,
+ * which the native `Funnel` uses too. What is left here is the four things a
+ * browser does differently: its brick catalogue, its screen host, its overlay,
+ * and the fact that "back" is the Escape key rather than a hardware button.
+ *
+ * Re-rendering goes through `useSyncExternalStore` inside the core. No Effector,
+ * no context gymnastics: an option re-renders because the value it compares
+ * itself against changed.
  */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
-import { createNavigator, type NavigationState, type Presentation } from "../navigation";
-import { createFunnelStore, type FunnelStore } from "../store";
-import type { VariableDecl, VariableTable } from "../types";
-import { ui, type Ui } from "./bricks";
-import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
-import type { ScreenPresentation } from "../compiler/manifest";
+import {
+  useDismissOnBack,
+  useFunnelRuntime,
+  type FunnelManifest,
+  type FunnelNav,
+  type FunnelServices,
+} from "../funnel-core";
 import { request } from "../request";
+import { ui, type Ui } from "./bricks";
 import { Overlay } from "./overlay";
+import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
+
+export type { FunnelManifest, FunnelNav };
 
 /** What a compiled screen module is handed. */
-export type ScreenProps = {
-  ui: Ui;
-  /** Design components — compositions the designer saved. */
-  c: Record<string, (props: never) => ReactNode>;
-  /** Locale lookup. Every user-visible string is a key. */
-  t: (key: string) => string;
-  state: FunnelStore;
-  nav: FunnelNav;
-  /**
-   * The one call a compiled module makes to a backend. A *name*, never a URL —
-   * the artifact is a public file and can hold no secret. See `runtime/request`.
-   */
-  req: typeof request;
-};
-
+export type ScreenProps = FunnelServices<Ui, (props: never) => ReactNode>;
 export type ScreenModule = (props: ScreenProps) => ReactNode;
-
-export type FunnelNav = {
-  show: (target: string, presentation?: Presentation) => void;
-  close: () => void;
-  back: () => boolean;
-  canGoBack: () => boolean;
-  state: () => NavigationState;
-};
-
-export type FunnelManifest = {
-  entry: string;
-  variables: VariableDecl[];
-  /** Per-frame presentation defaults for overlays. */
-  overlayDefaults?: Record<string, Presentation>;
-  /**
-   * How each screen behaves as a surface, by screen id — scrolls or is fixed,
-   * clears the system chrome or bleeds under it.
-   *
-   * From the artifact, because a funnel contains different kinds of page and the
-   * app cannot know the screen ids of every funnel it might render. Absent for
-   * artifacts published before this existed, which get the same defaults the
-   * compiler would have given them.
-   */
-  screens?: Record<string, ScreenPresentation>;
-};
 
 export type FunnelProps = {
   manifest: FunnelManifest;
@@ -101,96 +62,40 @@ export function Funnel({
   persist,
   onUnknown,
 }: FunnelProps) {
-  const table: VariableTable = useMemo(
-    () => Object.fromEntries(manifest.variables.map((decl) => [decl.name, decl])),
-    [manifest.variables],
-  );
+  const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
+  const { services, navState, navigator } = useFunnelRuntime<Ui, (props: never) => ReactNode>({
+    manifest,
+    known,
+    ui,
+    components,
+    locale,
+    persist,
+    onUnknown,
+  });
 
-  /** Cancellers registered by whatever a screen started — see `onLeaveScreen`. */
-  const owned = useRef(new Map<string, Array<() => void>>());
-
-  const store = useMemo(
-    () =>
-      createFunnelStore({
-        table,
-        persist,
-        onUnknown: (name) => onUnknown?.("variable", name),
-      }),
-    // A new store per funnel identity, not per render.
-    [table, persist, onUnknown],
-  );
-
-  const navigator = useMemo(
-    () =>
-      createNavigator({
-        entry: manifest.entry,
-        defaults: manifest.overlayDefaults,
-        known: new Set(Object.keys(screens)),
-        onUnknown: (target) => onUnknown?.("target", target),
-        onLeaveScreen: (screen) => {
-          // Anything the outgoing screen started stops here, before it can write
-          // to state belonging to a screen nobody is on.
-          owned.current.get(screen)?.forEach((cancel) => cancel());
-          owned.current.delete(screen);
-        },
-      }),
-    [manifest.entry, manifest.overlayDefaults, screens, onUnknown],
-  );
-
-  const navState = useSyncExternalStore(
-    navigator.subscribe,
-    navigator.state,
-    navigator.state,
-  );
-  useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
-
-  const t = useCallback(
-    (key: string) => {
-      const value = locale[key];
-      if (value === undefined) {
-        onUnknown?.("key", key);
-        // Never show a raw key to a customer; an empty string is less wrong.
-        return "";
-      }
-      return value;
-    },
-    [locale, onUnknown],
-  );
-
-  const nav: FunnelNav = useMemo(
-    () => ({
-      show: navigator.show,
-      close: navigator.close,
-      back: navigator.back,
-      canGoBack: navigator.canGoBack,
-      state: navigator.state,
-    }),
-    [navigator],
-  );
-
-  const value = useMemo<ScreenProps>(
-    () => ({ ui, c: components, t, state: store, nav, req: request }),
-    [components, t, store, nav],
-  );
-
-  // Escape closes the top overlay, and the browser back button dismisses it
-  // rather than leaving the funnel — the behaviour most often got wrong.
-  useEffect(() => {
+  // Escape closes the top overlay rather than leaving the funnel — the same
+  // `navigator.close()` the hardware back button reaches on a phone.
+  const onEscape = useCallback((dismiss: () => void) => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") navigator.close();
+      if (event.key === "Escape") dismiss();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [navigator]);
+  }, []);
+  useDismissOnBack(onEscape, navigator);
 
   const Screen = screens[navState.screen];
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 
+  // `request` is re-exported through the services by the core; naming it here
+  // keeps the import graph honest for anything reading this file alone.
+  void request;
+
   return (
-    <FunnelContext.Provider value={value}>
+    <FunnelContext.Provider value={services}>
       {/* The screen's own surface. Overlays get their own, from `Overlay`. */}
       <ScreenHost presentation={presentation}>
-        {Screen ? <Screen {...value} /> : null}
+        {Screen ? <Screen {...services} /> : null}
       </ScreenHost>
       {navState.overlays.map((overlay) => {
         const Frame = screens[overlay.id];
@@ -201,7 +106,7 @@ export function Funnel({
             presentation={overlay.presentation}
             onDismiss={navigator.close}
           >
-            <Frame {...value} />
+            <Frame {...services} />
           </Overlay>
         );
       })}
