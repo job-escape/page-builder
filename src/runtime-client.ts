@@ -22,3 +22,12 @@ export type {
 } from "./runtime/client/funnel";
 
 export { Overlay } from "./runtime/client/overlay";
+
+/**
+ * A screen tree, as a screen module — so `<Funnel>` cannot tell it from a
+ * compiled one, and an app can hand it a mix of both.
+ *
+ * The walk only ever calls `props.ui.*`, and the catalogue arrives as an
+ * argument, so React Native reuses it verbatim with a native `ui`.
+ */
+export { screenFromTree, screensFromTree } from "./runtime/client/tree-screen";

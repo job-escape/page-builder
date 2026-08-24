@@ -94,6 +94,14 @@ export { buildManifest, readsOf } from "./runtime/compiler/manifest";
 export type { CompiledTree, ScreenTree, TreeNode } from "./runtime/compiler/tree";
 export { TREE_SCHEMA, compileToTree, emitScreenTree } from "./runtime/compiler/tree";
 
+/**
+ * Reading a tree: the same conditions and actions the emitter writes as
+ * JavaScript, evaluated instead. No React and no DOM — a native runtime gets
+ * this unchanged and only the drawing differs.
+ */
+export type { ActionContext, ConditionState } from "./runtime/interpret";
+export { evaluate, run } from "./runtime/interpret";
+
 export type { RequestOptions } from "./runtime/request";
 
 /**
