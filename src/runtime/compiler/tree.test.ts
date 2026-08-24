@@ -9,7 +9,7 @@
  * snapshot would happily record.
  */
 import { compile } from "./emit";
-import { readsOf } from "./manifest";
+import { presentationOf, readsOf } from "./manifest";
 import type { SourceFunnel } from "./source";
 import { TREE_SCHEMA, compileToTree, emitScreenTree } from "./tree";
 
@@ -232,5 +232,50 @@ describe("the emitter is total", () => {
       frames: [{ id: "t", parent: null, kind: "text", pos: "a0" }],
     });
     expect(bare.roots[0]).toMatchObject({ kind: "text", textKey: "" });
+  });
+});
+
+describe("how a screen behaves as a surface", () => {
+  /**
+   * A funnel is not one kind of page — a paywall pins its button and must not
+   * scroll, a loader is full bleed, an email form has to clear a keyboard. So
+   * this travels per screen, and it travels in the artifact: the app cannot know
+   * the screen ids of every funnel it might be asked to render.
+   */
+  it("scrolls unless a screen says otherwise", () => {
+    expect(presentationOf(source.screens[0]).scroll).toBe(true);
+    expect(presentationOf({ ...source.screens[0], presentation: { scroll: false } }).scroll).toBe(
+      false,
+    );
+  });
+
+  it("clears the system chrome unless a screen asks to bleed", () => {
+    expect(presentationOf(source.screens[0]).bleed).toBe(false);
+    expect(presentationOf({ ...source.screens[0], presentation: { bleed: true } }).bleed).toBe(true);
+  });
+
+  it("derives the keyboard from an input, rather than asking anyone", () => {
+    // s_gear has the field; s_goal does not. Nobody authored either answer.
+    expect(presentationOf(source.screens[1]).keyboard).toBe(true);
+    expect(presentationOf(source.screens[0]).keyboard).toBe(false);
+  });
+
+  it("resolves every field, so a renderer never applies a default of its own", () => {
+    // Two renderers each deciding what "absent" means is two renderers that
+    // agree right up until one of them is edited.
+    expect(Object.keys(presentationOf(source.screens[2])).sort()).toEqual([
+      "bleed",
+      "keyboard",
+      "scroll",
+      "statusBar",
+    ]);
+  });
+
+  it("travels in the manifest, beside the rest of what a host needs up front", () => {
+    const { manifest } = compileToTree(source);
+    expect(manifest.screens.find((screen) => screen.id === "s_gear")?.presentation).toMatchObject({
+      keyboard: true,
+      scroll: true,
+    });
   });
 });

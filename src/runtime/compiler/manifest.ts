@@ -13,12 +13,39 @@
  * content-hashable and a rollback stops meaning anything.
  */
 import type { VariableDecl } from "../types";
-import type { SourceAction, SourceCondition, SourceFunnel, SourceScreen } from "./source";
+import type {
+  SourceAction,
+  SourceCondition,
+  SourceFunnel,
+  SourceScreen,
+  SourceScreenPresentation,
+} from "./source";
+
+/**
+ * How a screen behaves as a surface, fully resolved.
+ *
+ * Every field is present — a renderer reads it without knowing what a default
+ * is. Two renderers each applying their own idea of "absent means true" is two
+ * renderers that agree until one of them is edited.
+ */
+export type ScreenPresentation = Required<Omit<SourceScreenPresentation, "statusBar">> & {
+  statusBar: NonNullable<SourceScreenPresentation["statusBar"]>;
+  /**
+   * The screen has a field someone types into, so the surface has to get out of
+   * the way of a keyboard.
+   *
+   * **Derived, never authored.** The compiler can see an `input` frame; a
+   * designer should not have to remember that one exists on this screen, and a
+   * renderer should not have to walk the tree before it can lay out the host.
+   */
+  keyboard: boolean;
+};
 
 export type ScreenIndex = {
   id: string;
   next: string[];
   overlays: string[];
+  presentation: ScreenPresentation;
   /**
    * Every variable this screen reads.
    *
@@ -109,6 +136,20 @@ export function readsOf(screen: SourceScreen): string[] {
   return [...reads].sort();
 }
 
+export function presentationOf(screen: SourceScreen): ScreenPresentation {
+  const authored = screen.presentation ?? {};
+
+  return {
+    // Scrolling is the default because the alternative — content a visitor
+    // cannot reach, with nothing on screen to suggest there is more — is the
+    // worse failure of the two.
+    scroll: authored.scroll ?? true,
+    bleed: authored.bleed ?? false,
+    statusBar: authored.statusBar ?? "auto",
+    keyboard: screen.frames.some((frame) => frame.kind === "input"),
+  };
+}
+
 export function sortedScreens(funnel: SourceFunnel): SourceScreen[] {
   return [...funnel.screens].sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -131,6 +172,7 @@ export function buildManifest(funnel: SourceFunnel): FunnelManifest {
       id: screen.id,
       ...reachable(screen),
       reads: readsOf(screen),
+      presentation: presentationOf(screen),
     })),
   };
 }

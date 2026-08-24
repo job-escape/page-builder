@@ -98,10 +98,49 @@ export type SourceFrame = {
   pos?: string;
 };
 
+/**
+ * How a screen behaves as a *surface*, as opposed to what is drawn on it.
+ *
+ * A funnel is not one kind of page. A paywall pins its call to action and must
+ * not scroll; a loader is full bleed; an email form has to get out of the way of
+ * a keyboard. Those differ per screen, so they travel per screen — and they
+ * travel in the artifact rather than in app config, because the app cannot know
+ * the screen ids of every funnel it might be asked to render.
+ *
+ * Everything here is stated as **design intent**, never as a platform API. "Does
+ * this screen scroll" is a question a designer can answer about the web too;
+ * "which KeyboardAvoidingView behavior" is not, and stays in the app's own
+ * config where changing it does not mean republishing every funnel.
+ */
+export type SourceScreenPresentation = {
+  /**
+   * The surface scrolls when its content is taller than the viewport.
+   *
+   * Default. A screen that says `false` is fixed — the shape a paywall wants,
+   * where the button stays put and content is not expected to overflow.
+   */
+  scroll?: boolean;
+  /**
+   * Content runs under the system chrome rather than clearing it.
+   *
+   * The background always bleeds; this is about the *content*. Off by default,
+   * because text under a notch is a bug far more often than it is a splash.
+   */
+  bleed?: boolean;
+  /**
+   * Status bar contrast. `auto` derives it from the screen's own background,
+   * which is right often enough to be the default and wrong rarely enough to be
+   * worth overriding by hand.
+   */
+  statusBar?: "auto" | "light" | "dark";
+};
+
 export type SourceScreen = {
   id: string;
   name?: string;
   frames: SourceFrame[];
+  /** How this screen behaves as a surface. Absent means every default. */
+  presentation?: SourceScreenPresentation;
   /** Presentation defaults when this frame is opened as an overlay. */
   overlay?: { position?: "center" | "bottom" | "top" | "side"; dim?: boolean; closeOnOutside?: boolean };
 };

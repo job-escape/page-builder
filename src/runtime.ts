@@ -74,13 +74,18 @@ export type {
   SourceFunnel,
   SourceInteraction,
   SourceScreen,
+  SourceScreenPresentation,
 } from "./runtime/compiler/source";
 
 export type { CompiledFunnel } from "./runtime/compiler/emit";
 export { compile, emitCondition, emitScreen } from "./runtime/compiler/emit";
 
-export type { FunnelManifest, ScreenIndex } from "./runtime/compiler/manifest";
-export { buildManifest, readsOf } from "./runtime/compiler/manifest";
+export type {
+  FunnelManifest,
+  ScreenIndex,
+  ScreenPresentation,
+} from "./runtime/compiler/manifest";
+export { buildManifest, presentationOf, readsOf } from "./runtime/compiler/manifest";
 
 /**
  * The second emitter: the same compile, as data rather than as JavaScript.
