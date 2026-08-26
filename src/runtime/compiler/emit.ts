@@ -20,12 +20,14 @@ import { buildManifest, sortedScreens, type FunnelManifest } from "./manifest";
 
 /** Emitted code is line-based; naming the separator keeps it out of literals. */
 const NL = String.fromCharCode(10);
-import type {
-  SourceAction,
-  SourceCondition,
-  SourceFrame,
-  SourceFunnel,
-  SourceScreen,
+import {
+  isCaseBinding,
+  type SourceAction,
+  type SourceBinding,
+  type SourceCondition,
+  type SourceFrame,
+  type SourceFunnel,
+  type SourceScreen,
 } from "./source";
 
 export type CompiledFunnel = {
@@ -168,6 +170,24 @@ function emitHandler(frame: SourceFrame, indent: string): string | null {
   return `${indent}  onClick: ${arrow} {\n${body}\n${indent}  },`;
 }
 
+/**
+ * One bound prop, as the expression that decides it.
+ *
+ * A case list becomes a chain of ternaries in the order the editor wrote them,
+ * so the first matching case wins — the same answer `propsOf` computes at
+ * render, reached the same way. The two-branch shape still emits the ternary it
+ * always did: an artifact published years ago has to keep compiling.
+ */
+function emitBinding(binding: SourceBinding): string {
+  if (!isCaseBinding(binding)) {
+    return `${emitCondition(binding.when)} ? ${lit(binding.whenTrue)} : ${lit(binding.whenFalse)}`;
+  }
+  return binding.cases.reduceRight(
+    (fallback, entry) => `${emitCondition(entry.when)} ? ${lit(entry.value)} : ${fallback}`,
+    lit(binding.default),
+  );
+}
+
 /** Static props merged with bound ones, bound values expressed as ternaries. */
 function emitProps(frame: SourceFrame, indent: string): string {
   const lines: string[] = [];
@@ -177,10 +197,7 @@ function emitProps(frame: SourceFrame, indent: string): string {
   });
 
   Object.entries(frame.bindings ?? {}).forEach(([key, binding]) => {
-    lines.push(
-      `${indent}  ${JSON.stringify(key)}: ${emitCondition(binding.when)}` +
-        ` ? ${lit(binding.whenTrue)} : ${lit(binding.whenFalse)},`,
-    );
+    lines.push(`${indent}  ${JSON.stringify(key)}: ${emitBinding(binding)},`);
   });
 
   const handler = emitHandler(frame, indent);
@@ -189,7 +206,22 @@ function emitProps(frame: SourceFrame, indent: string): string {
   return lines.join("\n");
 }
 
+/**
+ * A frame's expression, wrapped in its own presence condition.
+ *
+ * `null` rather than a spread, because null is a thing React already renders as
+ * nothing wherever a child can appear — in a children array, at the root of a
+ * screen, inside another conditional. A spread would need the surrounding
+ * literal to be an array in every one of those places, and one of them is not.
+ */
 function emitFrame(frame: SourceFrame, all: SourceFrame[], depth: number): string {
+  const drawn = emitDrawnFrame(frame, all, depth);
+  if (!frame.when) return drawn;
+  const indent = "  ".repeat(depth + 2);
+  return `${indent}(${emitCondition(frame.when)}) ? (${NL}${drawn}${NL}${indent}) : null`;
+}
+
+function emitDrawnFrame(frame: SourceFrame, all: SourceFrame[], depth: number): string {
   const indent = "  ".repeat(depth + 2);
   const children = all
     .filter((candidate) => candidate.parent === frame.id)

@@ -69,13 +69,38 @@ export type SourceInteraction = {
 
 /**
  * A prop whose value is decided at render — the mechanism behind a "selected"
- * variant. `whenTrue` / `whenFalse` are the two appearances.
+ * variant, and behind a design drawn differently per device, platform or
+ * language.
+ *
+ * Two shapes, and the pair is the whole point.
+ *
+ * `{ when, whenTrue, whenFalse }` is the original and is not going anywhere:
+ * every artifact published before this exists carries it, and a published
+ * artifact outlives the application that authored it. Readers must keep
+ * understanding it forever.
+ *
+ * `{ cases, default }` is what one condition per prop could not say. A funnel
+ * whose heading is one size on iOS, another in German and a third in German on
+ * iOS has three answers for one key, and a ternary has room for one — so the
+ * editor had to pick which override shipped and drop the rest. Cases are tried
+ * in order and the first match wins, which makes the *editor* the thing that
+ * decides precedence rather than the format deciding it by having no room.
  */
-export type SourceBinding = {
-  when: SourceCondition;
-  whenTrue: unknown;
-  whenFalse: unknown;
-};
+export type SourceBinding =
+  | { when: SourceCondition; whenTrue: unknown; whenFalse: unknown }
+  | {
+      /** Tried in order; the first whose condition holds decides the value. */
+      cases: Array<{ when: SourceCondition; value: unknown }>;
+      /** What the prop is when no case matches. The unconditional value. */
+      default: unknown;
+    };
+
+/** Narrow to the case-list shape. The one place the two are told apart. */
+export function isCaseBinding(
+  binding: SourceBinding,
+): binding is { cases: Array<{ when: SourceCondition; value: unknown }>; default: unknown } {
+  return Array.isArray((binding as { cases?: unknown }).cases);
+}
 
 export type SourceFrame = {
   id: string;
@@ -96,6 +121,20 @@ export type SourceFrame = {
   interactions?: SourceInteraction[];
   /** Ordering among siblings — the fractional index from the node model. */
   pos?: string;
+  /**
+   * Whether this frame is rendered at all.
+   *
+   * Presence, as a condition — the thing a bound prop cannot express. A paywall
+   * shows native purchase rows on iOS and a card form on the web; both live on
+   * one artboard in the editor, and each context hides what it does not use.
+   * Before this the editor could draw that and the preview could run it, but
+   * publishing quietly resolved it away, so the funnel shipped both.
+   *
+   * A frame that is not rendered takes its children with it, which falls out of
+   * the tree rather than being arranged: nothing draws inside something that is
+   * not drawn. Absent means "always", so nothing that never had one changes.
+   */
+  when?: SourceCondition;
 };
 
 /**

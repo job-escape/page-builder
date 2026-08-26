@@ -11,6 +11,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 
 import { Funnel, type ScreenModule } from "../client/funnel";
 import { compile, emitCondition, emitScreen } from "./emit";
+import { readsOf } from "./manifest";
+import type { SourceScreen } from "./source";
 
 import { locale, source } from "./fixture";
 
@@ -325,5 +327,126 @@ describe("the handler around a backend call", () => {
 
     expect(code).toContain("onClick: () =>");
     expect(code).not.toContain("async");
+  });
+});
+
+describe("a prop with more than one context override", () => {
+  /**
+   * One condition per prop was the reason a design drawn for iOS *and* for
+   * German could only publish one of them. A case list is what the editor
+   * needed to stop choosing.
+   */
+  const cased = (): SourceScreen => ({
+    id: "s",
+    frames: [
+      {
+        id: "cta",
+        parent: null,
+        kind: "text",
+        textKey: "s.cta",
+        props: { size: 30 },
+        bindings: {
+          size: {
+            cases: [
+              {
+                when: {
+                  op: "and",
+                  of: [
+                    { op: "eq", variable: "$platform", value: "ios" },
+                    { op: "eq", variable: "$locale", value: "de" },
+                  ],
+                },
+                value: 16,
+              },
+              { when: { op: "eq", variable: "$platform", value: "ios" }, value: 19 },
+              { when: { op: "eq", variable: "$locale", value: "de" }, value: 22 },
+            ],
+            default: 30,
+          },
+        },
+      },
+    ],
+  });
+
+  it("emits a chain in the order the editor wrote, so the first match wins", () => {
+    const emitted = emitScreen(cased());
+    // The narrowest case is tested first, and the base is the last thing left.
+    expect(emitted).toContain("? 16 :");
+    expect(emitted).toContain("? 19 :");
+    expect(emitted).toContain("? 22 : 30");
+    expect(emitted.indexOf("? 16 :")).toBeLessThan(emitted.indexOf("? 19 :"));
+    expect(emitted.indexOf("? 19 :")).toBeLessThan(emitted.indexOf("? 22 : 30"));
+  });
+
+  it("still emits the two-branch shape published artifacts are written in", () => {
+    // A published artifact outlives the application that authored it.
+    const emitted = emitScreen({
+      id: "s",
+      frames: [
+        {
+          id: "cta",
+          parent: null,
+          kind: "frame",
+          props: { fill: "#fff" },
+          bindings: {
+            fill: {
+              when: { op: "has", variable: "goal", value: "muscle" },
+              whenTrue: "#eef2ff",
+              whenFalse: "#fff",
+            },
+          },
+        },
+      ],
+    });
+    expect(emitted).toContain('? "#eef2ff" : "#fff"');
+  });
+
+  it("declares every variable any case reads", () => {
+    // A variable a case reads but nothing declares is undefined at render, and
+    // the case silently never fires.
+    const reads = readsOf(cased());
+    expect(reads).toEqual(["$locale", "$platform"]);
+  });
+});
+
+describe("a frame that is not drawn in every context", () => {
+  const withPresence = (): SourceScreen => ({
+    id: "s",
+    frames: [
+      { id: "root", parent: null, kind: "frame", pos: "a0" },
+      {
+        id: "card-form",
+        parent: "root",
+        pos: "a1",
+        kind: "frame",
+        // The web card form: there is no card form on iOS, so it is not there.
+        when: { op: "neq", variable: "$platform", value: "ios" },
+      },
+      { id: "note", parent: "card-form", pos: "a0", kind: "text", textKey: "s.note" },
+      { id: "kept", parent: "root", pos: "a2", kind: "frame", props: { testId: "kept" } },
+    ],
+  });
+
+  it("wraps the frame in its own condition rather than resolving it away", () => {
+    const emitted = emitScreen(withPresence());
+    expect(emitted).toContain('state.get("$platform") !== "ios"');
+    expect(emitted).toContain(": null");
+    // Its children come with it: they are inside the expression that is nulled.
+    expect(emitted.indexOf("card-form")).toBeLessThan(emitted.indexOf("s.note"));
+    // The frame beside it is untouched — presence is per frame, not per screen.
+    expect(emitted).toContain('"testId": "kept"');
+  });
+
+  it("declares the variable presence reads", () => {
+    // The only mention of `$platform` on this screen is the frame it hides.
+    expect(readsOf(withPresence())).toContain("$platform");
+  });
+
+  it("leaves a screen with no presence conditions byte-identical", () => {
+    const plain: SourceScreen = {
+      id: "s",
+      frames: [{ id: "root", parent: null, kind: "frame" }],
+    };
+    expect(emitScreen(plain)).not.toContain(": null");
   });
 });

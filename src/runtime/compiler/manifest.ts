@@ -13,12 +13,13 @@
  * content-hashable and a rollback stops meaning anything.
  */
 import type { VariableDecl } from "../types";
-import type {
-  SourceAction,
-  SourceCondition,
-  SourceFunnel,
-  SourceScreen,
-  SourceScreenPresentation,
+import {
+  isCaseBinding,
+  type SourceAction,
+  type SourceCondition,
+  type SourceFunnel,
+  type SourceScreen,
+  type SourceScreenPresentation,
 } from "./source";
 
 /**
@@ -125,9 +126,17 @@ export function readsOf(screen: SourceScreen): string[] {
   const reads = new Set<string>();
 
   screen.frames.forEach((frame) => {
-    Object.values(frame.bindings ?? {}).forEach((binding) =>
-      variablesInCondition(binding.when, reads),
-    );
+    Object.values(frame.bindings ?? {}).forEach((binding) => {
+      if (isCaseBinding(binding)) {
+        binding.cases.forEach((entry) => variablesInCondition(entry.when, reads));
+        return;
+      }
+      variablesInCondition(binding.when, reads);
+    });
+    // Presence reads too. A screen whose only mention of `$platform` is the
+    // frame it hides still has to declare it, or the variable is undefined at
+    // render and the frame appears everywhere.
+    if (frame.when) variablesInCondition(frame.when, reads);
     // An input shows what the funnel holds, so it reads as well as writes.
     if (frame.kind === "input" && frame.variable) reads.add(frame.variable);
     frame.interactions?.forEach((interaction) => variablesInActions(interaction.do, reads));

@@ -15,6 +15,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import { compile } from "../compiler/emit";
 import { locale, source } from "../compiler/fixture";
+import type { SourceFunnel } from "../compiler/source";
 import { compileToTree } from "../compiler/tree";
 import { Funnel, type ScreenModule } from "./funnel";
 import { screensFromTree } from "./tree-screen";
@@ -146,5 +147,130 @@ describe("what the tree path does on its own", () => {
     const artifact = JSON.parse(JSON.stringify(compileToTree(source)));
     mount(screensFromTree(artifact));
     expect(screen.getByText("What's your goal?")).toBeInTheDocument();
+  });
+});
+
+/**
+ * A design drawn differently per context, judged the same way: both emitters,
+ * one behaviour.
+ *
+ * The failure this guards against is the expensive one — the JavaScript module
+ * shipping a German heading and the tree showing the English one, or a frame
+ * that is absent on iOS in the preview and present on iOS in the artifact. It
+ * would not crash. It would just be wrong on one platform, quietly.
+ */
+function contextSource(platform: string, localeValue: string): SourceFunnel {
+  return {
+    id: 9,
+    version: "v1",
+    entry: "paywall",
+    variables: [
+      { name: "$platform", type: "string", default: platform },
+      { name: "$locale", type: "string", default: localeValue },
+    ],
+    screens: [
+      {
+        id: "paywall",
+        frames: [
+          { id: "root", parent: null, kind: "frame", pos: "a0", props: { testId: "root" } },
+          {
+            id: "cta",
+            parent: "root",
+            pos: "a1",
+            kind: "text",
+            textKey: "cta",
+            props: { testId: "cta", size: 30 },
+            bindings: {
+              size: {
+                cases: [
+                  {
+                    when: {
+                      op: "and",
+                      of: [
+                        { op: "eq", variable: "$platform", value: "ios" },
+                        { op: "eq", variable: "$locale", value: "de" },
+                      ],
+                    },
+                    value: 16,
+                  },
+                  { when: { op: "eq", variable: "$platform", value: "ios" }, value: 19 },
+                  { when: { op: "eq", variable: "$locale", value: "de" }, value: 22 },
+                ],
+                default: 30,
+              },
+            },
+          },
+          {
+            id: "card-form",
+            parent: "root",
+            pos: "a2",
+            kind: "frame",
+            props: { testId: "card-form" },
+            // There is no card form on iOS: the App Store takes the payment.
+            when: { op: "neq", variable: "$platform", value: "ios" },
+          },
+          {
+            id: "card-note",
+            parent: "card-form",
+            pos: "a0",
+            kind: "text",
+            textKey: "note",
+            props: { testId: "card-note" },
+          },
+        ],
+      },
+    ],
+    locales: { en: { cta: "Continue", note: "Card details next" } },
+  };
+}
+
+function bothPaths(funnel: SourceFunnel): Array<[string, Record<string, ScreenModule>]> {
+  const { modules } = compile(funnel);
+  const fromJs: Record<string, ScreenModule> = {};
+  Object.entries(modules).forEach(([id, code]) => {
+    const body = code.replace("export default function Screen", "return function Screen");
+    // eslint-disable-next-line no-new-func -- what the web runtime does with a fetched module
+    fromJs[id] = new Function(body)() as ScreenModule;
+  });
+  return [
+    ["javascript modules", fromJs],
+    ["the tree", screensFromTree(compileToTree(funnel))],
+  ];
+}
+
+function mountContext(funnel: SourceFunnel, screens: Record<string, ScreenModule>) {
+  const { manifest } = compile(funnel);
+  return render(
+    <Funnel
+      manifest={{
+        entry: manifest.entry,
+        variables: manifest.variables,
+        overlayDefaults: manifest.overlayDefaults,
+      }}
+      screens={screens}
+      locale={funnel.locales?.en ?? {}}
+    />,
+  );
+}
+
+describe("one artifact, drawn for the context it is running in", () => {
+  it.each([
+    ["web, English", "web", "en", "30px", true],
+    ["iOS, English", "ios", "en", "19px", false],
+    ["web, German", "web", "de", "22px", true],
+    ["iOS, German — neither half", "ios", "de", "16px", false],
+  ])("%s", (_name, platform, localeValue, size, showsCardForm) => {
+    const funnel = contextSource(platform, localeValue);
+    bothPaths(funnel).forEach(([path, screens]) => {
+      const view = mountContext(funnel, screens);
+      expect(within(view.container).getByTestId("cta")).toHaveStyle({ fontSize: size });
+      // Presence, not opacity: a hidden frame is not in the document, and
+      // neither is anything inside it.
+      expect(within(view.container).queryByTestId("card-form") !== null).toBe(showsCardForm);
+      expect(within(view.container).queryByTestId("card-note") !== null).toBe(showsCardForm);
+      view.unmount();
+      // Named so a failure says which emitter disagreed.
+      expect(path).toBeTruthy();
+    });
   });
 });
