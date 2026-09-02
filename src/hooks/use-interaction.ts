@@ -611,7 +611,9 @@ export const useInteraction = () => {
             break;
           }
 
-          const el = document.getElementById(targetId);
+          // Scoped like scroll_to: a preloaded clone page can carry the same
+          // video id, and playing its hidden <video> looks like a dead button.
+          const el = findAuthoredElement(targetId);
           if (!(el instanceof HTMLVideoElement)) {
             break;
           }
@@ -637,7 +639,7 @@ export const useInteraction = () => {
             break;
           }
 
-          const el = document.getElementById(targetId);
+          const el = findAuthoredElement(targetId);
           if (!(el instanceof HTMLVideoElement)) {
             break;
           }
