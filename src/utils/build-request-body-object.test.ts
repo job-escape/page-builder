@@ -21,27 +21,7 @@ describe("buildRequestBodyObject", () => {
         localStates: {},
       }),
     ).toEqual({
-      module_ids: [2340, 2342, 2343],
-    });
-  });
-
-  it("leaves non-numeric entries as strings", () => {
-    expect(
-      buildRequestBodyObject({
-        fields: [
-          {
-            id: "1",
-            key: "tags",
-            factName: "picked_tags",
-            valueDataType: "onboarding_data",
-            asArray: true,
-          },
-        ],
-        answers: { "onboarding_data-picked_tags": ["design", "code"] },
-        localStates: {},
-      }),
-    ).toEqual({
-      tags: ["design", "code"],
+      module_ids: ["2340", "2342", "2343"],
     });
   });
 
@@ -100,7 +80,7 @@ describe("buildRequestBodyObject", () => {
         localStates: {},
       }),
     ).toEqual({
-      module_ids: [2340],
+      module_ids: ["2340"],
     });
   });
 
@@ -120,7 +100,7 @@ describe("buildRequestBodyObject", () => {
         localStates: {},
       }),
     ).toEqual({
-      module_ids: [2340, 2342],
+      module_ids: ["2340", "2342"],
     });
   });
 

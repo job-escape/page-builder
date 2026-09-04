@@ -5,7 +5,7 @@ import { resolveRequestBodyField } from "./resolve-request-body-field";
 const setNestedValue = (
   target: Record<string, unknown>,
   path: string,
-  value: string | number | boolean | Array<string | number>,
+  value: string | number | boolean | string[],
 ): Record<string, unknown> => {
   const keys = path.split(".").filter(Boolean);
 
@@ -36,24 +36,15 @@ const setNestedValue = (
 };
 
 /**
- * Entries that are entirely digits become numbers, so an id list reaches an
- * endpoint as `[2340, 2341]` rather than `["2340", "2341"]` — a DRF
- * `IntegerField` rejects the strings. Anything else is left as text, so a list
- * of slugs or emails still arrives intact.
- */
-const toRequestBodyArrayEntry = (entry: string): string | number =>
-  /^-?\d+$/.test(entry) ? Number(entry) : entry;
-
-/**
  * Multi-select answers arrive here already joined into `"a,b,c"` — the shape
  * most endpoints expect. A field marked `asArray` wants the list back, so the
  * string is split on commas; an empty selection becomes `[]` rather than `[""]`.
  */
 const toRequestBodyArray = (
   value: string | number | boolean | string[],
-): Array<string | number> => {
+): string[] => {
   if (Array.isArray(value)) {
-    return value.map(entry => toRequestBodyArrayEntry(String(entry)));
+    return value.map(String);
   }
 
   if (value === "" || value === undefined || value === null) {
@@ -63,8 +54,7 @@ const toRequestBodyArray = (
   return String(value)
     .split(",")
     .map(entry => entry.trim())
-    .filter(Boolean)
-    .map(toRequestBodyArrayEntry);
+    .filter(Boolean);
 };
 
 const isTimestampField = (field: BodyField): boolean => {
