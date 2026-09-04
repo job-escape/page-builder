@@ -35,6 +35,28 @@ const setNestedValue = (
   return target;
 };
 
+/**
+ * Multi-select answers arrive here already joined into `"a,b,c"` — the shape
+ * most endpoints expect. A field marked `asArray` wants the list back, so the
+ * string is split on commas; an empty selection becomes `[]` rather than `[""]`.
+ */
+const toRequestBodyArray = (
+  value: string | number | boolean | string[],
+): string[] => {
+  if (Array.isArray(value)) {
+    return value.map(String);
+  }
+
+  if (value === "" || value === undefined || value === null) {
+    return [];
+  }
+
+  return String(value)
+    .split(",")
+    .map(entry => entry.trim())
+    .filter(Boolean);
+};
+
 const isTimestampField = (field: BodyField): boolean => {
   const normalizedKey = field.key.toLowerCase();
   const normalizedValue = field.value?.toLowerCase() ?? "";
@@ -103,6 +125,10 @@ export const buildRequestBodyObject = ({
         localStates,
         triggerPayload,
       }) ?? "";
+
+    if (field.asArray) {
+      return setNestedValue(body, field.key, toRequestBodyArray(value));
+    }
 
     return setNestedValue(body, field.key, normalizeRequestBodyValue(field, value));
   }, {});

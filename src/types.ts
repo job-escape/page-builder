@@ -567,6 +567,18 @@ export interface BodyField {
   valueDataType?: string;
   factName?: string;
   spreadAnswers?: boolean;
+  /**
+   * Send this field as a JSON array instead of a scalar.
+   *
+   * Multi-select answers are stored as arrays but reach a request body already
+   * joined into `"a,b,c"` (see `normalizeAnswerValue`), which is what most
+   * endpoints expect. An endpoint that wants a real list — e.g. DRF's
+   * `ListField` — cannot read that string, so this flag splits it back on
+   * commas and emits `["a","b","c"]`.
+   *
+   * Opt-in per field: every existing body field keeps its scalar shape.
+   */
+  asArray?: boolean;
 }
 
 export interface RequestHeader {

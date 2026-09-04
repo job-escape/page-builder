@@ -3,6 +3,107 @@ import { describe, expect, it } from "@jest/globals";
 import { buildRequestBodyObject } from "./build-request-body-object";
 
 describe("buildRequestBodyObject", () => {
+  // A DRF ListField cannot read the joined string a multi-select produces, so
+  // `asArray` is the opt-in that hands it a real list.
+  it("splits a joined multi-select answer back into an array when asArray is set", () => {
+    expect(
+      buildRequestBodyObject({
+        fields: [
+          {
+            id: "1",
+            key: "module_ids",
+            factName: "plan_modules",
+            valueDataType: "onboarding_data",
+            asArray: true,
+          },
+        ],
+        answers: { "onboarding_data-plan_modules": ["2340", "2342", "2343"] },
+        localStates: {},
+      }),
+    ).toEqual({
+      module_ids: ["2340", "2342", "2343"],
+    });
+  });
+
+  it("keeps the joined string when asArray is absent", () => {
+    expect(
+      buildRequestBodyObject({
+        fields: [
+          {
+            id: "1",
+            key: "module_ids",
+            factName: "plan_modules",
+            valueDataType: "onboarding_data",
+          },
+        ],
+        answers: { "onboarding_data-plan_modules": ["2340", "2342"] },
+        localStates: {},
+      }),
+    ).toEqual({
+      module_ids: "2340,2342",
+    });
+  });
+
+  it("sends an empty array rather than [\"\"] for an empty selection", () => {
+    expect(
+      buildRequestBodyObject({
+        fields: [
+          {
+            id: "1",
+            key: "module_ids",
+            factName: "plan_modules",
+            valueDataType: "onboarding_data",
+            asArray: true,
+          },
+        ],
+        answers: { "onboarding_data-plan_modules": "" },
+        localStates: {},
+      }),
+    ).toEqual({
+      module_ids: [],
+    });
+  });
+
+  it("wraps a single scalar answer into a one-item array", () => {
+    expect(
+      buildRequestBodyObject({
+        fields: [
+          {
+            id: "1",
+            key: "module_ids",
+            factName: "plan_modules",
+            valueDataType: "onboarding_data",
+            asArray: true,
+          },
+        ],
+        answers: { "onboarding_data-plan_modules": "2340" },
+        localStates: {},
+      }),
+    ).toEqual({
+      module_ids: ["2340"],
+    });
+  });
+
+  it("trims stray whitespace and drops empty entries", () => {
+    expect(
+      buildRequestBodyObject({
+        fields: [
+          {
+            id: "1",
+            key: "module_ids",
+            factName: "plan_modules",
+            valueDataType: "onboarding_data",
+            asArray: true,
+          },
+        ],
+        answers: { "onboarding_data-plan_modules": "2340, ,2342," },
+        localStates: {},
+      }),
+    ).toEqual({
+      module_ids: ["2340", "2342"],
+    });
+  });
+
   it("creates a flat body for plain keys", () => {
     expect(
       buildRequestBodyObject({
