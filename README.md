@@ -40,3 +40,5 @@ The consumer supplies:
 ## Status
 
 v0.1 — feature parity with the funnel's in-repo `features/page-builder`. Breaking changes expected until v1.
+
+Runner access verified.
