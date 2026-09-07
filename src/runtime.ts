@@ -130,3 +130,18 @@ export { RequestFailed, configureRequests, request } from "./runtime/request";
 export type { ResolvedTokens, TokenLookup } from "./runtime/style/tokens";
 export { chooseMode, resolveColor } from "./runtime/style/tokens";
 export { cssVarFromTokenPath, tokenCustomProperties } from "./runtime/style/emit-css";
+export { tokensForVariant } from "./runtime/style/tokens";
+
+/**
+ * Which brand a visitor sees. Its own cookie, because the answers cookie is
+ * discarded on a content republish and an assignment must survive one.
+ */
+export type { VariantChoice } from "./runtime/variant";
+export {
+  VARIANT_DAYS,
+  chooseVariant,
+  clearVariant,
+  readVariant,
+  variantCookieName,
+  writeVariant,
+} from "./runtime/variant";

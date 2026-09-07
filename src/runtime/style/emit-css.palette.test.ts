@@ -6,7 +6,7 @@
  * correct table and the funnel still paints nothing.
  */
 import { cssVarFromTokenPath, tokenCustomProperties } from "./emit-css";
-import { chooseMode } from "./tokens";
+import { chooseMode, tokensForVariant } from "./tokens";
 
 const tokens = {
   light: { "bg.brand.solid": "#2563eb", "fg.on.brand": "#ffffff" },
@@ -61,5 +61,25 @@ describe("tokenCustomProperties", () => {
     // before palettes existed keeps exactly the tree it had.
     expect(tokenCustomProperties(undefined)).toEqual({});
     expect(tokenCustomProperties(tokens, undefined, "sepia")).toEqual({});
+  });
+});
+
+describe("tokensForVariant", () => {
+  const tokens = { light: { "bg.brand.solid": "#2563eb" } };
+  const themes = {
+    control: { light: { "bg.brand.solid": "#2563eb" } },
+    warm: { light: { "bg.brand.solid": "#c2410c" } },
+  };
+
+  it("reads the named brand's table", () => {
+    expect(tokensForVariant(tokens, themes, "warm")!.light["bg.brand.solid"]).toBe("#c2410c");
+  });
+
+  it("falls back to the artifact's own table, which is the default brand's", () => {
+    // Not nothing: `tokens` already holds the default variant, so a renderer
+    // that could not resolve a brand still paints what a visitor was assigned.
+    expect(tokensForVariant(tokens, themes, "gone")!.light["bg.brand.solid"]).toBe("#2563eb");
+    expect(tokensForVariant(tokens, themes, null)!.light["bg.brand.solid"]).toBe("#2563eb");
+    expect(tokensForVariant(tokens, undefined, "warm")!.light["bg.brand.solid"]).toBe("#2563eb");
   });
 });

@@ -52,6 +52,17 @@ export type FunnelManifest = {
   tokens?: ResolvedTokens;
   /** Which of those modes to paint when the host names none. */
   defaultMode?: string;
+  /**
+   * The same design in other brands, by variant key then mode then path.
+   *
+   * Additive beside `tokens`, never instead of it: a renderer shipped before
+   * variants existed reads only `tokens`, which publish fills with the default
+   * variant's table — so it draws the funnel as assigned rather than in colours
+   * no visitor was given.
+   */
+  themes?: Record<string, ResolvedTokens>;
+  /** Which brand to show when nothing else decides. */
+  defaultVariant?: string;
 };
 
 export type FunnelServices<Ui, Component> = {

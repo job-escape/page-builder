@@ -78,6 +78,9 @@ export type FunnelManifest = {
   tokens?: ResolvedTokens;
   /** Which of those modes to paint when nothing else says. Added by publish. */
   defaultMode?: string;
+  /** The same design in other brands. Added by publish; see `runtime/variant`. */
+  themes?: Record<string, ResolvedTokens>;
+  defaultVariant?: string;
 };
 
 /** Every screen this one can reach, so the runtime can prefetch (§9.9). */

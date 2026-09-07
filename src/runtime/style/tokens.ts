@@ -68,3 +68,20 @@ export function chooseMode(
   if (fallback && tokens[fallback]) return fallback;
   return modes.length === 1 ? modes[0] : undefined;
 }
+
+
+/**
+ * The table for a brand, falling back to the artifact's own.
+ *
+ * `tokens` is the default variant's table already, so a funnel with no themes —
+ * or a variant nobody could resolve — paints the colours a visitor would have
+ * been assigned anyway rather than nothing at all.
+ */
+export function tokensForVariant(
+  tokens: ResolvedTokens | undefined,
+  themes: Record<string, ResolvedTokens> | undefined,
+  variant: string | null | undefined,
+): ResolvedTokens | undefined {
+  if (variant && themes && themes[variant]) return themes[variant];
+  return tokens;
+}

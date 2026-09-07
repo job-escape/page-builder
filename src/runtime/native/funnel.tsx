@@ -24,7 +24,8 @@ import {
   type FunnelManifest,
   type FunnelServices,
 } from "../funnel-core";
-import { chooseMode } from "../style/tokens";
+import { chooseMode, tokensForVariant } from "../style/tokens";
+import { chooseVariant } from "../variant";
 import { configureTokens, ui } from "./bricks";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
@@ -48,6 +49,8 @@ export type NativeFunnelProps = {
   manifest: FunnelManifest;
   /** Which token mode to paint. Defaults to the artifact's own. */
   mode?: string;
+  /** Which brand to show. The host owns the assignment on native. */
+  variant?: string | null;
   screens: Record<string, NativeScreenModule>;
   components?: Record<string, Component>;
   locale?: Record<string, string>;
@@ -61,6 +64,7 @@ export type NativeFunnelProps = {
 export function Funnel({
   manifest,
   mode,
+  variant,
   screens,
   components = {},
   locale = {},
@@ -101,11 +105,21 @@ export function Funnel({
    * the first paint of every screen with no colours.
    */
   useMemo(() => {
+    // No cookie here: a native app owns its own storage, so the host decides
+    // the assignment and passes it in. The order it falls through is the same.
+    const active = manifest.themes
+      ? chooseVariant({
+          available: Object.keys(manifest.themes),
+          requested: variant,
+          fallback: manifest.defaultVariant,
+        })
+      : undefined;
+    const table = tokensForVariant(manifest.tokens, manifest.themes, active);
     configureTokens({
-      tokens: manifest.tokens,
-      mode: chooseMode(manifest.tokens, mode, manifest.defaultMode),
+      tokens: table,
+      mode: chooseMode(table, mode, manifest.defaultMode),
     });
-  }, [manifest.tokens, manifest.defaultMode, mode]);
+  }, [manifest.tokens, manifest.themes, manifest.defaultMode, manifest.defaultVariant, mode, variant]);
 
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 

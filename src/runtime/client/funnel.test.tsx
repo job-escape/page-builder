@@ -228,3 +228,55 @@ describe("palette", () => {
     expect(root.style.getPropertyValue("--bg-brand-solid")).toBe("");
   });
 });
+
+describe("brands", () => {
+  const tokens = { light: { "bg.brand.solid": "#2563eb" } };
+  const themes = {
+    control: { light: { "bg.brand.solid": "#2563eb" } },
+    warm: { light: { "bg.brand.solid": "#c2410c" } },
+  };
+  const withThemes = { ...manifest, tokens, themes, defaultMode: "light", defaultVariant: "control" };
+
+  const propertyOf = (container: HTMLElement) =>
+    (container.firstElementChild as HTMLElement).style.getPropertyValue("--bg-brand-solid");
+
+  it("paints the brand it was asked for", () => {
+    const { container } = render(
+      <Funnel manifest={withThemes} variant="warm" screens={screens} locale={locale} />,
+    );
+
+    expect(propertyOf(container)).toBe("#c2410c");
+  });
+
+  it("paints the artifact's default when nothing asks", () => {
+    const { container } = render(
+      <Funnel manifest={withThemes} screens={screens} locale={locale} />,
+    );
+
+    expect(propertyOf(container)).toBe("#2563eb");
+  });
+
+  it("ignores a brand the artifact does not carry rather than painting nothing", () => {
+    const { container } = render(
+      <Funnel manifest={withThemes} variant="sepia" screens={screens} locale={locale} />,
+    );
+
+    expect(propertyOf(container)).toBe("#2563eb");
+  });
+
+  it("holds the assignment in its own cookie, not the answers", () => {
+    render(
+      <Funnel
+        manifest={withThemes}
+        variant="warm"
+        screens={screens}
+        locale={locale}
+        persist={{ funnelId: "f1", version: "v1" }}
+      />,
+    );
+
+    // Its own cookie on purpose: the answers cookie is discarded when
+    // `version` changes, and republishing a headline must not reassign anyone.
+    expect(document.cookie).toContain("jb_variant_f1=warm");
+  });
+});
