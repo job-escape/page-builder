@@ -25,6 +25,7 @@ import {
   type FunnelServices,
 } from "../funnel-core";
 import { request } from "../request";
+import { tokenCustomProperties } from "../style/emit-css";
 import { ui, type Ui } from "./bricks";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
@@ -42,6 +43,11 @@ export type FunnelProps = {
   locale?: Record<string, string>;
   /** Absent disables persistence — preview must not leave answers behind. */
   persist?: { funnelId: string | number; version: string };
+  /**
+   * Which of the artifact's token modes to paint. Defaults to the manifest's
+   * own `defaultMode`, or to its only mode when it has one.
+   */
+  mode?: string;
   onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
 };
 
@@ -56,6 +62,7 @@ export function useFunnel(): ScreenProps {
 
 export function Funnel({
   manifest,
+  mode,
   screens,
   components = {},
   locale = {},
@@ -87,11 +94,28 @@ export function Funnel({
   const Screen = screens[navState.screen];
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 
+  /**
+   * The palette, as custom properties the screens below can resolve.
+   *
+   * A design's props are still CSS — `background: var(--bg-brand-solid)` — so
+   * the browser needs these defined above them. `display: contents` because
+   * this element exists only to hold them: it must not become a box, or every
+   * funnel gains a wrapper that changes its layout.
+   *
+   * Nothing at all when the artifact carries no palette, so a funnel published
+   * before this renders through exactly the tree it rendered through before.
+   */
+  const paletteStyle = useMemo(
+    () => tokenCustomProperties(manifest.tokens, mode, manifest.defaultMode),
+    [manifest.tokens, manifest.defaultMode, mode],
+  );
+  const hasPalette = Object.keys(paletteStyle).length > 0;
+
   // `request` is re-exported through the services by the core; naming it here
   // keeps the import graph honest for anything reading this file alone.
   void request;
 
-  return (
+  const body = (
     <FunnelContext.Provider value={services}>
       {/* The screen's own surface. Overlays get their own, from `Overlay`. */}
       <ScreenHost presentation={presentation}>
@@ -111,5 +135,11 @@ export function Funnel({
         );
       })}
     </FunnelContext.Provider>
+  );
+
+  return hasPalette ? (
+    <div style={{ display: "contents", ...paletteStyle }}>{body}</div>
+  ) : (
+    body
   );
 }

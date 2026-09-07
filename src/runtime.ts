@@ -115,3 +115,18 @@ export type { RequestOptions } from "./runtime/request";
  * the name resolves to — see `runtime/request`.
  */
 export { RequestFailed, configureRequests, request } from "./runtime/request";
+
+/**
+ * The palette an artifact carries, and the two ways a renderer spends it.
+ *
+ * `tokens` reaches the manifest from publish, which resolves the design's token
+ * set server-side — so a device never walks a `{blue.600}` alias, and React
+ * Native, which has no cascade to walk one with, can draw a design at all.
+ *
+ * Web spreads `tokenCustomProperties` into a style so the CSS a design already
+ * stores (`background: var(--bg-brand-solid)`) resolves; native hands the same
+ * table to `resolveColor`. One table, two spendings, no second source of truth.
+ */
+export type { ResolvedTokens, TokenLookup } from "./runtime/style/tokens";
+export { chooseMode, resolveColor } from "./runtime/style/tokens";
+export { cssVarFromTokenPath, tokenCustomProperties } from "./runtime/style/emit-css";

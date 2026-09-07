@@ -18,8 +18,8 @@
  * a second implementation of a rule the server already owns, and the two would
  * disagree the first time either changed.
  *
- * Not in the manifest yet; the type exists so the renderers are written against
- * it from the start rather than retrofitted.
+ * Written into the manifest by publish, which resolves the design's token set
+ * server-side — see `set_for_design` in the constructor API.
  */
 export type ResolvedTokens = Record<string, Record<string, string>>;
 
@@ -46,4 +46,25 @@ export function resolveColor(color: Color, lookup: TokenLookup = {}): ColorLiter
     return null;
   }
   return value;
+}
+
+
+/**
+ * Which mode's table to read.
+ *
+ * The caller's preference when the artifact has it, then the artifact's own
+ * default, then the only mode there is. A funnel published with one mode should
+ * never need anyone to name it, and a renderer that guesses differently from
+ * the next one is two renderers painting the same funnel differently.
+ */
+export function chooseMode(
+  tokens: ResolvedTokens | undefined,
+  preferred?: string,
+  fallback?: string,
+): string | undefined {
+  if (!tokens) return undefined;
+  const modes = Object.keys(tokens);
+  if (preferred && tokens[preferred]) return preferred;
+  if (fallback && tokens[fallback]) return fallback;
+  return modes.length === 1 ? modes[0] : undefined;
 }

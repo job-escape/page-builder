@@ -24,7 +24,8 @@ import {
   type FunnelManifest,
   type FunnelServices,
 } from "../funnel-core";
-import { ui } from "./bricks";
+import { chooseMode } from "../style/tokens";
+import { configureTokens, ui } from "./bricks";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
 import type { HostConfig } from "./host-config";
@@ -45,6 +46,8 @@ export function useFunnel(): NativeScreenProps {
 
 export type NativeFunnelProps = {
   manifest: FunnelManifest;
+  /** Which token mode to paint. Defaults to the artifact's own. */
+  mode?: string;
   screens: Record<string, NativeScreenModule>;
   components?: Record<string, Component>;
   locale?: Record<string, string>;
@@ -57,6 +60,7 @@ export type NativeFunnelProps = {
 
 export function Funnel({
   manifest,
+  mode,
   screens,
   components = {},
   locale = {},
@@ -87,6 +91,22 @@ export function Funnel({
   useDismissOnBack(onBack, navigator);
 
   const Screen = screens[navState.screen];
+  /**
+   * Point the bricks at this artifact's palette.
+   *
+   * The bricks resolve `{ $token }` through a module-level lookup, the way they
+   * take their host deps and the way `configureRequests` works, so this is
+   * where an artifact's own table gets attached. In a `useMemo` rather than an
+   * effect because the bricks read it while rendering — an effect would leave
+   * the first paint of every screen with no colours.
+   */
+  useMemo(() => {
+    configureTokens({
+      tokens: manifest.tokens,
+      mode: chooseMode(manifest.tokens, mode, manifest.defaultMode),
+    });
+  }, [manifest.tokens, manifest.defaultMode, mode]);
+
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 
   return (

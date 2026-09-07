@@ -12,6 +12,7 @@
  * of the order rows came back from the database, or the artifact stops being
  * content-hashable and a rollback stops meaning anything.
  */
+import type { ResolvedTokens } from "../style/tokens";
 import type { VariableDecl } from "../types";
 import type {
   SourceAction,
@@ -65,6 +66,18 @@ export type FunnelManifest = {
   /** Carried through so a published artifact is self-contained. */
   locales: Record<string, Record<string, string>>;
   screens: ScreenIndex[];
+  /**
+   * The design's palette, every alias already followed, by mode then path.
+   *
+   * **Added by publish, not by this compiler** — the server owns alias
+   * resolution and is the only place that can, since the editor asks it the
+   * same question through `compile/`. Optional because a project without a
+   * palette publishes without one, and a funnel that had none before this
+   * existed must produce the same bytes.
+   */
+  tokens?: ResolvedTokens;
+  /** Which of those modes to paint when nothing else says. Added by publish. */
+  defaultMode?: string;
 };
 
 /** Every screen this one can reach, so the runtime can prefetch (§9.9). */

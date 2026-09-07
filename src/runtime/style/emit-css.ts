@@ -14,7 +14,7 @@
  * observe.
  */
 import type { Fill, Padding, Radius, Shadow, Size, Stroke, Color, LineHeight, Px } from "./values";
-import { resolveColor, type TokenLookup } from "./tokens";
+import { chooseMode, resolveColor, type ResolvedTokens, type TokenLookup } from "./tokens";
 
 export type CssDeclarations = Record<string, string | number>;
 
@@ -137,4 +137,47 @@ export function flexForSize(size: Size | undefined): { grow: boolean; basis: Px 
   if (size === "fill") return { grow: true, basis: undefined };
   if (size === "hug" || size === undefined) return { grow: false, basis: undefined };
   return { grow: false, basis: size };
+}
+
+
+/**
+ * `bg.brand.solid` becomes `--bg-brand-solid`.
+ *
+ * The inverse of `tokenPathFromVar`, and the same name the constructor derives
+ * into `DesignToken.css_var`. Three places spell this and they have to agree,
+ * because a design's props already say `var(--bg-brand-solid)` and the cascade
+ * is what connects them.
+ */
+export function cssVarFromTokenPath(path: string): string {
+  return `--${path.split(".").join("-")}`;
+}
+
+/**
+ * A mode's resolved table as custom properties, ready to spread into a style.
+ *
+ * This is what makes the manifest's palette reach a web funnel at all. The
+ * props a design carries are still CSS — `background: var(--bg-brand-solid)` —
+ * so the browser needs the properties defined above them; native resolves the
+ * same table through `resolveColor` instead and never sees a `var()`.
+ *
+ * Returned as an object rather than a stylesheet on purpose: it goes in an
+ * inline `style`, so there is no `<style>` tag to inject, nothing for a CSP to
+ * refuse, and two funnels on one page keep their own palettes.
+ */
+export function tokenCustomProperties(
+  tokens: ResolvedTokens | undefined,
+  preferred?: string,
+  fallback?: string,
+): Record<string, string> {
+  const mode = chooseMode(tokens, preferred, fallback);
+  const table = mode && tokens ? tokens[mode] : undefined;
+  if (!table) return {};
+
+  const out: Record<string, string> = {};
+  Object.keys(table)
+    .sort()
+    .forEach((path) => {
+      out[cssVarFromTokenPath(path)] = table[path];
+    });
+  return out;
 }

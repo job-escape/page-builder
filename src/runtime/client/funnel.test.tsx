@@ -181,3 +181,50 @@ describe("keyboard", () => {
     expect(screen.getByText("What do you have at home?")).toBeInTheDocument();
   });
 });
+
+describe("palette", () => {
+  const tokens = {
+    light: { "bg.brand.solid": "#2563eb" },
+    dark: { "bg.brand.solid": "#60a5fa" },
+  };
+
+  it("defines the custom properties the design's props already reference", () => {
+    const { container } = render(
+      <Funnel
+        manifest={{ ...manifest, tokens, defaultMode: "light" }}
+        screens={screens}
+        locale={locale}
+      />,
+    );
+
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.getPropertyValue("--bg-brand-solid")).toBe("#2563eb");
+    // Holding properties is all it does; becoming a box would relayout every
+    // funnel that gained a palette.
+    expect(root.style.display).toBe("contents");
+  });
+
+  it("paints the mode the host asks for", () => {
+    const { container } = render(
+      <Funnel
+        manifest={{ ...manifest, tokens, defaultMode: "light" }}
+        mode="dark"
+        screens={screens}
+        locale={locale}
+      />,
+    );
+
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.getPropertyValue("--bg-brand-solid")).toBe("#60a5fa");
+  });
+
+  it("adds no element at all to a funnel with no palette", () => {
+    const { container } = render(
+      <Funnel manifest={manifest} screens={screens} locale={locale} />,
+    );
+
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.display).not.toBe("contents");
+    expect(root.style.getPropertyValue("--bg-brand-solid")).toBe("");
+  });
+});

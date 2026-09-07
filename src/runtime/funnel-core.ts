@@ -17,6 +17,7 @@ import { request } from "./request";
 import { createFunnelStore, type FunnelStore } from "./store";
 import type { VariableDecl, VariableTable } from "./types";
 import type { ScreenPresentation } from "./compiler/manifest";
+import type { ResolvedTokens } from "./style/tokens";
 
 export type FunnelNav = {
   show: (target: string, presentation?: Presentation) => void;
@@ -38,6 +39,19 @@ export type FunnelManifest = {
    * app can know the screen ids of every funnel it might render.
    */
   screens?: Record<string, ScreenPresentation>;
+  /**
+   * The design's palette, aliases already followed, by mode then dotted path.
+   *
+   * Resolved by publish rather than here: chasing `{blue.600}` on a device
+   * would be a second implementation of a rule the server already owns, and
+   * React Native has no cascade to chase it with. Web spreads this as custom
+   * properties so its CSS props resolve; native reads the same table through
+   * `resolveColor`. Optional, because a project without a palette publishes
+   * without one.
+   */
+  tokens?: ResolvedTokens;
+  /** Which of those modes to paint when the host names none. */
+  defaultMode?: string;
 };
 
 export type FunnelServices<Ui, Component> = {
