@@ -1,0 +1,293 @@
+{
+  "manifest": {
+    "version": "v1",
+    "entry": "s_goal",
+    "variables": [
+      {
+        "name": "gear",
+        "type": "list<string>",
+        "min": 1,
+        "max": 2
+      },
+      {
+        "name": "goal",
+        "type": "string"
+      }
+    ],
+    "overlayDefaults": {
+      "d_why": {
+        "position": "bottom",
+        "dim": true
+      }
+    },
+    "locales": {},
+    "screens": [
+      {
+        "id": "d_why",
+        "next": [],
+        "overlays": [],
+        "reads": [],
+        "presentation": {
+          "scroll": true,
+          "bleed": false,
+          "statusBar": "auto",
+          "keyboard": false
+        }
+      },
+      {
+        "id": "s_done",
+        "next": [],
+        "overlays": [],
+        "reads": [],
+        "presentation": {
+          "scroll": true,
+          "bleed": false,
+          "statusBar": "auto",
+          "keyboard": false
+        }
+      },
+      {
+        "id": "s_gear",
+        "next": [
+          "s_done"
+        ],
+        "overlays": [
+          "d_why"
+        ],
+        "reads": [
+          "gear"
+        ],
+        "presentation": {
+          "scroll": true,
+          "bleed": false,
+          "statusBar": "auto",
+          "keyboard": false
+        }
+      },
+      {
+        "id": "s_goal",
+        "next": [
+          "s_gear"
+        ],
+        "overlays": [],
+        "reads": [
+          "goal"
+        ],
+        "presentation": {
+          "scroll": true,
+          "bleed": false,
+          "statusBar": "auto",
+          "keyboard": false
+        }
+      }
+    ],
+    "schema": "1.0"
+  },
+  "trees": {
+    "d_why": {
+      "id": "d_why",
+      "roots": [
+        {
+          "id": "wroot",
+          "props": {
+            "padding": 24,
+            "fill": "#fff",
+            "testId": "sheet"
+          },
+          "kind": "frame",
+          "children": [
+            {
+              "id": "wtext",
+              "kind": "text",
+              "textKey": "d_why.body"
+            }
+          ]
+        }
+      ]
+    },
+    "s_done": {
+      "id": "s_done",
+      "roots": [
+        {
+          "id": "droot",
+          "props": {
+            "padding": 24
+          },
+          "kind": "frame",
+          "children": [
+            {
+              "id": "dtext",
+              "kind": "text",
+              "textKey": "s_done.title"
+            }
+          ]
+        }
+      ]
+    },
+    "s_gear": {
+      "id": "s_gear",
+      "roots": [
+        {
+          "id": "groot",
+          "props": {
+            "layout": "column",
+            "gap": 12,
+            "padding": 24
+          },
+          "kind": "frame",
+          "children": [
+            {
+              "id": "gtitle",
+              "kind": "text",
+              "textKey": "s_gear.title"
+            },
+            {
+              "id": "g1",
+              "props": {
+                "testId": "g1",
+                "padding": 16
+              },
+              "bindings": {
+                "ariaChecked": {
+                  "when": {
+                    "op": "has",
+                    "variable": "gear",
+                    "value": "bands"
+                  },
+                  "whenTrue": true,
+                  "whenFalse": false
+                }
+              },
+              "on": [
+                {
+                  "type": "select",
+                  "variable": "gear",
+                  "value": "bands"
+                }
+              ],
+              "kind": "frame",
+              "children": []
+            },
+            {
+              "id": "cont",
+              "props": {
+                "testId": "continue",
+                "padding": 16
+              },
+              "on": [
+                {
+                  "type": "conditional",
+                  "branches": [
+                    {
+                      "when": {
+                        "op": "meetsMin",
+                        "variable": "gear"
+                      },
+                      "do": [
+                        {
+                          "type": "show",
+                          "target": "s_done"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "kind": "frame",
+              "children": []
+            },
+            {
+              "id": "why",
+              "props": {
+                "testId": "why",
+                "padding": 8
+              },
+              "on": [
+                {
+                  "type": "show",
+                  "target": "d_why",
+                  "as": "overlay",
+                  "position": "bottom"
+                }
+              ],
+              "kind": "frame",
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    "s_goal": {
+      "id": "s_goal",
+      "roots": [
+        {
+          "id": "root",
+          "props": {
+            "layout": "column",
+            "gap": 12,
+            "padding": 24
+          },
+          "kind": "frame",
+          "children": [
+            {
+              "id": "title",
+              "props": {
+                "size": 24
+              },
+              "kind": "text",
+              "textKey": "s_goal.title"
+            },
+            {
+              "id": "o1",
+              "props": {
+                "padding": 16,
+                "radius": 12,
+                "testId": "o1",
+                "role": "radio"
+              },
+              "bindings": {
+                "fill": {
+                  "when": {
+                    "op": "has",
+                    "variable": "goal",
+                    "value": "muscle"
+                  },
+                  "whenTrue": "#eef2ff",
+                  "whenFalse": "#fff"
+                },
+                "ariaChecked": {
+                  "when": {
+                    "op": "has",
+                    "variable": "goal",
+                    "value": "muscle"
+                  },
+                  "whenTrue": true,
+                  "whenFalse": false
+                }
+              },
+              "on": [
+                {
+                  "type": "select",
+                  "variable": "goal",
+                  "value": "muscle"
+                },
+                {
+                  "type": "show",
+                  "target": "s_gear"
+                }
+              ],
+              "kind": "frame",
+              "children": [
+                {
+                  "id": "o1label",
+                  "kind": "text",
+                  "textKey": "s_goal.o1"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
