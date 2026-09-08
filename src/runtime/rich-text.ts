@@ -117,6 +117,60 @@ export function plainOf(value: RichText | null | undefined): string {
     .join("");
 }
 
+/**
+ * What a placeholder looks like: `{name}`.
+ *
+ * Braces and a bare identifier — the shape every templating vocabulary in this
+ * codebase already uses, and narrow enough that ordinary copy does not trip it.
+ * `{` on its own, `{ name }` with spaces, and `{not-an-identifier}` are all
+ * left exactly as they are.
+ */
+const PLACEHOLDER = /\{(\w+)\}/g;
+
+/** The values a placeholder can be filled with. */
+export type CopyParams = Readonly<Record<string, string | number>>;
+
+function fillText(
+  text: string,
+  params: CopyParams,
+  onMissing: ((name: string) => void) | undefined,
+): string {
+  return text.replace(PLACEHOLDER, (whole, name: string) => {
+    const value = params[name];
+    if (value === undefined) {
+      onMissing?.(name);
+      // Left as it was written. A visible `{name}` is a bug somebody reports;
+      // a silent empty space is a sentence that reads as if a word is simply
+      // missing, which nobody reports and nobody can find afterwards.
+      return whole;
+    }
+    return String(value);
+  });
+}
+
+/**
+ * Copy with its placeholders filled in.
+ *
+ * **Only ever called when a caller passed parameters**, which is what keeps
+ * every artifact already published byte-identical: copy that has never been
+ * interpolated is never scanned, so a headline that genuinely contains
+ * `{braces}` cannot be mangled by this existing.
+ *
+ * Runs are filled one at a time and keep their marks. A placeholder split
+ * across two runs — half of `{name}` bold and half not — is not substituted,
+ * because there is no single run holding it; that is a designer having
+ * formatted the inside of a placeholder, and guessing at it would be worse
+ * than leaving it visible.
+ */
+export function interpolate(
+  value: RichText,
+  params: CopyParams,
+  onMissing?: (name: string) => void,
+): RichText {
+  if (typeof value === "string") return fillText(value, params, onMissing);
+  return value.map((run) => ({ ...run, text: fillText(run.text, params, onMissing) }));
+}
+
 /** Whether two runs would be indistinguishable if their words were joined. */
 function sameMarks(a: TextRun, b: TextRun): boolean {
   if (!!a.bold !== !!b.bold) return false;

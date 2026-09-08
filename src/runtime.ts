@@ -114,8 +114,8 @@ export { evaluate, run, showPresentation } from "./runtime/interpret";
  * beside the compiler that writes it and the interpreter that reads it. The
  * two renderers pick it up through their own entries.
  */
-export type { RichText, TextLink, TextMarks, TextRun } from "./runtime/rich-text";
-export { isRuns, normalizeRuns, plainOf, runsOf } from "./runtime/rich-text";
+export type { CopyParams, RichText, TextLink, TextMarks, TextRun } from "./runtime/rich-text";
+export { interpolate, isRuns, normalizeRuns, plainOf, runsOf } from "./runtime/rich-text";
 
 /**
  * Which words a visitor gets. One answer for three hosts — see

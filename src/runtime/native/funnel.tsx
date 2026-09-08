@@ -74,7 +74,18 @@ export type NativeFunnelProps = {
   persist?: { funnelId: string | number; version: string };
   /** Platform mechanics. App-wide, never per design. */
   host?: Partial<HostConfig>;
-  onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
+  /**
+   * Something a compiled screen named that the artifact could not answer.
+   *
+   * `param` joined the list when `t` learned to take them: a placeholder with
+   * no value renders as the literal `{name}`, which is a bug somebody reports,
+   * and this is how it reaches whoever can fix it before they do.
+   *
+   * Widening this is why the package took a new beta rather than a patch. A
+   * host passing an inline handler is unaffected — the type is inferred from
+   * here — but one with an explicitly typed named handler has to widen it too.
+   */
+  onUnknown?: (kind: "variable" | "target" | "key" | "param", name: string) => void;
   /**
    * What this page knows about the visitor — the answers to
    * `manifest.visitorFacts`, resolved by whoever is serving the funnel.

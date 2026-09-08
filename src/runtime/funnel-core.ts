@@ -18,7 +18,7 @@ import { createFunnelStore, type FunnelStore } from "./store";
 import type { VariableDecl, VariableTable } from "./types";
 import type { ScreenPresentation } from "./compiler/manifest";
 import type { ResolvedTokens } from "./style/tokens";
-import type { RichText } from "./rich-text";
+import { interpolate, type CopyParams, type RichText } from "./rich-text";
 
 export type FunnelNav = {
   show: (target: string, presentation?: Presentation) => void;
@@ -78,7 +78,7 @@ export type FunnelServices<Ui, Component> = {
    * `ui.Text` is unchanged, and so is every artifact that has ever been
    * published. See `runtime/rich-text`.
    */
-  t: (key: string) => RichText;
+  t: (key: string, params?: CopyParams) => RichText;
   state: FunnelStore;
   nav: FunnelNav;
   /** The one call a compiled screen makes to a backend. A name, never a URL. */
@@ -112,7 +112,7 @@ export type FunnelCoreOptions<Ui, Component> = {
    */
   fallbackLocale?: Record<string, RichText>;
   persist?: { funnelId: string | number; version: string };
-  onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
+  onUnknown?: (kind: "variable" | "target" | "key" | "param", name: string) => void;
   /**
    * What the host knows about this visitor — the answers to
    * `manifest.visitorFacts`.
@@ -183,9 +183,20 @@ export function useFunnelRuntime<Ui, Component>({
   useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
 
   const t = useCallback(
-    (key: string) => {
+    (key: string, params?: CopyParams) => {
+      /**
+       * Filled only when a caller passed parameters.
+       *
+       * Copy that has never been interpolated is never scanned, so a headline
+       * that genuinely contains `{braces}` reads exactly as it always has —
+       * which is what makes this safe to add to a runtime that already serves
+       * published artifacts.
+       */
+      const fill = (value: RichText): RichText =>
+        params ? interpolate(value, params, (name) => onUnknown?.("param", name)) : value;
+
       const value = locale[key];
-      if (value !== undefined) return value;
+      if (value !== undefined) return fill(value);
       /**
        * Reported before the fallback is tried, not instead of it.
        *
@@ -196,7 +207,7 @@ export function useFunnelRuntime<Ui, Component>({
        */
       onUnknown?.("key", key);
       const fallback = fallbackLocale?.[key];
-      if (fallback !== undefined) return fallback;
+      if (fallback !== undefined) return fill(fallback);
       // Never show a raw key to a customer; an empty string is less wrong.
       return "";
     },
