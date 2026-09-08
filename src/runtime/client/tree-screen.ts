@@ -18,6 +18,7 @@
 import type { ReactNode } from "react";
 
 import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
+import { isCaseBinding } from "../compiler/source";
 import { evaluate, run } from "../interpret";
 import type { ScreenModule, ScreenProps } from "./funnel";
 
@@ -33,7 +34,16 @@ function propsOf(node: TreeNode, props: ScreenProps): Record<string, unknown> {
   const resolved: Record<string, unknown> = { ...node.props };
 
   Object.entries(node.bindings ?? {}).forEach(([key, binding]) => {
-    resolved[key] = evaluate(binding.when, props.state) ? binding.whenTrue : binding.whenFalse;
+    if (!isCaseBinding(binding)) {
+      resolved[key] = evaluate(binding.when, props.state) ? binding.whenTrue : binding.whenFalse;
+      return;
+    }
+    // First match wins, in the order the editor wrote them — the same rule the
+    // emitted ternary chain follows, because it is the same list read the same
+    // way. `find` rather than a filter-and-last: a later case is not more
+    // specific, it is only later.
+    const hit = binding.cases.find((entry) => evaluate(entry.when, props.state));
+    resolved[key] = hit ? hit.value : binding.default;
   });
 
   if (node.on?.length) {
@@ -49,6 +59,17 @@ function propsOf(node: TreeNode, props: ScreenProps): Record<string, unknown> {
 }
 
 function renderNode(node: TreeNode, props: ScreenProps): ReactNode {
+  /**
+   * Presence, before anything else.
+   *
+   * `null` rather than an invisible frame, and returned before the children are
+   * walked: a node that is not drawn does not draw what is inside it, and a
+   * frame rendered at `opacity: 0` would still take its space and still take
+   * taps. The emitter reaches the same answer with a ternary around the same
+   * expression.
+   */
+  if (node.when && !evaluate(node.when, props.state)) return null;
+
   const resolved = propsOf(node, props);
 
   if (node.kind === "text") {

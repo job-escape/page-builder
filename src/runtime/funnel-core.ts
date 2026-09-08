@@ -85,6 +85,22 @@ export type FunnelCoreOptions<Ui, Component> = {
   locale: Record<string, string>;
   persist?: { funnelId: string | number; version: string };
   onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
+  /**
+   * What the host knows about this visitor — the answers to
+   * `manifest.visitorFacts`.
+   *
+   * Threaded rather than resolved here, because *how* to answer them differs
+   * per host and none of the answers are the runtime's to find: on the web a
+   * campaign tag is in the URL and a country is a CDN header; in the app the
+   * platform is a constant and the campaign came from install attribution.
+   * `funnel-as-code.md` §9.6a takes the same line about backend addresses, and
+   * for the same reason — an artifact that went looking would have to carry
+   * something it must not.
+   *
+   * A fact the host cannot answer is simply absent, and a test on an absent
+   * fact matches nothing. See `createFunnelStore`.
+   */
+  visitor?: Readonly<Record<string, string | number | boolean | null>>;
 };
 
 export function useFunnelRuntime<Ui, Component>({
@@ -95,6 +111,7 @@ export function useFunnelRuntime<Ui, Component>({
   locale,
   persist,
   onUnknown,
+  visitor,
 }: FunnelCoreOptions<Ui, Component>) {
   const table: VariableTable = useMemo(
     () => Object.fromEntries(manifest.variables.map((decl) => [decl.name, decl])),
@@ -105,9 +122,15 @@ export function useFunnelRuntime<Ui, Component>({
   const owned = useRef(new Map<string, Array<() => void>>());
 
   const store = useMemo(
-    () => createFunnelStore({ table, persist, onUnknown: (name) => onUnknown?.("variable", name) }),
+    () =>
+      createFunnelStore({
+        table,
+        persist,
+        visitor,
+        onUnknown: (name) => onUnknown?.("variable", name),
+      }),
     // A new store per funnel identity, not per render.
-    [table, persist, onUnknown],
+    [table, persist, visitor, onUnknown],
   );
 
   const navigator = useMemo(

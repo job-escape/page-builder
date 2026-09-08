@@ -68,6 +68,15 @@ export type FunnelProps = {
    */
   variant?: string | null;
   onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
+  /**
+   * What this page knows about the visitor — the answers to
+   * `manifest.visitorFacts`, resolved by whoever is serving the funnel.
+   *
+   * Absent is a funnel that branches on nothing, or a host that has not been
+   * taught to answer yet; either way every visitor test fails to match and the
+   * branch that catches everybody is the one they get.
+   */
+  visitor?: Readonly<Record<string, string | number | boolean | null>>;
 };
 
 const FunnelContext = createContext<ScreenProps | null>(null);
@@ -109,6 +118,7 @@ export function Funnel({
   locale = {},
   persist,
   onUnknown,
+  visitor,
 }: FunnelProps) {
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
   const { services, navState, navigator } = useFunnelRuntime<Ui, (props: never) => ReactNode>({
@@ -119,6 +129,7 @@ export function Funnel({
     locale,
     persist,
     onUnknown,
+    visitor,
   });
 
   // Escape closes the top overlay rather than leaving the funnel — the same

@@ -26,6 +26,33 @@ export type ConditionState = {
   isEmpty: (name: string) => boolean;
   atMax: (name: string) => boolean;
   meetsMin: (name: string) => boolean;
+  /**
+   * What is true of the visitor, rather than of anything they answered.
+   *
+   * **Three helpers rather than one reader**, and that is §9.8a's rule applied
+   * where it matters most. The hard part of a visitor test is never the
+   * comparison — it is the edges: a host that cannot answer, a fact that is
+   * present but empty, whether `has` may coerce a number to a string. Handing
+   * out the raw value would put those decisions in the emitted module, frozen
+   * into every artifact ever published; behind helpers they are one file here,
+   * patchable centrally, and identical in every funnel.
+   *
+   * It is also what keeps this file and `emitCondition` honest. The emitter
+   * writes `state.visitorEq(...)` and `evaluate` calls `state.visitorEq(...)`,
+   * so the tree renderer and the compiled module cannot disagree about an edge
+   * — which is exactly the class of bug the parity fixtures exist to catch and
+   * the one that hides for months.
+   *
+   * **The host answers all three, not the store.** Everything else in here
+   * reads answers the visitor gave, which the funnel owns. Where somebody came
+   * from, what they are on, which campaign brought them are the *page's* to
+   * know — they arrive on the request, in the URL, or from the device — and an
+   * artifact that fetched them itself would need an address and a key it must
+   * not carry (§9.6a).
+   */
+  visitorIsSet: (property: string) => boolean;
+  visitorEq: (property: string, value: unknown) => boolean;
+  visitorHas: (property: string, value: unknown) => boolean;
 };
 
 export type ActionContext = {
@@ -65,6 +92,14 @@ export function evaluate(condition: SourceCondition, state: ConditionState): boo
       if (condition.cmp === "lte") return held <= condition.value;
       return held === condition.value;
     }
+    // The same three calls the emitter writes, in the same order — see the note
+    // on `visitorIsSet` above for why that is not a coincidence.
+    case "visitor":
+      if (condition.cmp === "isSet") return state.visitorIsSet(condition.property);
+      if (condition.cmp === "isEmpty") return !state.visitorIsSet(condition.property);
+      if (condition.cmp === "eq") return state.visitorEq(condition.property, condition.value);
+      if (condition.cmp === "neq") return !state.visitorEq(condition.property, condition.value);
+      return state.visitorHas(condition.property, condition.value);
     case "not":
       return !evaluate(condition.of, state);
     case "and":

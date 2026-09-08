@@ -27,6 +27,7 @@ import { buildManifest, sortedScreens, type FunnelManifest } from "./manifest";
 import type {
   SourceAction,
   SourceBinding,
+  SourceCondition,
   SourceFrame,
   SourceFunnel,
   SourceScreen,
@@ -52,6 +53,15 @@ type TreeNodeBase = {
   props?: Record<string, unknown>;
   /** Props decided per render. The condition travels as data, unevaluated. */
   bindings?: Record<string, SourceBinding>;
+  /**
+   * Whether this node is rendered at all — the condition, unevaluated.
+   *
+   * Travels as data for the same reason `bindings` does: the tree is one
+   * artifact read by two renderers, and a presence resolved at compile time
+   * would be a different artifact per context, which is the build matrix this
+   * format exists to avoid.
+   */
+  when?: SourceCondition;
   /**
    * What happens when this node is activated.
    *
@@ -95,6 +105,7 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
     id: frame.id,
     ...(frame.props && Object.keys(frame.props).length ? { props: frame.props } : {}),
     ...(frame.bindings && Object.keys(frame.bindings).length ? { bindings: frame.bindings } : {}),
+    ...(frame.when ? { when: frame.when } : {}),
     ...(actions.length ? { on: actions } : {}),
   };
 }

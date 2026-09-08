@@ -45,6 +45,20 @@ export type FunnelStoreOptions = {
    * because crashing a live funnel over a typo is worse than a no-op.
    */
   onUnknown?: (name: string) => void;
+  /**
+   * What the host knows about this visitor, before they answered anything.
+   *
+   * Handed in rather than fetched, and read-only: a screen may branch on the
+   * visitor's country and may never `set` it. Everything in `table` is an
+   * answer the funnel collected; everything here arrived with the request —
+   * the URL's campaign tags, a geo header, the platform. Keeping them in two
+   * places is what stops a funnel writing to one, persisting it, and restoring
+   * a stale country for somebody who has since moved.
+   *
+   * Absent, or a property missing from it, means **the host cannot say** — and
+   * a test on an unknown fact matches nothing. See `visitorIsSet` below.
+   */
+  visitor?: Readonly<Record<string, string | number | boolean | null>>;
 };
 
 export type FunnelStore = ReturnType<typeof createFunnelStore>;
@@ -58,7 +72,7 @@ function same(a: VariableValue | undefined, b: VariableValue | undefined): boole
 }
 
 export function createFunnelStore(options: FunnelStoreOptions) {
-  const { table, persist, onUnknown } = options;
+  const { table, persist, onUnknown, visitor = {} } = options;
 
   // Restored answers layered over declared defaults, so a variable added since
   // the visitor last came back gets its default rather than being absent.
@@ -151,6 +165,43 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     return decl ? meetsMinOf(decl, values[name]) : false;
   };
 
+  /**
+   * The three visitor helpers, and the edge semantics they exist to hold.
+   *
+   * `emitCondition` writes calls to exactly these and `evaluate` calls exactly
+   * these, so a compiled module and the tree renderer cannot disagree about an
+   * edge. The rules are stated once, here:
+   *
+   * - **Unknown is not a value.** A property the host did not supply, or
+   *   supplied as `null`, matches nothing — not even `neq`, which is why `neq`
+   *   is emitted as `!visitorEq` rather than as its own helper. A funnel served
+   *   where geo lookup is unavailable must fall through to the branch that
+   *   catches everybody, never into one meant for a country nobody proved.
+   * - **Empty is unset.** A campaign tag present as `""` is a tag that was not
+   *   passed, and a designer asking "is this set" means "did they arrive with
+   *   one".
+   * - **`has` does not coerce.** A number cannot contain a string. Comparing
+   *   `String(held)` would make `utm_content has "1"` true for the value `21`,
+   *   which is precisely the silent wrong branch §9.8a's no-coercion rule
+   *   exists to prevent.
+   */
+  const visitorValue = (property: string): string | number | boolean | null => {
+    const held = visitor[property];
+    return held === undefined ? null : held;
+  };
+  const visitorIsSet = (property: string): boolean => {
+    const held = visitorValue(property);
+    return held !== null && held !== "";
+  };
+  const visitorEq = (property: string, value: unknown): boolean => {
+    const held = visitorValue(property);
+    return held === null ? false : held === value;
+  };
+  const visitorHas = (property: string, value: unknown): boolean => {
+    const held = visitorValue(property);
+    return typeof held === "string" && typeof value === "string" ? held.includes(value) : false;
+  };
+
   function subscribe(listener: () => void): () => void {
     listeners.add(listener);
     return () => {
@@ -181,6 +232,9 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     isEmpty,
     atMax,
     meetsMin,
+    visitorIsSet,
+    visitorEq,
+    visitorHas,
     status,
     setStatus,
     subscribe,

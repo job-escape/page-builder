@@ -59,6 +59,15 @@ export type NativeFunnelProps = {
   /** Platform mechanics. App-wide, never per design. */
   host?: Partial<HostConfig>;
   onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
+  /**
+   * What this page knows about the visitor — the answers to
+   * `manifest.visitorFacts`, resolved by whoever is serving the funnel.
+   *
+   * Absent is a funnel that branches on nothing, or a host that has not been
+   * taught to answer yet; either way every visitor test fails to match and the
+   * branch that catches everybody is the one they get.
+   */
+  visitor?: Readonly<Record<string, string | number | boolean | null>>;
 };
 
 export function Funnel({
@@ -71,6 +80,7 @@ export function Funnel({
   persist,
   host,
   onUnknown,
+  visitor,
 }: NativeFunnelProps) {
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
   const { services, navState, navigator } = useFunnelRuntime<Ui, Component>({
@@ -81,6 +91,7 @@ export function Funnel({
     locale,
     persist,
     onUnknown,
+    visitor,
   });
 
   const onBack = useCallback((dismiss: () => void) => {
