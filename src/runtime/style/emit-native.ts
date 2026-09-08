@@ -57,9 +57,22 @@ export function nativeColor(color: Color, lookup: TokenLookup = {}): string | un
   return resolveColor(color, lookup) ?? undefined;
 }
 
+/**
+ * Padding, in start/end rather than left/right.
+ *
+ * The same reason the web emitter uses `padding-inline`: a designer's "left" is
+ * the side the content starts on, which in Arabic is the right. React Native
+ * resolves `paddingStart` and `paddingEnd` against `I18nManager`, so this needs
+ * no direction passed to it and is identical in a left-to-right layout.
+ */
 export function nativePadding(padding: Padding): NativeStyle {
   const [top, right, bottom, left] = padding;
-  return { paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left };
+  return {
+    paddingTop: top,
+    paddingBottom: bottom,
+    paddingStart: left,
+    paddingEnd: right,
+  };
 }
 
 export function nativeRadius(radius: Radius): NativeStyle {

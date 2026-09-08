@@ -84,8 +84,29 @@ export function cssBoxShadow(
   return parts.length ? parts.join(", ") : undefined;
 }
 
-export function cssPadding(padding: Padding): string {
-  return padding.map((edge) => `${edge}px`).join(" ");
+/**
+ * Padding, as the two axes rather than the four sides.
+ *
+ * A designer's "left" means the side the content starts on, which in Arabic is
+ * the right. `padding: t r b l` is physical and mirrors nothing; `padding-inline`
+ * takes start and end and the browser resolves them against `dir`, which the
+ * host sets from the resolved locale.
+ *
+ * So this costs no plumbing — nothing here has to be told which language it is
+ * in — and it changes nothing in LTR, where start *is* left. The authored
+ * vocabulary stays four physical edges, because that is what a designer drags
+ * and what every published artifact carries; this is the translation, at the
+ * one place it is drawn.
+ */
+export function cssPaddingBlock(padding: Padding): string {
+  const [top, , bottom] = padding;
+  return `${top}px ${bottom}px`;
+}
+
+export function cssPaddingInline(padding: Padding): string {
+  const [, right, , left] = padding;
+  // start, then end — left first in a left-to-right layout.
+  return `${left}px ${right}px`;
 }
 
 export function cssRadius(radius: Radius): string {
@@ -125,7 +146,12 @@ export function cssBox(box: BoxValues, lookup: TokenLookup = {}): CssDeclaration
     ...(boxShadow ? { boxShadow } : {}),
     ...(box.radius === undefined ? {} : { borderRadius: cssRadius(box.radius) }),
     ...(box.opacity === undefined ? {} : { opacity: box.opacity }),
-    ...(box.padding ? { padding: cssPadding(box.padding) } : {}),
+    ...(box.padding
+      ? {
+          paddingBlock: cssPaddingBlock(box.padding),
+          paddingInline: cssPaddingInline(box.padding),
+        }
+      : {}),
     ...(box.width === undefined ? {} : { width: cssSize(box.width) }),
     ...(box.height === undefined ? {} : { height: cssSize(box.height) }),
     boxSizing: "border-box",

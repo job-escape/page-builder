@@ -146,7 +146,10 @@ describe("round-trip through the contract", () => {
       boxShadow: "inset 0 0 0 1px #e4e4e7",
       borderRadius: "12px",
       opacity: 1,
-      padding: "24px 24px 24px 24px",
+      // The two axes rather than the four sides: `padding-inline` takes start
+      // and end, and the browser resolves them against `dir`.
+      paddingBlock: "24px 24px",
+      paddingInline: "24px 24px",
       boxSizing: "border-box",
     });
   });

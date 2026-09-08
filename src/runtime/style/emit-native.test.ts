@@ -47,13 +47,17 @@ describe("nativeBox", () => {
     expect(missing).toEqual(["bg.nonexistent"]);
   });
 
-  it("expands padding into the four keys React Native actually reads", () => {
+  it("expands padding into start and end, not left and right", () => {
+    // A designer's "left" is the side the content starts on, which in Arabic
+    // is the right. React Native resolves start/end against `I18nManager`, so
+    // this needs no direction passed to it and is identical in a left-to-right
+    // layout.
     const { style } = nativeBox(boxFromProps({ padding: [24, 16] }));
     expect(style).toMatchObject({
       paddingTop: 24,
-      paddingRight: 16,
       paddingBottom: 24,
-      paddingLeft: 16,
+      paddingStart: 16,
+      paddingEnd: 16,
     });
   });
 
