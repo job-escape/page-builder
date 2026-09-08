@@ -181,6 +181,26 @@ export type TextProps = {
   align?: "left" | "center" | "right";
   lineHeight?: number;
   /**
+   * How wide the words' box is — the half of `align` that decides anything.
+   *
+   * `align` positions inline content *inside a box*, so it only says something
+   * once the box is wider than the words. Text was the one brick with no way to
+   * be given that width: `Frame`, `Image` and `Input` all read `width`, and the
+   * canvas offers text the same Fixed / Hug / Fill it offers everything else —
+   * so a title set to fill its header row and centre arrived here carrying
+   * `width: "fill"`, was destructured away, and rendered as a shrink-to-fit
+   * flex item hugging its glyphs. Centred on the canvas, hard against the back
+   * button in the funnel, and nothing failed anywhere to say so.
+   *
+   * Spelled and resolved exactly as `FrameProps.width` is — `fill` is `100%`,
+   * `hug` is `auto`, a number is points — because a designer picks one control
+   * for both and two meanings behind it is the divergence this closes.
+   */
+  width?: number | "fill" | "hug";
+  height?: number | "fill" | "hug";
+  /** Takes the spare room on the parent's main axis. `Frame`'s prop, verbatim. */
+  grow?: boolean;
+  /**
    * Text takes clicks, because designers attach navigation to words.
    *
    * It did not, and the prop was simply dropped on the floor: the compiler
@@ -205,6 +225,9 @@ export function Text({
   color,
   align,
   lineHeight,
+  width,
+  height,
+  grow,
   onClick,
   disabled,
   role,
@@ -224,6 +247,9 @@ export function Text({
         color,
         textAlign: align,
         lineHeight: lineHeight ? `${lineHeight}px` : undefined,
+        width: size(width),
+        height: size(height),
+        flexGrow: grow ? 1 : undefined,
         display: "block",
         cursor: interactive ? "pointer" : undefined,
         userSelect: interactive ? "none" : undefined,

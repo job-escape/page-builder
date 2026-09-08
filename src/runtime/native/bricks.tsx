@@ -227,10 +227,32 @@ export function Frame({ children, onClick, disabled, scroll, ...props }: FramePr
 
 // ─── Text ─────────────────────────────────────────────────────────────────────
 
-export function Text({ children, onClick, size, weight, color, align, lineHeight, ...props }: TextProps) {
+export function Text({
+  children,
+  onClick,
+  size,
+  weight,
+  color,
+  align,
+  lineHeight,
+  width,
+  height,
+  grow,
+  ...props
+}: TextProps) {
   const fontSize = size ?? 16;
   const style: TextStyle = {
     fontSize,
+    /**
+     * The box the words are aligned in — see `TextProps.width`.
+     *
+     * Resolved through the same `nativeSize` the `Frame` brick uses, so a text
+     * frame set to fill is a flex child here for the same reason and by the
+     * same rule, and the two renderers agree about what the designer picked.
+     */
+    ...(nativeSize(width, "width") as TextStyle),
+    ...(nativeSize(height, "height") as TextStyle),
+    ...(grow || flexForSize(width).grow ? { flexGrow: 1 } : {}),
     ...(weight === undefined ? {} : { fontWeight: String(weight) as TextStyle["fontWeight"] }),
     ...(color ? { color: nativeColor(color, lookup) } : {}),
     ...(align ? { textAlign: align } : {}),
