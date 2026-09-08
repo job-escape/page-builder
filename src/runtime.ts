@@ -117,6 +117,20 @@ export { evaluate, run, showPresentation } from "./runtime/interpret";
 export type { RichText, TextLink, TextMarks, TextRun } from "./runtime/rich-text";
 export { isRuns, normalizeRuns, plainOf, runsOf } from "./runtime/rich-text";
 
+/**
+ * Which words a visitor gets. One answer for three hosts — see
+ * `runtime/locale` for why it is not each host's to decide.
+ */
+export type { LoadedLocale, LoadLocaleOptions, TextDirection } from "./runtime/locale";
+export {
+  availableLocales,
+  DEFAULT_LOCALE,
+  defaultLocaleOf,
+  directionOf,
+  loadLocale,
+  resolveLocale,
+} from "./runtime/locale";
+
 export type { RequestOptions } from "./runtime/request";
 
 /**

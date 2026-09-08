@@ -78,6 +78,35 @@ export type FunnelManifest = {
    */
   locales: Record<string, Record<string, RichText>>;
   /**
+   * Where each locale's words live, when they do not live inline.
+   *
+   * Content-addressed, one file per locale, so a visitor fetches the language
+   * they are reading rather than all twelve — and changing one Spanish word
+   * re-uploads one small file while every other locale keeps its CDN copy.
+   *
+   * **The default locale is never here.** It stays in `locales` above, because
+   * it is what a missing key falls back to and a fallback that could fail to
+   * arrive is not one.
+   *
+   * Absent on every artifact published before bundles existed, which is why
+   * `loadLocale` reads both shapes. See `runtime/locale`.
+   */
+  localeBundles?: Record<string, string>;
+  /**
+   * What a renderer needs to know about a locale beyond its words — today,
+   * which way its script runs.
+   *
+   * Optional, and `runtime/locale` knows the base languages that run
+   * right-to-left on its own, so an artifact published without this still
+   * lays out Arabic correctly. This is how a publish overrides that.
+   */
+  localeMeta?: Record<string, { dir?: "ltr" | "rtl" }>;
+  /**
+   * The locale this funnel was authored in — what every other locale falls
+   * back to. Absent means `en`, which is what every artifact so far assumed.
+   */
+  defaultLocale?: string;
+  /**
    * Every fact about the visitor this funnel branches on, sorted.
    *
    * **The host's shopping list.** These are not variables and the store cannot
