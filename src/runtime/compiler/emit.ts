@@ -60,6 +60,21 @@ export function emitCondition(condition: SourceCondition): string {
       const op = condition.cmp === "gte" ? ">=" : condition.cmp === "lte" ? "<=" : "===";
       return `state.count(${lit(condition.variable)}) ${op} ${condition.value}`;
     }
+    case "visitor": {
+      /*
+        A helper call, like every other operator — §9.8a's rule, and this leaf
+        is the case it was written for. The edge semantics are the whole of it:
+        what an unknown fact means, whether an empty string counts as set,
+        whether `has` coerces. Inlined here they would be frozen into every
+        artifact ever published; called, they are one file in page-builder.
+      */
+      const property = lit(condition.property);
+      if (condition.cmp === "isSet") return `state.visitorIsSet(${property})`;
+      if (condition.cmp === "isEmpty") return `!state.visitorIsSet(${property})`;
+      if (condition.cmp === "eq") return `state.visitorEq(${property}, ${lit(condition.value)})`;
+      if (condition.cmp === "neq") return `!state.visitorEq(${property}, ${lit(condition.value)})`;
+      return `state.visitorHas(${property}, ${lit(condition.value)})`;
+    }
     case "not":
       return `!(${emitCondition(condition.of)})`;
     case "and":

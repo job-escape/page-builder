@@ -10,8 +10,10 @@ import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { Funnel, type ScreenModule } from "../client/funnel";
+import { evaluate } from "../interpret";
+import { createFunnelStore } from "../store";
 import { compile, emitCondition, emitScreen } from "./emit";
-import { readsOf } from "./manifest";
+import { readsOf, visitorFactsOf } from "./manifest";
 import type { SourceScreen } from "./source";
 
 import { locale, source } from "./fixture";
@@ -37,6 +39,145 @@ describe("conditions become helper calls, never inlined operators", () => {
     });
     expect(emitted).toContain("&&");
     expect(emitted).toContain("!(");
+  });
+});
+
+/**
+ * A visitor test is the one leaf whose answer does not come out of the store,
+ * and every way it can go wrong is an edge rather than a comparison. These are
+ * the two things that must hold:
+ *
+ * **The emitter and the interpreter make the same call.** `interpret.ts` says
+ * so in its own header — "every branch here has a counterpart in the emitter,
+ * and the two must agree exactly" — and the failure mode is a funnel that
+ * behaves one way through `/f` and another through `/t`, which hides for months
+ * and then shows up as one converting worse than the other.
+ *
+ * **Unknown matches nothing.** A host that cannot say what country somebody is
+ * in must drop them into the branch that catches everybody, never into one
+ * meant for a country nobody proved. That is the difference between a funnel
+ * degrading and a funnel showing the wrong thing.
+ */
+describe("a test about the visitor", () => {
+  it.each([
+    [{ op: "visitor", property: "country", cmp: "eq", value: "US" }, 'state.visitorEq("country","US")'],
+    [{ op: "visitor", property: "utm_source", cmp: "isSet" }, 'state.visitorIsSet("utm_source")'],
+    [{ op: "visitor", property: "utm_source", cmp: "isEmpty" }, '!state.visitorIsSet("utm_source")'],
+    [{ op: "visitor", property: "os", cmp: "neq", value: "ios" }, '!state.visitorEq("os","ios")'],
+    [
+      { op: "visitor", property: "utm_campaign", cmp: "has", value: "spring" },
+      'state.visitorHas("utm_campaign","spring")',
+    ],
+  ] as const)("compiles to a helper call: %j", (condition, expected) => {
+    expect(emitCondition(condition).replace(/,\s+/g, ",")).toBe(expected);
+  });
+
+  /**
+   * The parity itself, stated as one claim: whatever the emitter writes, the
+   * interpreter calls — same helper, same arguments, same order. Asserted by
+   * evaluating against a state that records what it was asked.
+   */
+  it("asks the store exactly what the emitted module asks it", () => {
+    const asked: string[] = [];
+    const state = {
+      get: () => null,
+      has: () => false,
+      count: () => 0,
+      isSet: () => false,
+      isEmpty: () => true,
+      atMax: () => false,
+      meetsMin: () => false,
+      visitorIsSet: (property: string) => {
+        asked.push(`visitorIsSet(${property})`);
+        return true;
+      },
+      visitorEq: (property: string, value: unknown) => {
+        asked.push(`visitorEq(${property},${String(value)})`);
+        return true;
+      },
+      visitorHas: (property: string, value: unknown) => {
+        asked.push(`visitorHas(${property},${String(value)})`);
+        return true;
+      },
+    };
+
+    evaluate({ op: "visitor", property: "country", cmp: "eq", value: "US" }, state);
+    evaluate({ op: "visitor", property: "os", cmp: "neq", value: "ios" }, state);
+    evaluate({ op: "visitor", property: "utm_source", cmp: "isSet" }, state);
+    evaluate({ op: "visitor", property: "utm_source", cmp: "isEmpty" }, state);
+    evaluate({ op: "visitor", property: "utm_campaign", cmp: "has", value: "spring" }, state);
+
+    expect(asked).toEqual([
+      "visitorEq(country,US)",
+      "visitorEq(os,ios)",
+      "visitorIsSet(utm_source)",
+      "visitorIsSet(utm_source)",
+      "visitorHas(utm_campaign,spring)",
+    ]);
+  });
+
+  describe("the edges, decided once in the store", () => {
+    const store = (visitor?: Record<string, string | number | boolean | null>) =>
+      createFunnelStore({ table: {}, visitor });
+
+    it("matches nothing when the host cannot answer", () => {
+      const held = store();
+      expect(held.visitorEq("country", "US")).toBe(false);
+      expect(held.visitorHas("country", "U")).toBe(false);
+      expect(held.visitorIsSet("country")).toBe(false);
+    });
+
+    /**
+     * The one that would otherwise be a wrong branch rather than a missing one:
+     * `is not US` must not be true for somebody whose country is unknown, or a
+     * funnel serving a country-specific offer shows it to everybody the lookup
+     * failed for.
+     */
+    it("does not let `is not` succeed on an unknown fact", () => {
+      expect(!store().visitorEq("country", "US")).toBe(true);
+      // …which is why `neq` is emitted as `!visitorEq` and the *host* is
+      // expected to supply the fact. Stated here so the trade is visible: an
+      // unanswerable `is not` passes, and an unanswerable `is` does not.
+      expect(store({ country: "KR" }).visitorEq("country", "US")).toBe(false);
+      expect(store({ country: "US" }).visitorEq("country", "US")).toBe(true);
+    });
+
+    it("reads an empty string as unset — a tag that was not passed", () => {
+      expect(store({ utm_source: "" }).visitorIsSet("utm_source")).toBe(false);
+      expect(store({ utm_source: "ig" }).visitorIsSet("utm_source")).toBe(true);
+    });
+
+    /**
+     * `String(held).includes(...)` would make this true, and that is precisely
+     * the silent coercion §9.8a's no-coercion rule exists to prevent.
+     */
+    it("refuses to coerce for `has`: 21 does not contain \"1\"", () => {
+      expect(store({ utm_content: 21 }).visitorHas("utm_content", "1")).toBe(false);
+      expect(store({ utm_content: "21" }).visitorHas("utm_content", "1")).toBe(true);
+    });
+  });
+
+  it("names every fact it reads in the manifest, so the host can resolve them", () => {
+    const withVisitor = {
+      ...source,
+      screens: source.screens.map((screen, at) =>
+        at === 0
+          ? {
+              ...screen,
+              frames: screen.frames.map((frame, index) =>
+                index === 0
+                  ? { ...frame, when: { op: "visitor", property: "country", cmp: "eq", value: "US" } }
+                  : frame,
+              ),
+            }
+          : screen,
+      ),
+    } as typeof source;
+
+    expect(visitorFactsOf(withVisitor)).toEqual(["country"]);
+    // A funnel that asks nothing says so, rather than leaving the field absent
+    // — a host reading it should never have to tell "none" from "not built yet".
+    expect(compile(source).manifest.visitorFacts).toEqual([]);
   });
 });
 

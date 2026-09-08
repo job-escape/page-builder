@@ -22,6 +22,30 @@ export type SourceCondition =
   | { op: "atMax"; variable: string }
   | { op: "meetsMin"; variable: string }
   | { op: "count"; variable: string; cmp: "gte" | "lte" | "eq"; value: number }
+  /**
+   * Something true of the visitor rather than of anything they answered.
+   *
+   * Every other leaf reads a **variable** — a value the visitor produced by
+   * using the funnel. This one reads a *fact about them* that was true before
+   * they arrived: where they came from, what they are on, which campaign
+   * brought them. A funnel cannot ask for those, so they are not variables and
+   * giving them a variable's name would mean a screen could `set` one.
+   *
+   * **One op rather than a second spelling of `eq`, `neq` and `has`.** The
+   * alternative — the same three ops with a `visitor` field where `variable`
+   * goes — would make every reader of a leaf (this file, the emitter, the
+   * interpreter, the manifest walk) ask which of the two it was holding, at
+   * each of them. One op asks once.
+   *
+   * `property` is a column name, and never a value the artifact interprets: the
+   * host is what knows how to answer it. See `ConditionState.visitor`.
+   */
+  | {
+      op: "visitor";
+      property: string;
+      cmp: "eq" | "neq" | "has" | "isSet" | "isEmpty";
+      value?: string | number | boolean;
+    }
   | { op: "not"; of: SourceCondition }
   | { op: "and"; of: SourceCondition[] }
   | { op: "or"; of: SourceCondition[] };

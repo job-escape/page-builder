@@ -65,6 +65,26 @@ export type FunnelManifest = {
   overlayDefaults: Record<string, NonNullable<SourceScreen["overlay"]>>;
   /** Carried through so a published artifact is self-contained. */
   locales: Record<string, Record<string, string>>;
+  /**
+   * Every fact about the visitor this funnel branches on, sorted.
+   *
+   * **The host's shopping list.** These are not variables and the store cannot
+   * produce them: they are what was true of somebody before they arrived, and
+   * only the page serving the funnel can answer them — from the URL's campaign
+   * tags, a geo header, the platform it is running on. The host reads this,
+   * resolves what it can, and hands the answers to `createFunnelStore`.
+   *
+   * At the **funnel** level rather than per screen, unlike `reads`. A condition
+   * can hide a frame on the entry screen, so every fact has to be resolved
+   * before the first paint — there is no per-screen moment to do it in — and
+   * the host resolves them once from a request it already has.
+   *
+   * Empty for a funnel that asks nothing, which is every funnel published
+   * before conditions existed. A host that finds it absent should read it as
+   * empty rather than as unknown: this field arriving is what tells a host it
+   * has anything to look up at all.
+   */
+  visitorFacts: string[];
   screens: ScreenIndex[];
 };
 
@@ -93,6 +113,12 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
 
 function variablesInCondition(condition: SourceCondition, into: Set<string>): void {
   switch (condition.op) {
+    // Not a variable. A visitor fact is read off the host rather than out of
+    // the store, so declaring it as one would put a name in `reads` that the
+    // store has no declaration for — which is exactly what `onUnknown` reports
+    // as a compiler bug. It is collected by `visitorFactsInCondition` instead.
+    case "visitor":
+      return;
     case "not":
       variablesInCondition(condition.of, into);
       return;
@@ -102,6 +128,37 @@ function variablesInCondition(condition: SourceCondition, into: Set<string>): vo
       return;
     default:
       into.add(condition.variable);
+  }
+}
+
+/**
+ * Every visitor property a condition names.
+ *
+ * Its own walk rather than a second `into` on the one above, because the two
+ * answer different questions for different readers: `reads` tells the *store*
+ * which variables a screen touches, and this tells the **host** which facts it
+ * has to look up before the screen can be rendered.
+ *
+ * Emitted at compile time because nothing recovers it afterwards. A compiled
+ * module's conditions live inside closures and cannot be read without running
+ * them (§9.8a) — so a host that had to discover which facts a funnel wanted
+ * would have to resolve *all* of them, which for a geo lookup is a request per
+ * page view for a funnel that may not ask.
+ */
+function visitorFactsInCondition(condition: SourceCondition, into: Set<string>): void {
+  switch (condition.op) {
+    case "visitor":
+      if (condition.property) into.add(condition.property);
+      return;
+    case "not":
+      visitorFactsInCondition(condition.of, into);
+      return;
+    case "and":
+    case "or":
+      condition.of.forEach((inner) => visitorFactsInCondition(inner, into));
+      return;
+    default:
+      return;
   }
 }
 
@@ -145,6 +202,47 @@ export function readsOf(screen: SourceScreen): string[] {
   return [...reads].sort();
 }
 
+/**
+ * Every visitor fact a funnel reads — the union across its screens.
+ *
+ * Walks the same three places `readsOf` does: a frame's presence condition, the
+ * conditions behind a bound prop, and the branches inside an interaction. A
+ * fact named in any of them is a fact the host has to be able to answer, and
+ * missing one means a frame that quietly never appears.
+ */
+export function visitorFactsOf(funnel: SourceFunnel): string[] {
+  const facts = new Set<string>();
+
+  funnel.screens.forEach((screen) => {
+    screen.frames.forEach((frame) => {
+      if (frame.when) visitorFactsInCondition(frame.when, facts);
+
+      Object.values(frame.bindings ?? {}).forEach((binding) => {
+        if (isCaseBinding(binding)) {
+          binding.cases.forEach((entry) => visitorFactsInCondition(entry.when, facts));
+          return;
+        }
+        visitorFactsInCondition(binding.when, facts);
+      });
+
+      frame.interactions?.forEach((interaction) => {
+        const walk = (actions: SourceAction[]): void => {
+          actions.forEach((action) => {
+            if (action.type !== "conditional") return;
+            action.branches.forEach((branch) => {
+              if (branch.when) visitorFactsInCondition(branch.when, facts);
+              walk(branch.do);
+            });
+          });
+        };
+        walk(interaction.do);
+      });
+    });
+  });
+
+  return [...facts].sort();
+}
+
 export function presentationOf(screen: SourceScreen): ScreenPresentation {
   const authored = screen.presentation ?? {};
 
@@ -177,6 +275,7 @@ export function buildManifest(funnel: SourceFunnel): FunnelManifest {
     variables: [...funnel.variables].sort((a, b) => a.name.localeCompare(b.name)),
     overlayDefaults,
     locales: funnel.locales ?? {},
+    visitorFacts: visitorFactsOf(funnel),
     screens: screens.map((screen) => ({
       id: screen.id,
       ...reachable(screen),
