@@ -193,10 +193,33 @@ function StrokeLayer({ stroke }: { stroke: NativeOverlayStroke }) {
 
 // ─── Frame ────────────────────────────────────────────────────────────────────
 
-export function Frame({ children, onClick, disabled, scroll, ...props }: FrameProps) {
+export function Frame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
   const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup);
   const style = { ...box.style, ...layoutOf(props as FrameProps) };
   const { view, content } = splitForScroll(style, scroll);
+
+  /**
+   * The pressed look, resolved once rather than while a finger is down.
+   *
+   * Only `press`: a phone has no pointer to hover with, so a hover layer is
+   * data this platform correctly ignores rather than something it is missing.
+   *
+   * Style only, not the gradient or the stroke layers — those are separate
+   * views behind and in front of the content, and swapping them under a press
+   * is a second mechanism for a case nobody has drawn yet.
+   */
+  const pressedStyle = states?.press
+    ? (() => {
+        const merged = {
+          ...(props as Record<string, unknown>),
+          ...(states.press as Record<string, unknown>),
+        };
+        return {
+          ...nativeBox(boxFromProps(merged), lookup).style,
+          ...layoutOf(merged as FrameProps),
+        };
+      })()
+    : null;
 
   const inner = (
     <>
@@ -223,7 +246,11 @@ export function Frame({ children, onClick, disabled, scroll, ...props }: FramePr
   if (onClick) {
     return (
       <Pressable
-        style={view as ViewStyle}
+        style={
+          pressedStyle
+            ? ({ pressed }) => (pressed ? { ...view, ...pressedStyle } : view) as ViewStyle
+            : (view as ViewStyle)
+        }
         onPress={onClick}
         disabled={disabled}
         {...a11y({ ...props, disabled })}
