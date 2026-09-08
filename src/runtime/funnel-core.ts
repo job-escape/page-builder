@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "r
 
 import { createNavigator, type NavigationState, type Presentation } from "./navigation";
 import { request } from "./request";
+import type { VariableValue } from "./types";
 import { createFunnelStore, type FunnelStore } from "./store";
 import type { VariableDecl, VariableTable } from "./types";
 import type { ScreenPresentation } from "./compiler/manifest";
@@ -114,6 +115,11 @@ export type FunnelCoreOptions<Ui, Component> = {
   persist?: { funnelId: string | number; version: string };
   onUnknown?: (kind: "variable" | "target" | "key" | "param", name: string) => void;
   /**
+   * An answer changed. Handed straight to the store — see `onChange` there for
+   * why analytics is the host's job and why a `sensitive` answer never arrives.
+   */
+  onAnswer?: (name: string, value: VariableValue) => void;
+  /**
    * What the host knows about this visitor — the answers to
    * `manifest.visitorFacts`.
    *
@@ -140,6 +146,7 @@ export function useFunnelRuntime<Ui, Component>({
   fallbackLocale,
   persist,
   onUnknown,
+  onAnswer,
   visitor,
 }: FunnelCoreOptions<Ui, Component>) {
   const table: VariableTable = useMemo(
@@ -157,9 +164,10 @@ export function useFunnelRuntime<Ui, Component>({
         persist,
         visitor,
         onUnknown: (name) => onUnknown?.("variable", name),
+        onChange: onAnswer,
       }),
     // A new store per funnel identity, not per render.
-    [table, persist, visitor, onUnknown],
+    [table, persist, visitor, onUnknown, onAnswer],
   );
 
   const navigator = useMemo(

@@ -50,6 +50,16 @@ export type ScreenProps = FunnelServices<Ui, (props: never) => ReactNode>;
 export type ScreenModule = (props: ScreenProps) => ReactNode;
 
 export type FunnelProps = {
+  /**
+   * An answer changed — where a host records what a visitor picked.
+   *
+   * Analytics is the app's, not the artifact's: a compiled funnel is a public
+   * file, so event names and destinations do not belong in it. This reports
+   * the change and nothing else, so every funnel already published is covered
+   * without being republished. A `sensitive` variable never arrives — see
+   * `onChange` in the store.
+   */
+  onAnswer?: (name: string, value: import("../types").VariableValue) => void;
   manifest: FunnelManifest;
   screens: Record<string, ScreenModule>;
   components?: Record<string, (props: never) => ReactNode>;
@@ -146,6 +156,7 @@ export function Funnel({
   fallbackLocale,
   persist,
   onUnknown,
+  onAnswer,
   visitor,
 }: FunnelProps) {
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
@@ -158,6 +169,7 @@ export function Funnel({
     fallbackLocale,
     persist,
     onUnknown,
+    onAnswer,
     visitor,
   });
 

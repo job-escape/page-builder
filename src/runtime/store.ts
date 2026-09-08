@@ -18,7 +18,7 @@
  */
 import * as persistence from "./persistence";
 import type { PersistenceOptions } from "./persistence";
-import type { VariableTable, VariableValue } from "./types";
+import type { VariableDecl, VariableTable, VariableValue } from "./types";
 import {
   atMax as atMaxOf,
   count as countOf,
@@ -59,6 +59,26 @@ export type FunnelStoreOptions = {
    * a test on an unknown fact matches nothing. See `visitorIsSet` below.
    */
   visitor?: Readonly<Record<string, string | number | boolean | null>>;
+  /**
+   * An answer changed — for a host that wants to record that somewhere.
+   *
+   * Analytics belongs to the host and not to the artifact, for the reason
+   * `request` carries a *name* and never a URL: a compiled funnel is a public
+   * file on a CDN, and event names, keys and destinations are not things to
+   * publish. So this reports the change and says nothing about what to do with
+   * it — the app decides, and every funnel already published gets it without
+   * being republished or edited.
+   *
+   * **A `sensitive` variable never arrives here.** An email or a name is an
+   * answer the funnel collects and not one an event stream should carry, and a
+   * rule enforced in every host separately is a rule that holds in all of them
+   * but one. Filtered at the source instead.
+   *
+   * Called after the value has actually changed — writing the same answer twice
+   * is not an event — and after persistence, so a listener that reads the store
+   * back sees what was stored.
+   */
+  onChange?: (name: string, value: VariableValue) => void;
 };
 
 export type FunnelStore = ReturnType<typeof createFunnelStore>;
@@ -116,6 +136,12 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     return null;
   }
 
+  /** Report a change, unless the declaration says it is nobody else's business. */
+  function reportChange(decl: VariableDecl, name: string): void {
+    if (decl.sensitive) return;
+    options.onChange?.(name, values[name] ?? null);
+  }
+
   function set(name: string, value: VariableValue): void {
     const decl = declOf(name);
     if (!decl) return;
@@ -123,6 +149,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     values = { ...values, [name]: value };
     flush();
     notify();
+    reportChange(decl, name);
   }
 
   /** Assign or toggle, per the declared type. The single/multi difference. */
@@ -134,6 +161,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     values = { ...values, [name]: next };
     flush();
     notify();
+    reportChange(decl, name);
   }
 
   function setStatus(id: string, status: RequestStatus, error?: string): void {
