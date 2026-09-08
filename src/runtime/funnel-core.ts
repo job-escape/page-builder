@@ -91,6 +91,26 @@ export type FunnelCoreOptions<Ui, Component> = {
   ui: Ui;
   components: Record<string, Component>;
   locale: Record<string, RichText>;
+  /**
+   * The words to use when the active locale has no answer.
+   *
+   * The default locale's map — the one a manifest always carries inline, so
+   * reaching for it costs no fetch and cannot itself be missing.
+   *
+   * Without this a key absent from `locale` rendered as an empty string, and a
+   * blank headline reads to a customer as a broken page. An untranslated line
+   * in the default language reads as an untranslated line, which is the lesser
+   * wrong and the one `funnel-as-code.md` §9.7 asks for.
+   *
+   * Optional, and absent means the old behaviour exactly: a host that has only
+   * ever had one map keeps passing one.
+   *
+   * Note what is NOT here. Resolving `es-MX` to `es` happens when the host
+   * decides *which bundle to load*, not on every lookup — one decision per
+   * visit rather than one per string, and the only place that knows what the
+   * artifact actually ships.
+   */
+  fallbackLocale?: Record<string, RichText>;
   persist?: { funnelId: string | number; version: string };
   onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
   /**
@@ -117,6 +137,7 @@ export function useFunnelRuntime<Ui, Component>({
   ui,
   components,
   locale,
+  fallbackLocale,
   persist,
   onUnknown,
   visitor,
@@ -164,14 +185,22 @@ export function useFunnelRuntime<Ui, Component>({
   const t = useCallback(
     (key: string) => {
       const value = locale[key];
-      if (value === undefined) {
-        onUnknown?.("key", key);
-        // Never show a raw key to a customer; an empty string is less wrong.
-        return "";
-      }
-      return value;
+      if (value !== undefined) return value;
+      /**
+       * Reported before the fallback is tried, not instead of it.
+       *
+       * A key the active locale cannot answer is the fact worth logging
+       * whether or not something else could — a locale that has quietly
+       * rotted still renders, and silence is how it stays rotten. The
+       * customer sees words either way; the operator sees the gap.
+       */
+      onUnknown?.("key", key);
+      const fallback = fallbackLocale?.[key];
+      if (fallback !== undefined) return fallback;
+      // Never show a raw key to a customer; an empty string is less wrong.
+      return "";
     },
-    [locale, onUnknown],
+    [locale, fallbackLocale, onUnknown],
   );
 
   const nav: FunnelNav = useMemo(

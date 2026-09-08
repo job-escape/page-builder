@@ -12,6 +12,7 @@
  * of the order rows came back from the database, or the artifact stops being
  * content-hashable and a rollback stops meaning anything.
  */
+import type { RichText } from "../rich-text";
 import type { ResolvedTokens } from "../style/tokens";
 import type { VariableDecl } from "../types";
 import {
@@ -64,8 +65,18 @@ export type FunnelManifest = {
   entry: string;
   variables: VariableDecl[];
   overlayDefaults: Record<string, NonNullable<SourceScreen["overlay"]>>;
-  /** Carried through so a published artifact is self-contained. */
-  locales: Record<string, Record<string, string>>;
+  /**
+   * The words, by locale then key. Carried through so a published artifact is
+   * self-contained.
+   *
+   * `RichText`, not `string`. Copy has carried emphasis since runs shipped, the
+   * editor projects run lists into this map, and `ui.Text` renders them — this
+   * type was the last place still saying otherwise, which made a formatted
+   * headline in a published manifest a lie the compiler agreed with. A bare
+   * string is one unmarked run and always will be, so nothing that has never
+   * been formatted changes shape. See `runtime/rich-text`.
+   */
+  locales: Record<string, Record<string, RichText>>;
   /**
    * Every fact about the visitor this funnel branches on, sorted.
    *

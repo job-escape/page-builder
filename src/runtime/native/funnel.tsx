@@ -64,6 +64,12 @@ export type NativeFunnelProps = {
    * strings, and a host that has never formatted anything keeps sending them.
    */
   locale?: Record<string, RichText>;
+  /**
+   * The words to fall back on when `locale` has no answer — the default
+   * locale's map. Absent means no fallback, which is what every host did
+   * before this existed. See `FunnelCoreOptions.fallbackLocale`.
+   */
+  fallbackLocale?: Record<string, RichText>;
   /** Absent disables persistence — preview must not leave answers behind. */
   persist?: { funnelId: string | number; version: string };
   /** Platform mechanics. App-wide, never per design. */
@@ -87,6 +93,7 @@ export function Funnel({
   screens,
   components = {},
   locale = {},
+  fallbackLocale,
   persist,
   host,
   onUnknown,
@@ -99,6 +106,7 @@ export function Funnel({
     ui,
     components,
     locale,
+    fallbackLocale,
     persist,
     onUnknown,
     visitor,
