@@ -21,6 +21,7 @@
  */
 import { createElement, type ReactNode } from "react";
 import {
+  I18nManager,
   Image as RNImage,
   Pressable,
   ScrollView,
@@ -37,6 +38,19 @@ import {
 import { boxFromProps, paddingFrom } from "../style/adapt-legacy";
 import { flexForSize } from "../style/emit-css";
 import { useFollowLink, type FollowLink } from "../link-context";
+
+/**
+ * A designer's left, as this device would draw it.
+ *
+ * `left` and `right` are what a designer picks, and what every artifact
+ * already published carries. What they mean is "the side the line starts on",
+ * which in an RTL layout is the other one — so the sides swap here rather than
+ * anywhere upstream, and the authored vocabulary never has to change.
+ */
+function mirrorAlign(align: "left" | "center" | "right"): "left" | "center" | "right" {
+  if (align === "center" || !I18nManager.isRTL) return align;
+  return align === "left" ? "right" : "left";
+}
 import { isRuns, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
 import {
   nativeBox,
@@ -293,7 +307,21 @@ export function Text({
     ...(grow || flexForSize(width).grow ? { flexGrow: 1 } : {}),
     ...(weight === undefined ? {} : { fontWeight: String(weight) as TextStyle["fontWeight"] }),
     ...(color ? { color: nativeColor(color, lookup) } : {}),
-    ...(align ? { textAlign: align } : {}),
+    /**
+     * The same logical alignment the web brick does, spelled the way React
+     * Native can express it.
+     *
+     * There is no `start` here — RN's `textAlign` is physical, and its `auto`
+     * follows the *text's own* script rather than the layout's, so a Latin
+     * brand name inside an Arabic screen would align the wrong way. So the
+     * sides are swapped explicitly against `I18nManager`, which is the one
+     * thing on a phone that knows the layout direction.
+     *
+     * Read at draw time rather than captured: `I18nManager.isRTL` changes with
+     * an app restart, and a value closed over at module load would be the
+     * previous run's answer.
+     */
+    ...(align ? { textAlign: mirrorAlign(align) } : {}),
     /**
      * Absolute points, always. The web brick's unitless multiplier would be read
      * here as a line 1.4 points tall, stacking every row of text on the last —

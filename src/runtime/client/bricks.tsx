@@ -315,7 +315,21 @@ export function Text({
         fontSize,
         fontWeight: weight,
         color,
-        textAlign: align,
+        /**
+         * Logical, not physical — `start` and `end` rather than `left` and
+         * `right`.
+         *
+         * A designer aligning a heading left means "the side the line starts
+         * on", which in Arabic is the right. CSS resolves `start` against the
+         * `dir` the host sets from the locale, so this is the whole of RTL
+         * text alignment on the web and it costs no plumbing: nothing has to
+         * be told which language it is in.
+         *
+         * The authored vocabulary stays `left | center | right`, because that
+         * is what a designer picks and what every artifact already published
+         * carries. This is the translation, at the one place it is drawn.
+         */
+        textAlign: align === "left" ? "start" : align === "right" ? "end" : align,
         lineHeight: lineHeight ? `${lineHeight}px` : undefined,
         width: size(width),
         height: size(height),
