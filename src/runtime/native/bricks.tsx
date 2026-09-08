@@ -36,6 +36,8 @@ import {
 
 import { boxFromProps, paddingFrom } from "../style/adapt-legacy";
 import { flexForSize } from "../style/emit-css";
+import { useFollowLink, type FollowLink } from "../link-context";
+import { isRuns, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
 import {
   nativeBox,
   nativeColor,
@@ -227,8 +229,43 @@ export function Frame({ children, onClick, disabled, scroll, ...props }: FramePr
 
 // ─── Text ─────────────────────────────────────────────────────────────────────
 
+/**
+ * One run, as a nested `Text`.
+ *
+ * React Native's own answer to inline styling: a `Text` inside a `Text` inherits
+ * the parent's type and overrides what it states, which is exactly what a run
+ * is. So there is no measuring, no manual line breaking and no second layout
+ * pass here — the platform does what the browser does for a `<span>`.
+ *
+ * `onPress` on the inner `Text` fires for taps on *those characters only*,
+ * which is the behaviour a link inside a sentence has to have. The web brick's
+ * anchor gets it from the DOM for the same reason.
+ */
+function runText(run: TextRun, at: number, follow: FollowLink | null): ReactNode {
+  const marks: TextStyle = {
+    ...(run.bold ? { fontWeight: "700" as TextStyle["fontWeight"] } : {}),
+    ...(run.italic ? { fontStyle: "italic" as TextStyle["fontStyle"] } : {}),
+    ...(run.underline ? { textDecorationLine: "underline" as TextStyle["textDecorationLine"] } : {}),
+  };
+
+  // Only when there is somewhere to go — see the web brick's `runElement`.
+  const link = run.link && follow ? run.link : null;
+
+  return (
+    <RNText
+      key={at}
+      style={marks}
+      onPress={link ? () => follow?.(link) : undefined}
+      role={link ? "link" : undefined}
+    >
+      {run.text}
+    </RNText>
+  );
+}
+
 export function Text({
   children,
+  runs,
   onClick,
   size,
   weight,
@@ -240,6 +277,7 @@ export function Text({
   grow,
   ...props
 }: TextProps) {
+  const follow = useFollowLink();
   const fontSize = size ?? 16;
   const style: TextStyle = {
     fontSize,
@@ -267,15 +305,19 @@ export function Text({
     ),
   };
 
+  const spans = runs ? runsOf(runs) : null;
+
   return (
     <RNText
       style={style}
       onPress={onClick}
       role={onClick ? "button" : undefined}
-      aria-label={props.ariaLabel}
+      // The words without their emphasis: a screen reader is read a name, and
+      // the marks are not part of one.
+      aria-label={props.ariaLabel ?? (spans ? plainOf(spans) : undefined)}
       testID={props.testId}
     >
-      {children}
+      {spans ? spans.map((run, at) => runText(run, at, follow)) : children}
     </RNText>
   );
 }
@@ -363,8 +405,18 @@ const spread = (children: Children): ReactNode[] => (Array.isArray(children) ? c
 export const ui = {
   Frame: (props?: Omit<FrameProps, "children">, children?: Children) =>
     createElement(Frame, props as FrameProps, ...spread(children)),
-  Text: (props?: Omit<TextProps, "children">, children?: Children) =>
-    createElement(Text, props as TextProps, ...spread(children)),
+  /**
+   * Rich copy becomes a prop, exactly as it does on web.
+   *
+   * `spread` reads an array as a list of siblings and a run list is an array,
+   * so without this React Native is handed a bare object as a child. The two
+   * catalogues have to make this decision the same way — the tree walk that
+   * calls them is one file.
+   */
+  Text: (props?: Omit<TextProps, "children" | "runs">, children?: Children | RichText) =>
+    isRuns(children)
+      ? createElement(Text, { ...(props as TextProps), runs: children })
+      : createElement(Text, props as TextProps, ...spread(children as Children)),
   Image: (props?: ImageProps) => createElement(Image, props as ImageProps),
   Input: (props?: InputProps) => createElement(Input, props as InputProps),
 };

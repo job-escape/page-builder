@@ -39,3 +39,13 @@ export type {
  * with `View` and `Text` as it does with `div` and `span`.
  */
 export { screenFromTree, screensFromTree } from "./runtime/client/tree-screen";
+
+/**
+ * Following a link that lives inside a line of copy.
+ *
+ * `Funnel` provides it; the `Text` brick consumes it. Exported so a host that
+ * renders bricks outside a `<Funnel>` — a preview, a storybook — can still make
+ * links go somewhere, and so a test can assert where one went.
+ */
+export { TextLinkProvider, useFollowLink } from "./runtime/link-context";
+export type { FollowLink } from "./runtime/link-context";

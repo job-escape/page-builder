@@ -12,7 +12,19 @@
  */
 import { createElement, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
+import { useFollowLink, type FollowLink } from "../link-context";
+import { isRuns, runsOf, type RichText, type TextRun } from "../rich-text";
+
 export type FrameLayout = "none" | "row" | "column";
+
+/**
+ * The roles a brick may announce itself as.
+ *
+ * `link` is here for a run that navigates — a span is not an anchor, so without
+ * it a screen reader announces the words and nothing about them being a way
+ * somewhere else. The rest are `Frame`'s own, unchanged.
+ */
+export type BrickRole = "button" | "radio" | "checkbox" | "group" | "radiogroup" | "dialog" | "link";
 export type Align = "start" | "center" | "end" | "stretch";
 export type Justify = "start" | "center" | "end" | "between";
 
@@ -48,7 +60,7 @@ export type FrameProps = {
   onClick?: () => void;
   disabled?: boolean;
   /** Set by the compiler from the declared semantics — drives role and keyboard. */
-  role?: "button" | "radio" | "checkbox" | "group" | "radiogroup" | "dialog";
+  role?: BrickRole;
   ariaLabel?: string;
   ariaChecked?: boolean;
   testId?: string;
@@ -81,7 +93,7 @@ function interactionProps({
 }: {
   onClick?: () => void;
   disabled?: boolean;
-  role?: FrameProps["role"];
+  role?: BrickRole;
   ariaLabel?: string;
   ariaChecked?: boolean;
   testId?: string;
@@ -211,13 +223,65 @@ export type TextProps = {
    */
   onClick?: () => void;
   disabled?: boolean;
-  role?: "button" | "radio" | "checkbox" | "group" | "radiogroup" | "dialog";
+  role?: BrickRole;
   ariaLabel?: string;
   ariaChecked?: boolean;
   testId?: string;
   style?: CSSProperties;
+  /**
+   * The copy, when it carries emphasis of its own.
+   *
+   * Set by the `ui.Text` factory when `t(key)` answers with runs, so a compiled
+   * module keeps writing `ui.Text(props, t(key))` and neither the emitter nor
+   * an artifact already published had to learn a new call. Plain copy never
+   * sets it and takes the `children` path below, unchanged.
+   */
+  runs?: readonly TextRun[];
   children?: ReactNode;
 };
+
+/**
+ * One run, as the element that says the most about it.
+ *
+ * **The element is chosen for meaning; the marks are always drawn as style.** A
+ * run can be bold *and* italic *and* a link, and there is no single tag for
+ * that — nesting three would put three boxes around fourteen characters for a
+ * screen reader to walk. So the most significant mark picks the tag, which is
+ * what an assistive technology announces, and every mark is spelled in CSS,
+ * which is what a visitor sees. Neither half is approximate.
+ *
+ * **An anchor with no `href`**, because a link here goes to a *screen* and a
+ * screen has no address — see `TextLink`. That is also why it needs the same
+ * keyboard handling `Frame` needs: without `href` an `<a>` is not focusable and
+ * not activatable, so `interactionProps` supplies the role, the tab stop and
+ * Enter/Space exactly as it does for a clickable div.
+ */
+function runElement(run: TextRun, at: number, follow: FollowLink | null): ReactNode {
+  const marks: CSSProperties = {
+    fontWeight: run.bold ? 700 : undefined,
+    fontStyle: run.italic ? "italic" : undefined,
+    textDecoration: run.underline ? "underline" : undefined,
+  };
+
+  // Only when there is somewhere to go. Outside a funnel `follow` is null, and
+  // announcing a link that cannot be followed is worse than drawing the words:
+  // it is a promise the page cannot keep. The emphasis still renders.
+  const link = run.link && follow ? run.link : null;
+  if (!link) {
+    const tag = run.bold ? "strong" : run.italic ? "em" : "span";
+    return createElement(tag, { key: at, style: marks }, run.text);
+  }
+
+  return createElement(
+    "a",
+    {
+      key: at,
+      style: { ...marks, cursor: "pointer" },
+      ...interactionProps({ onClick: () => follow?.(link), role: "link" }),
+    },
+    run.text,
+  );
+}
 
 export function Text({
   size: fontSize,
@@ -235,9 +299,15 @@ export function Text({
   ariaChecked,
   testId,
   style,
+  runs,
   children,
 }: TextProps) {
   const interactive = Boolean(onClick) && !disabled;
+  // A hook, so it is called on every render of this component and not only when
+  // there are runs to draw — React's rule, and the reason this is not inside the
+  // branch below.
+  const follow = useFollowLink();
+  const spans = runs ? runsOf(runs) : null;
 
   return (
     <span
@@ -257,7 +327,7 @@ export function Text({
       }}
       {...interactionProps({ onClick, disabled, role, ariaLabel, ariaChecked, testId })}
     >
-      {children}
+      {spans ? spans.map((run, at) => runElement(run, at, follow)) : children}
     </span>
   );
 }
@@ -383,6 +453,19 @@ type Children = ReactNode | ReactNode[];
 type Factory<P> = (props?: P, children?: Children) => ReactNode;
 
 /**
+ * `Text` alone takes copy where the others take children.
+ *
+ * It is the one brick whose child *is* the funnel's words — `t(key)` — and
+ * those may now answer with runs. Widening only this factory keeps a run list
+ * out of `Frame`, where an array means "these siblings" and a run would render
+ * as `[object Object]`.
+ */
+type TextFactory = (
+  props?: Omit<TextProps, "children" | "runs">,
+  children?: Children | RichText,
+) => ReactNode;
+
+/**
  * Children are spread rather than passed as one array, so React sees positional
  * children and does not demand keys. Generated code emits a plain array of
  * siblings; making it key-free is the runtime's job, not the compiler's.
@@ -392,13 +475,25 @@ const spread = (children: Children): ReactNode[] =>
 
 export const ui: {
   Frame: Factory<Omit<FrameProps, "children">>;
-  Text: Factory<Omit<TextProps, "children">>;
+  Text: TextFactory;
   Image: Factory<ImageProps>;
   Input: Factory<InputProps>;
 } = {
   Frame: (props, children) =>
     createElement(Frame, props as FrameProps, ...spread(children)),
-  Text: (props, children) => createElement(Text, props as TextProps, ...spread(children)),
+  /**
+   * Rich copy becomes a prop; everything else stays positional children.
+   *
+   * `spread` treats an array as a list of siblings, and a run list *is* an
+   * array — so without this the runtime would hand React a bare `{ text: … }`
+   * object as a child and throw. Deciding it here rather than in the emitter is
+   * what keeps `ui.Text(props, t(key))` the only call there has ever been, so
+   * an artifact compiled before any of this existed still runs.
+   */
+  Text: (props, children) =>
+    isRuns(children)
+      ? createElement(Text, { ...(props as TextProps), runs: children })
+      : createElement(Text, props as TextProps, ...spread(children)),
   Image: (props) => createElement(Image, props as ImageProps),
   Input: (props) => createElement(Input, props as InputProps),
 };

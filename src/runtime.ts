@@ -105,7 +105,17 @@ export { TREE_SCHEMA, compileToTree, emitScreenTree } from "./runtime/compiler/t
  * this unchanged and only the drawing differs.
  */
 export type { ActionContext, ConditionState } from "./runtime/interpret";
-export { evaluate, run } from "./runtime/interpret";
+export { evaluate, run, showPresentation } from "./runtime/interpret";
+
+/**
+ * Copy that carries its own emphasis.
+ *
+ * Pure data and pure readers — no React, so this sits in the server-safe entry
+ * beside the compiler that writes it and the interpreter that reads it. The
+ * two renderers pick it up through their own entries.
+ */
+export type { RichText, TextLink, TextMarks, TextRun } from "./runtime/rich-text";
+export { isRuns, normalizeRuns, plainOf, runsOf } from "./runtime/rich-text";
 
 export type { RequestOptions } from "./runtime/request";
 

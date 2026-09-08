@@ -26,6 +26,9 @@ import {
 } from "../funnel-core";
 import { chooseMode, tokensForVariant } from "../style/tokens";
 import { chooseVariant } from "../variant";
+import { showPresentation } from "../interpret";
+import { TextLinkProvider } from "../link-context";
+import type { RichText, TextLink } from "../rich-text";
 import { configureTokens, ui } from "./bricks";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
@@ -53,7 +56,14 @@ export type NativeFunnelProps = {
   variant?: string | null;
   screens: Record<string, NativeScreenModule>;
   components?: Record<string, Component>;
-  locale?: Record<string, string>;
+  /**
+   * The copy table the artifact carries, by key.
+   *
+   * A value may be a plain string or a list of runs — see `RichText`. Both are
+   * accepted forever: an artifact published before emphasis existed carries
+   * strings, and a host that has never formatted anything keeps sending them.
+   */
+  locale?: Record<string, RichText>;
   /** Absent disables persistence — preview must not leave answers behind. */
   persist?: { funnelId: string | number; version: string };
   /** Platform mechanics. App-wide, never per design. */
@@ -134,12 +144,27 @@ export function Funnel({
 
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 
+  /**
+   * Following a link inside a line of copy.
+   *
+   * The same call a `show` action makes, through the same presentation mapping
+   * — see `showPresentation`. A link and a button pointing at one screen have
+   * to arrive the same way, or a privacy notice opens as a sheet from the
+   * button and full-screen from the sentence above it.
+   */
+  const follow = useCallback(
+    (link: TextLink) => navigator.show(link.target, showPresentation(link)),
+    [navigator],
+  );
+
+
   return (
     // Provided here rather than expected from the app: a funnel that renders
     // without insets because someone forgot a provider is a funnel with its
     // first line of text under the notch.
     <SafeAreaProvider>
       <FunnelContext.Provider value={services}>
+      <TextLinkProvider value={follow}>
         <ScreenHost presentation={presentation} host={host}>
           {Screen ? <Screen {...services} /> : null}
         </ScreenHost>
@@ -156,6 +181,7 @@ export function Funnel({
             </Overlay>
           );
         })}
+      </TextLinkProvider>
       </FunnelContext.Provider>
     </SafeAreaProvider>
   );

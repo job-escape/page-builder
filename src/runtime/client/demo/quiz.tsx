@@ -13,6 +13,7 @@
  */
 import type { ScreenModule, ScreenProps } from "../funnel";
 import type { VariableDecl } from "../../types";
+import { plainOf, type RichText } from "../../rich-text";
 
 export const variables: VariableDecl[] = [
   { name: "goal", type: "string" },
@@ -55,7 +56,7 @@ function option(
   { ui, state }: ScreenProps,
   question: string,
   value: string,
-  label: string,
+  label: RichText,
   onPick?: () => void,
 ) {
   const selected = state.has(question, value);
@@ -75,7 +76,8 @@ function option(
       disabled: unavailable,
       role: "radio",
       ariaChecked: selected,
-      ariaLabel: label,
+      // An assistive technology is read a name, not a style — see `plainOf`.
+      ariaLabel: plainOf(label),
       testId: `option-${value}`,
       onClick: () => {
         state.select(question, value);
@@ -100,7 +102,7 @@ const GoalScreen: ScreenModule = (props) => {
   const { ui, t, state, nav } = props;
   return shell(props, [
     ui.Text({ size: 26, weight: 700, color: "#18181b", lineHeight: 32 }, t("s_goal.title")),
-    ui.Frame({ layout: "column", gap: 12, role: "radiogroup", ariaLabel: t("s_goal.title") }, [
+    ui.Frame({ layout: "column", gap: 12, role: "radiogroup", ariaLabel: plainOf(t("s_goal.title")) }, [
       option(props, "goal", "lose_weight", t("s_goal.o1"), () => nav.show("s_gear")),
       option(props, "goal", "build_muscle", t("s_goal.o2"), () => nav.show("s_gear")),
       option(props, "goal", "stay_healthy", t("s_goal.o3"), () => nav.show("s_gear")),
@@ -119,7 +121,7 @@ const GearScreen: ScreenModule = (props) => {
       ui.Text({ size: 26, weight: 700, color: "#18181b", lineHeight: 32 }, t("s_gear.title")),
       ui.Text({ size: 14, color: "#71717a" }, `${t("s_gear.hint")} · ${state.count("equipment")}/3`),
     ]),
-    ui.Frame({ layout: "column", gap: 12, role: "group", ariaLabel: t("s_gear.title") }, [
+    ui.Frame({ layout: "column", gap: 12, role: "group", ariaLabel: plainOf(t("s_gear.title")) }, [
       option(props, "equipment", "bands", t("s_gear.o1")),
       option(props, "equipment", "mat", t("s_gear.o2")),
       option(props, "equipment", "dumbbells", t("s_gear.o3")),

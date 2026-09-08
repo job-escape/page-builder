@@ -33,6 +33,9 @@ import {
   type FunnelServices,
 } from "../funnel-core";
 import { configureRequests, request } from "../request";
+import { showPresentation } from "../interpret";
+import { TextLinkProvider } from "../link-context";
+import type { RichText, TextLink } from "../rich-text";
 import { tokenCustomProperties } from "../style/emit-css";
 import { tokensForVariant } from "../style/tokens";
 import { chooseVariant, readVariant, writeVariant } from "../variant";
@@ -50,7 +53,14 @@ export type FunnelProps = {
   manifest: FunnelManifest;
   screens: Record<string, ScreenModule>;
   components?: Record<string, (props: never) => ReactNode>;
-  locale?: Record<string, string>;
+  /**
+   * The copy table the artifact carries, by key.
+   *
+   * A value may be a plain string or a list of runs — see `RichText`. Both are
+   * accepted forever: an artifact published before emphasis existed carries
+   * strings, and a host that has never formatted anything keeps sending them.
+   */
+  locale?: Record<string, RichText>;
   /** Absent disables persistence — preview must not leave answers behind. */
   persist?: { funnelId: string | number; version: string };
   /**
@@ -212,8 +222,22 @@ export function Funnel({
   // keeps the import graph honest for anything reading this file alone.
   void request;
 
+  /**
+   * Following a link inside a line of copy.
+   *
+   * The same call a `show` action makes, through the same presentation mapping
+   * — see `showPresentation`. A link and a button pointing at one screen have
+   * to arrive the same way, or a privacy notice opens as a sheet from the
+   * button and full-screen from the sentence above it.
+   */
+  const follow = useCallback(
+    (link: TextLink) => navigator.show(link.target, showPresentation(link)),
+    [navigator],
+  );
+
   const body = (
     <FunnelContext.Provider value={services}>
+    <TextLinkProvider value={follow}>
       {/* The screen's own surface. Overlays get their own, from `Overlay`. */}
       <ScreenHost presentation={presentation}>
         {Screen ? <Screen {...services} /> : null}
@@ -231,6 +255,7 @@ export function Funnel({
           </Overlay>
         );
       })}
+    </TextLinkProvider>
     </FunnelContext.Provider>
   );
 

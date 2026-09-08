@@ -120,6 +120,33 @@ export function evaluate(condition: SourceCondition, state: ConditionState): boo
  * before a `show` has to happen before the navigation, and firing them together
  * would make the order a race.
  */
+/**
+ * How a `show` presents its screen — the four fields, or nothing at all.
+ *
+ * Lifted out of the switch because a text link says the same thing: a run
+ * carrying `link` navigates exactly as a button carrying a `show` action does,
+ * and the two reading the same fields through different code is how a link ends
+ * up opening full-screen where the button opened a sheet. `TextLink` is
+ * deliberately shaped to fit here.
+ *
+ * `undefined` rather than an empty object when nothing is set, because that is
+ * what `nav.show` reads as "however this screen presents itself" — an empty
+ * object would be an explicit answer of "no overlay" and would flatten one.
+ */
+export function showPresentation(link: {
+  as?: "replace" | "overlay";
+  position?: "center" | "bottom" | "top" | "side";
+  dim?: boolean;
+  closeOnOutside?: boolean;
+}): Record<string, unknown> | undefined {
+  const presentation: Record<string, unknown> = {};
+  if (link.as) presentation.as = link.as;
+  if (link.position) presentation.position = link.position;
+  if (link.dim !== undefined) presentation.dim = link.dim;
+  if (link.closeOnOutside !== undefined) presentation.closeOnOutside = link.closeOnOutside;
+  return Object.keys(presentation).length ? presentation : undefined;
+}
+
 export async function run(actions: SourceAction[], ctx: ActionContext): Promise<void> {
   for (const action of actions) {
     switch (action.type) {
@@ -136,15 +163,7 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         break;
 
       case "show": {
-        const presentation: Record<string, unknown> = {};
-        if (action.as) presentation.as = action.as;
-        if (action.position) presentation.position = action.position;
-        if (action.dim !== undefined) presentation.dim = action.dim;
-        if (action.closeOnOutside !== undefined) presentation.closeOnOutside = action.closeOnOutside;
-        ctx.nav.show(
-          action.target,
-          Object.keys(presentation).length ? presentation : undefined,
-        );
+        ctx.nav.show(action.target, showPresentation(action));
         break;
       }
 

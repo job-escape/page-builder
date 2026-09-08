@@ -18,6 +18,7 @@ import { createFunnelStore, type FunnelStore } from "./store";
 import type { VariableDecl, VariableTable } from "./types";
 import type { ScreenPresentation } from "./compiler/manifest";
 import type { ResolvedTokens } from "./style/tokens";
+import type { RichText } from "./rich-text";
 
 export type FunnelNav = {
   show: (target: string, presentation?: Presentation) => void;
@@ -69,8 +70,15 @@ export type FunnelServices<Ui, Component> = {
   ui: Ui;
   /** Design components — compositions the designer saved. */
   c: Record<string, Component>;
-  /** Locale lookup. Every user-visible string is a key. */
-  t: (key: string) => string;
+  /**
+   * Locale lookup. Every user-visible string is a key.
+   *
+   * Answers `RichText`, which is a `string` for every key that carries no
+   * emphasis — so a screen module that does nothing but hand this to
+   * `ui.Text` is unchanged, and so is every artifact that has ever been
+   * published. See `runtime/rich-text`.
+   */
+  t: (key: string) => RichText;
   state: FunnelStore;
   nav: FunnelNav;
   /** The one call a compiled screen makes to a backend. A name, never a URL. */
@@ -82,7 +90,7 @@ export type FunnelCoreOptions<Ui, Component> = {
   known: ReadonlySet<string>;
   ui: Ui;
   components: Record<string, Component>;
-  locale: Record<string, string>;
+  locale: Record<string, RichText>;
   persist?: { funnelId: string | number; version: string };
   onUnknown?: (kind: "variable" | "target" | "key", name: string) => void;
   /**
