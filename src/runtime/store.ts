@@ -139,8 +139,32 @@ export function createFunnelStore(options: FunnelStoreOptions) {
 
   /** Report a change, unless the declaration says it is nobody else's business. */
   function reportChange(decl: VariableDecl, name: string): void {
-    if (decl.sensitive) return;
+    // A screen's own state is not something the visitor said — see
+    // `VariableDecl.screen` — so it is no more an event than an email is.
+    if (decl.sensitive || decl.screen) return;
     options.onChange?.(name, values[name] ?? null);
+  }
+
+  /**
+   * A screen was left: its own state goes back to how it was designed.
+   *
+   * Only the variables that declared this screen — see `VariableDecl.screen`.
+   * Not persisted and not reported, because neither ever happened for them.
+   */
+  function forgetScreen(screen: string): void {
+    const initial = initialState(table);
+    const next = { ...values };
+    let changed = false;
+    Object.values(table).forEach((decl) => {
+      if (decl.screen !== screen) return;
+      const value = initial[decl.name] ?? null;
+      if (same(next[decl.name], value)) return;
+      next[decl.name] = value;
+      changed = true;
+    });
+    if (!changed) return;
+    values = next;
+    notify();
   }
 
   function set(name: string, value: VariableValue): void {
@@ -273,6 +297,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     check,
     call,
     compare,
+    forgetScreen,
     status,
     setStatus,
     subscribe,

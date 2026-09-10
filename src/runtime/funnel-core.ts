@@ -182,9 +182,12 @@ export function useFunnelRuntime<Ui, Component>({
           // to state belonging to a screen nobody is on.
           owned.current.get(screen)?.forEach((cancel) => cancel());
           owned.current.delete(screen);
+          // And what it set about itself — a button left on Loading, an error
+          // left up — goes back to how it was designed for the next visit.
+          store.forgetScreen(screen);
         },
       }),
-    [manifest.entry, manifest.overlayDefaults, known, onUnknown],
+    [manifest.entry, manifest.overlayDefaults, known, onUnknown, store],
   );
 
   const navState = useSyncExternalStore(navigator.subscribe, navigator.state, navigator.state);

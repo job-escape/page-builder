@@ -78,7 +78,8 @@ export function serialize(
   const answers: Record<string, VariableValue> = {};
 
   Object.values(table).forEach((decl) => {
-    if (decl.sensitive) return;
+    // A screen's own state is not an answer — see `VariableDecl.screen`.
+    if (decl.sensitive || decl.screen) return;
     const value = state[decl.name];
     if (value === undefined) return;
     answers[decl.name] = value;
@@ -118,7 +119,7 @@ export function deserialize(
   const restored: Record<string, VariableValue> = {};
   Object.entries(stored.a).forEach(([name, value]) => {
     const decl = table[name];
-    if (!decl || decl.sensitive) return;
+    if (!decl || decl.sensitive || decl.screen) return;
     if (!matchesDecl(decl, value)) return;
     restored[name] = value as VariableValue;
   });

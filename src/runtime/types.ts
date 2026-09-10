@@ -40,6 +40,16 @@ export type VariableDecl = {
    * funnels is far harder than declaring it now.
    */
   sensitive?: boolean;
+  /**
+   * The screen this belongs to, for a value that is the *screen's* state rather
+   * than an answer — which variant a button is showing, whether an error is up.
+   *
+   * Forgotten when the visitor leaves that screen, so coming back finds it as
+   * designed rather than frozen mid-submit; never kept in the cookie, because a
+   * "Loading" restored on the next visit would be a spinner for nothing; and
+   * never reported, because it is not something the visitor said.
+   */
+  screen?: string;
 };
 
 /** Declarations by name, as the runtime holds them after reading the manifest. */
