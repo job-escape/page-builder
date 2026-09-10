@@ -19,6 +19,7 @@ import {
   isCaseBinding,
   type SourceAction,
   type SourceCondition,
+  type SourceValue,
   type SourceFunnel,
   type SourceScreen,
   type SourceScreenPresentation,
@@ -167,6 +168,26 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
   return { next: [...next].sort(), overlays: [...overlays].sort() };
 }
 
+/** The variables and visitor facts a function's value reads. */
+function namesInValue(value: SourceValue, variables: Set<string>, facts: Set<string>): void {
+  if ("var" in value) {
+    if (value.var) variables.add(value.var);
+    return;
+  }
+  if ("visitor" in value) {
+    if (value.visitor) facts.add(value.visitor);
+    return;
+  }
+  if ("fn" in value) value.args.forEach((arg) => namesInValue(arg, variables, facts));
+}
+
+/** Every value a function or comparison leaf reads. */
+function valuesOf(condition: SourceCondition): SourceValue[] {
+  if (condition.op === "fn") return condition.args;
+  if (condition.op === "cmp") return [condition.left, condition.right];
+  return [];
+}
+
 function variablesInCondition(condition: SourceCondition, into: Set<string>): void {
   switch (condition.op) {
     // Not a variable. A visitor fact is read off the host rather than out of
@@ -174,6 +195,10 @@ function variablesInCondition(condition: SourceCondition, into: Set<string>): vo
     // store has no declaration for — which is exactly what `onUnknown` reports
     // as a compiler bug. It is collected by `visitorFactsInCondition` instead.
     case "visitor":
+      return;
+    case "fn":
+    case "cmp":
+      valuesOf(condition).forEach((value) => namesInValue(value, into, new Set()));
       return;
     case "not":
       variablesInCondition(condition.of, into);
@@ -205,6 +230,10 @@ function visitorFactsInCondition(condition: SourceCondition, into: Set<string>):
   switch (condition.op) {
     case "visitor":
       if (condition.property) into.add(condition.property);
+      return;
+    case "fn":
+    case "cmp":
+      valuesOf(condition).forEach((value) => namesInValue(value, new Set(), into));
       return;
     case "not":
       visitorFactsInCondition(condition.of, into);

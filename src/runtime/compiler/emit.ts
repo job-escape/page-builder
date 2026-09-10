@@ -28,7 +28,9 @@ import {
   type SourceFrame,
   type SourceFunnel,
   type SourceScreen,
+  type SourceValue,
 } from "./source";
+import { actionsFor } from "./tree";
 
 export type CompiledFunnel = {
   manifest: FunnelManifest;
@@ -38,6 +40,21 @@ export type CompiledFunnel = {
 
 /** JSON is the safe encoder for every literal the editor can produce. */
 const lit = (value: unknown): string => JSON.stringify(value ?? null);
+
+/**
+ * A value a function reads, as the expression that reads it.
+ *
+ * Helper calls again, for the reason every operator is one: `state.call` and
+ * `state.visitorValue` are the store's, so what `length` counts is decided in
+ * page-builder rather than frozen into each published module.
+ */
+function emitValue(value: SourceValue): string {
+  if ("var" in value) return `state.get(${lit(value.var)})`;
+  if ("lit" in value) return lit(value.lit);
+  if ("visitor" in value) return `state.visitorValue(${lit(value.visitor)})`;
+  if ("fn" in value) return `state.call(${lit(value.fn)}, [${value.args.map(emitValue).join(", ")}])`;
+  return "null";
+}
 
 /** A condition becomes a helper call — never an inlined JS operator (§9.8a). */
 export function emitCondition(condition: SourceCondition): string {
@@ -75,6 +92,10 @@ export function emitCondition(condition: SourceCondition): string {
       if (condition.cmp === "neq") return `!state.visitorEq(${property}, ${lit(condition.value)})`;
       return `state.visitorHas(${property}, ${lit(condition.value)})`;
     }
+    case "fn":
+      return `state.check(${lit(condition.fn)}, [${condition.args.map(emitValue).join(", ")}])`;
+    case "cmp":
+      return `state.compare(${emitValue(condition.left)}, ${lit(condition.cmp)}, ${emitValue(condition.right)})`;
     case "not":
       return `!(${emitCondition(condition.of)})`;
     case "and":
@@ -177,12 +198,22 @@ function awaits(actions: SourceAction[]): boolean {
   });
 }
 
+/** The tap's handler — `click`, or an interaction written before events existed. */
 function emitHandler(frame: SourceFrame, indent: string): string | null {
-  const actions = frame.interactions?.flatMap((interaction) => interaction.do) ?? [];
+  const actions = actionsFor(frame, "click");
   if (actions.length === 0) return null;
   const body = actions.map((action) => emitAction(action, `${indent}    `)).join("\n");
   const arrow = awaits(actions) ? "async () =>" : "() =>";
   return `${indent}  onClick: ${arrow} {\n${body}\n${indent}  },`;
+}
+
+/** A field's leave handler, as a prop line, or nothing. */
+function emitLeave(frame: SourceFrame, indent: string): string[] {
+  const actions = actionsFor(frame, "leave");
+  if (actions.length === 0) return [];
+  const body = actions.map((action) => emitAction(action, `${indent}    `)).join(NL);
+  const arrow = awaits(actions) ? "async () =>" : "() =>";
+  return [`${indent}  onLeave: ${arrow} {`, body, `${indent}  },`];
 }
 
 /**
@@ -250,11 +281,23 @@ function emitDrawnFrame(frame: SourceFrame, all: SourceFrame[], depth: number): 
     // Bound both ways to the declared variable: the value the visitor sees is
     // the answer the funnel holds, so navigating away and back keeps it.
     const variable = lit(frame.variable ?? "");
+    // What a keystroke also runs, after the answer is written — so a check on
+    // change reads what was just typed. See `tree-screen` for the same order.
+    const change = actionsFor(frame, "change");
+    const onValue = change.length
+      ? [
+          `${indent}  onValue: ${awaits(change) ? "async " : ""}(next) => {`,
+          `${indent}    state.set(${variable}, next);`,
+          change.map((action) => emitAction(action, `${indent}    `)).join(NL),
+          `${indent}  },`,
+        ]
+      : [`${indent}  onValue: (next) => state.set(${variable}, next),`];
     return [
       `${indent}ui.Input({`,
       emitProps(frame, indent),
       `${indent}  value: String(state.get(${variable}) ?? ""),`,
-      `${indent}  onValue: (next) => state.set(${variable}, next),`,
+      ...onValue,
+      ...emitLeave(frame, indent),
       `${indent}})`,
     ].join(NL);
   }

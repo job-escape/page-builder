@@ -28,6 +28,7 @@ import type {
   SourceAction,
   SourceBinding,
   SourceCondition,
+  SourceEvent,
   SourceFrame,
   SourceFunnel,
   SourceScreen,
@@ -45,7 +46,7 @@ import type {
  * know; a removal moves the major and a reader must refuse. A published artifact
  * outlives the app binary that reads it, in both directions.
  */
-export const TREE_SCHEMA = "1.0";
+export const TREE_SCHEMA = "1.1";
 
 type TreeNodeBase = {
   id: string;
@@ -67,10 +68,18 @@ type TreeNodeBase = {
    *
    * Flattened from `interactions` because `emitHandler` flattens too — one
    * handler per node, every action in order. Doing it here rather than in each
-   * renderer is one less thing two platforms can do differently, and there is
-   * exactly one event today.
+   * renderer is one less thing two platforms can do differently.
+   *
+   * The tap only — `click`, or an interaction written before events existed.
    */
   on?: SourceAction[];
+  /**
+   * A field's other two events: every keystroke, and leaving it. Beside `on`
+   * rather than folded into it, so a 1.0 reader — which ignores keys it does
+   * not know — keeps treating a field exactly as it always did.
+   */
+  onChange?: SourceAction[];
+  onLeave?: SourceAction[];
 };
 
 export type TreeNode =
@@ -98,8 +107,19 @@ function childrenOf(frame: SourceFrame, all: SourceFrame[]): SourceFrame[] {
     .sort((a, b) => (a.pos ?? "").localeCompare(b.pos ?? ""));
 }
 
+/** A frame's actions for one event, in order. A missing event is a tap. */
+export function actionsFor(frame: SourceFrame, event: SourceEvent): SourceAction[] {
+  return (
+    frame.interactions
+      ?.filter((interaction) => (interaction.on?.event ?? "click") === event)
+      .flatMap((interaction) => interaction.do) ?? []
+  );
+}
+
 function baseOf(frame: SourceFrame): TreeNodeBase {
-  const actions = frame.interactions?.flatMap((interaction) => interaction.do) ?? [];
+  const actions = actionsFor(frame, "click");
+  const change = actionsFor(frame, "change");
+  const leave = actionsFor(frame, "leave");
 
   return {
     id: frame.id,
@@ -107,6 +127,8 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
     ...(frame.bindings && Object.keys(frame.bindings).length ? { bindings: frame.bindings } : {}),
     ...(frame.when ? { when: frame.when } : {}),
     ...(actions.length ? { on: actions } : {}),
+    ...(change.length ? { onChange: change } : {}),
+    ...(leave.length ? { onLeave: leave } : {}),
   };
 }
 

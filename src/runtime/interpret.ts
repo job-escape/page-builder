@@ -13,7 +13,8 @@
  * in the expensive sense either — the vocabulary is eleven conditions and six
  * actions, closed, so this is a switch, not a language.
  */
-import type { SourceAction, SourceCondition } from "./compiler/source";
+import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
+import { call, check, compare } from "./functions";
 import type { VariableValue } from "./types";
 import type { request } from "./request";
 
@@ -53,7 +54,23 @@ export type ConditionState = {
   visitorIsSet: (property: string) => boolean;
   visitorEq: (property: string, value: unknown) => boolean;
   visitorHas: (property: string, value: unknown) => boolean;
+  /**
+   * A visitor fact's raw value, for a function to read — `lower(visitor.os)`.
+   *
+   * Optional, so a host state written before functions existed still type-checks;
+   * without it a fact reads as unknown, which is what `visitorIsSet` says too.
+   */
+  visitorValue?: (property: string) => string | number | boolean | null;
 };
+
+/** A value a function or a comparison reads, resolved against the state. */
+export function valueOf(value: SourceValue, state: ConditionState): unknown {
+  if ("var" in value) return state.get(value.var);
+  if ("lit" in value) return value.lit;
+  if ("visitor" in value) return state.visitorValue?.(value.visitor) ?? null;
+  if ("fn" in value) return call(value.fn, value.args.map((arg) => valueOf(arg, state)));
+  return null;
+}
 
 export type ActionContext = {
   state: ConditionState & {
@@ -100,6 +117,15 @@ export function evaluate(condition: SourceCondition, state: ConditionState): boo
       if (condition.cmp === "eq") return state.visitorEq(condition.property, condition.value);
       if (condition.cmp === "neq") return !state.visitorEq(condition.property, condition.value);
       return state.visitorHas(condition.property, condition.value);
+    // The same functions the emitted module reaches through `state.check` and
+    // `state.compare` — one definition, two callers. See `runtime/functions`.
+    case "fn":
+      return check(
+        condition.fn,
+        condition.args.map((arg) => valueOf(arg, state)),
+      );
+    case "cmp":
+      return compare(valueOf(condition.left, state), condition.cmp, valueOf(condition.right, state));
     case "not":
       return !evaluate(condition.of, state);
     case "and":

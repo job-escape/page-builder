@@ -598,6 +598,8 @@ export type InputProps = {
   /** The declared variable this field reads from and writes to. */
   value?: string;
   onValue?: (next: string) => void;
+  /** The visitor moved on from the field — when a form checks what was typed. */
+  onLeave?: () => void;
   placeholder?: string;
   /**
    * Chooses the keyboard on a phone as much as the validation — `email` gets an
@@ -629,6 +631,7 @@ export type InputProps = {
 export function Input({
   value = "",
   onValue,
+  onLeave,
   placeholder,
   type = "text",
   invalid,
@@ -648,6 +651,7 @@ export function Input({
     <input
       value={value}
       onChange={(event) => onValue?.(event.target.value)}
+      onBlur={onLeave}
       placeholder={placeholder}
       type={type}
       // Announced, because the placeholder disappears the moment anyone types

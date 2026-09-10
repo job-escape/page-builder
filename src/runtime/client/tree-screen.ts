@@ -82,12 +82,20 @@ function renderNode(node: TreeNode, props: ScreenProps): ReactNode {
 
   if (node.kind === "input") {
     const { variable } = node;
+    const context = { state: props.state, nav: props.nav, req: props.req };
+    const { onChange, onLeave } = node;
     return props.ui.Input({
       ...resolved,
       // Bound both ways to the declared variable: what the visitor sees is what
       // the funnel holds, so navigating away and back keeps it.
       value: String(props.state.get(variable) ?? ""),
-      onValue: (next: string) => props.state.set(variable, next),
+      // The answer is written first, so a check the field runs on change reads
+      // what was just typed rather than the keystroke before it.
+      onValue: (next: string) => {
+        props.state.set(variable, next);
+        if (onChange?.length) void run(onChange, context);
+      },
+      ...(onLeave?.length ? { onLeave: (): void => void run(onLeave, context) } : {}),
     } as never);
   }
 

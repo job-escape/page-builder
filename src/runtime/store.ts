@@ -16,6 +16,7 @@
  * negligible at funnel scale, and it removes the "lost the last answer" failure
  * that a debounce introduces when someone navigates during the window.
  */
+import { call, check, compare } from "./functions";
 import * as persistence from "./persistence";
 import type { PersistenceOptions } from "./persistence";
 import type { VariableDecl, VariableTable, VariableValue } from "./types";
@@ -263,6 +264,15 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     visitorIsSet,
     visitorEq,
     visitorHas,
+    visitorValue,
+    /**
+     * The condition functions, for emitted code to call — `state.check(...)`.
+     * The same ones `evaluate` calls, so the two renderers cannot disagree about
+     * what `validEmail` accepts. See `runtime/functions`.
+     */
+    check,
+    call,
+    compare,
     status,
     setStatus,
     subscribe,

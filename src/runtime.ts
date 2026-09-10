@@ -67,15 +67,23 @@ export type {
 export { createNavigator } from "./runtime/navigation";
 
 export type {
+  CheckFunction,
+  Comparison,
   SourceAction,
   SourceBinding,
   SourceCondition,
+  SourceEvent,
   SourceFrame,
   SourceFunnel,
   SourceInteraction,
   SourceScreen,
   SourceScreenPresentation,
+  SourceValue,
+  ValueFunction,
 } from "./runtime/compiler/source";
+
+/** The functions a condition may call — one definition for both renderers. */
+export { call, check, compare } from "./runtime/functions";
 
 export type { CompiledFunnel } from "./runtime/compiler/emit";
 export { compile, emitCondition, emitScreen } from "./runtime/compiler/emit";
@@ -105,7 +113,7 @@ export { TREE_SCHEMA, compileToTree, emitScreenTree } from "./runtime/compiler/t
  * this unchanged and only the drawing differs.
  */
 export type { ActionContext, ConditionState } from "./runtime/interpret";
-export { evaluate, run, showPresentation } from "./runtime/interpret";
+export { evaluate, run, showPresentation, valueOf } from "./runtime/interpret";
 
 /**
  * Copy that carries its own emphasis.

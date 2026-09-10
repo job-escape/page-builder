@@ -403,6 +403,7 @@ const KEYBOARDS = {
 export function Input({
   value,
   onValue,
+  onLeave,
   placeholder,
   type = "text",
   invalid,
@@ -421,6 +422,7 @@ export function Input({
     <TextInput
       value={value}
       onChangeText={onValue}
+      onBlur={onLeave}
       placeholder={placeholder}
       keyboardType={KEYBOARDS[type]}
       autoCapitalize={type === "email" ? "none" : "sentences"}

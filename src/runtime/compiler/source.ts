@@ -12,6 +12,41 @@
  */
 import type { VariableDecl } from "../types";
 
+/**
+ * Something a function or a comparison reads.
+ *
+ * An answer, a literal, a fact about the visitor, or a value computed from one
+ * of those by a function the runtime knows. Data, never an expression: a
+ * published funnel is a public file read by two renderers, and a string of code
+ * in it would be a language each of them implements a little differently. The
+ * functions are a closed list (`runtime/functions`) and adding one is a release
+ * of this package, which is the point.
+ */
+export type SourceValue =
+  | { var: string }
+  | { lit: string | number | boolean | null }
+  | { visitor: string }
+  | { fn: ValueFunction; args: SourceValue[] };
+
+/** Functions that answer a value — `length(name)`. */
+export type ValueFunction = "length" | "count" | "lower" | "trim";
+
+/** Functions that answer yes or no — `validEmail(email)`. */
+export type CheckFunction =
+  | "validEmail"
+  | "validPhone"
+  | "validUrl"
+  | "isNumber"
+  | "isFilled"
+  | "isEmpty"
+  | "contains"
+  | "startsWith"
+  | "endsWith"
+  | "matches";
+
+/** How two values are compared. Ordering reads numbers, numeric text included. */
+export type Comparison = "eq" | "neq" | "lt" | "lte" | "gt" | "gte";
+
 /** A condition, as the editor stores it. Compiles to a helper call. */
 export type SourceCondition =
   | { op: "has"; variable: string; value: string }
@@ -46,6 +81,14 @@ export type SourceCondition =
       cmp: "eq" | "neq" | "has" | "isSet" | "isEmpty";
       value?: string | number | boolean;
     }
+  /**
+   * A check the runtime knows how to make — `validEmail(email)`,
+   * `contains(goal, "career")`. See `runtime/functions` for what each means,
+   * which is the one place it is decided.
+   */
+  | { op: "fn"; fn: CheckFunction; args: SourceValue[] }
+  /** Two values compared — `length(name) >= 2`, `age > 17`. */
+  | { op: "cmp"; cmp: Comparison; left: SourceValue; right: SourceValue }
   | { op: "not"; of: SourceCondition }
   | { op: "and"; of: SourceCondition[] }
   | { op: "or"; of: SourceCondition[] };
@@ -86,8 +129,18 @@ export type SourceAction =
       errorInto?: string;
     };
 
+/**
+ * What sets an interaction off.
+ *
+ * `click` is a tap, on anything. `change` and `leave` belong to a field: every
+ * keystroke, and the moment the visitor moves on from it — which is when a
+ * form checks what was typed. An event a frame cannot raise is simply never
+ * raised, so a `leave` on a picture does nothing rather than failing.
+ */
+export type SourceEvent = "click" | "change" | "leave";
+
 export type SourceInteraction = {
-  on: { event: "click" };
+  on: { event: SourceEvent };
   do: SourceAction[];
 };
 
