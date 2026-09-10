@@ -171,6 +171,15 @@ export function useFunnelRuntime<Ui, Component>({
   /** Cancellers registered by whatever a screen started — see `onLeaveScreen`. */
   const owned = useRef(new Map<string, Array<() => void>>());
 
+  /*
+    `persist` by value, never by identity. Hosts write it as a literal —
+    `persist={{ funnelId, version }}` — which is a new object every render, and
+    a store keyed on the object was rebuilt each time. Answers survived that,
+    being read back out of the cookie, but everything the store does not keep
+    did not: a screen's own state went, and a flow still running — an opening
+    step waiting two seconds — finished into a store nobody was drawing from.
+  */
+  const persistKey = persist ? `${persist.funnelId} ${persist.version}` : null;
   const store = useMemo(
     () =>
       createFunnelStore({
@@ -181,7 +190,7 @@ export function useFunnelRuntime<Ui, Component>({
         onChange: onAnswer,
       }),
     // A new store per funnel identity, not per render.
-    [table, persist, visitor, onUnknown, onAnswer],
+    [table, persistKey, visitor, onUnknown, onAnswer],
   );
 
   const navigator = useMemo(

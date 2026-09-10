@@ -77,3 +77,27 @@ it("drops what a wait was holding back once the visitor has left", async () => {
   });
   expect(screen.getByTestId("x")).toBeEmptyDOMElement();
 });
+
+it("keeps the store while the host re-renders with a new persist object", async () => {
+  // How the funnel app renders it: `persist` as a literal, and re-rendered
+  // while screens load — which is exactly while an opening wait is running.
+  const variables = [{ name: "x", type: "string" as const, screen: "a" }];
+  const enter = {
+    a: [
+      { type: "wait", seconds: 1 },
+      { type: "set", variable: "x", value: "kept" },
+    ] as SourceAction[],
+  };
+  const screens = { a: page("screen a", "b"), b: page("screen b") };
+  const { rerender } = render(
+    <Funnel manifest={{ entry: "a", variables, enter }} screens={screens} persist={{ funnelId: 7, version: "v1" }} />,
+  );
+  rerender(
+    <Funnel manifest={{ entry: "a", variables, enter }} screens={screens} persist={{ funnelId: 7, version: "v1" }} />,
+  );
+
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(1000);
+  });
+  expect(screen.getByTestId("x")).toHaveTextContent("kept");
+});
