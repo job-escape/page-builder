@@ -177,13 +177,25 @@ function emitAction(action: SourceAction, indent: string): string {
       });
       return lines.join("\n");
     }
+    case "wait": {
+      /*
+        Through `nav.wait`, which answers false once the screen this started on
+        has been left — and then the handler stops. `return` is the one
+        statement that leaves every enclosing `if` and `try` at once, which is
+        what "nothing after it runs" means in emitted code. A host too old to
+        have `nav.wait` waits on a plain timer rather than throwing.
+      */
+      const seconds = lit(Math.max(0, Number(action.seconds) || 0));
+      const timer = `new Promise((go) => setTimeout(() => go(true), ${seconds} * 1000))`;
+      return `${indent}if (!(await (nav.wait ? nav.wait(${seconds}) : ${timer}))) return;`;
+    }
     default:
       return `${indent}/* unsupported action */`;
   }
 }
 
 /**
- * Does this group reach a backend anywhere inside it?
+ * Does this group reach a backend, or wait, anywhere inside it?
  *
  * The handler has to be `async` if it does, and a submit is routinely nested
  * inside an `if` — a guard before the call is the normal shape. A plain arrow
@@ -192,7 +204,7 @@ function emitAction(action: SourceAction, indent: string): string {
  */
 function awaits(actions: SourceAction[]): boolean {
   return actions.some((action) => {
-    if (action.type === "submit") return true;
+    if (action.type === "submit" || action.type === "wait") return true;
     if (action.type === "conditional") return action.branches.some((branch) => awaits(branch.do));
     return false;
   });

@@ -77,7 +77,12 @@ export type ActionContext = {
     set: (name: string, value: VariableValue) => void;
     select: (name: string, value: string) => void;
   };
-  nav: { show: (target: string, presentation?: Record<string, unknown>) => void; close: () => void };
+  nav: {
+    show: (target: string, presentation?: Record<string, unknown>) => void;
+    close: () => void;
+    /** See `FunnelNav.wait`. Optional, so a host that has none still runs. */
+    wait?: (seconds: number) => Promise<boolean>;
+  };
   req: typeof request;
 };
 
@@ -173,7 +178,28 @@ export function showPresentation(link: {
   return Object.keys(presentation).length ? presentation : undefined;
 }
 
-export async function run(actions: SourceAction[], ctx: ActionContext): Promise<void> {
+/** Seconds as a timer can use them: never negative, never NaN. */
+const secondsOf = (value: unknown): number => Math.max(0, Number(value) || 0);
+
+/**
+ * A `wait`, through the host's `nav.wait` when it has one.
+ *
+ * A host built before waits existed still waits, on a plain timer, rather than
+ * skipping the pause and running what follows at once.
+ */
+function pause(ctx: ActionContext, seconds: number): Promise<boolean> {
+  if (ctx.nav.wait) return ctx.nav.wait(seconds);
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(true), seconds * 1000);
+  });
+}
+
+/**
+ * Resolves `false` when a `wait` found its screen gone — and then everything
+ * after it, in this list and in every list around it, is left undone. That is
+ * what the emitted `return` does, reached the same way.
+ */
+export async function run(actions: SourceAction[], ctx: ActionContext): Promise<boolean> {
   for (const action of actions) {
     switch (action.type) {
       case "select":
@@ -200,7 +226,7 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
           return !candidate.when || evaluate(candidate.when, ctx.state);
         });
         // eslint-disable-next-line no-await-in-loop
-        if (branch) await run(branch.do, ctx);
+        if (branch && !(await run(branch.do, ctx))) return false;
         break;
       }
 
@@ -219,17 +245,22 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
             ctx.state.set(variable, (response[field] ?? null) as VariableValue);
           });
           // eslint-disable-next-line no-await-in-loop
-          await run(action.onSuccess ?? [], ctx);
+          if (!(await run(action.onSuccess ?? [], ctx))) return false;
         } catch (failure) {
           if (action.errorInto) {
             const message = failure instanceof Error ? failure.message : String(failure);
             ctx.state.set(action.errorInto, message);
           }
           // eslint-disable-next-line no-await-in-loop
-          await run(action.onError ?? [], ctx);
+          if (!(await run(action.onError ?? [], ctx))) return false;
         }
         break;
       }
+
+      case "wait":
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await pause(ctx, secondsOf(action.seconds)))) return false;
+        break;
 
       default:
         // An action this build does not know is skipped, not thrown. A funnel
@@ -238,4 +269,5 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         break;
     }
   }
+  return true;
 }

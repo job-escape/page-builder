@@ -18,6 +18,8 @@ import type { VariableValue } from "./types";
 import { createFunnelStore, type FunnelStore } from "./store";
 import type { VariableDecl, VariableTable } from "./types";
 import type { ScreenPresentation } from "./compiler/manifest";
+import type { SourceAction } from "./compiler/source";
+import { run } from "./interpret";
 import type { ResolvedTokens } from "./style/tokens";
 import { interpolate, type CopyParams, type RichText } from "./rich-text";
 
@@ -27,6 +29,12 @@ export type FunnelNav = {
   back: () => boolean;
   canGoBack: () => boolean;
   state: () => NavigationState;
+  /**
+   * Resolves after `seconds` — `true` if the visitor is still on the screen it
+   * was asked from, `false` the moment they leave it, and then whatever was
+   * waiting does not go on. The whole meaning of a `wait` step.
+   */
+  wait: (seconds: number) => Promise<boolean>;
 };
 
 export type FunnelManifest = {
@@ -41,6 +49,12 @@ export type FunnelManifest = {
    * app can know the screen ids of every funnel it might render.
    */
   screens?: Record<string, ScreenPresentation>;
+  /**
+   * What each screen runs when it opens, by screen id — `ScreenIndex.enter`,
+   * forwarded by the host. Absent means nothing runs on opening anywhere, which
+   * is every funnel published before screens could.
+   */
+  enter?: Record<string, SourceAction[]>;
   /**
    * The design's palette, aliases already followed, by mode then dotted path.
    *
@@ -232,6 +246,32 @@ export function useFunnelRuntime<Ui, Component>({
       back: navigator.back,
       canGoBack: navigator.canGoBack,
       state: navigator.state,
+      /*
+        Owned by the screen underneath at the moment of asking — an overlay's
+        wait included, since closing an overlay leaves the visitor where they
+        were. Leaving that screen runs every canceller it owns (see
+        `onLeaveScreen`), which answers this one `false`.
+      */
+      wait: (seconds: number) =>
+        new Promise<boolean>((resolve) => {
+          const screen = navigator.state().screen;
+          const cancellers = owned.current.get(screen) ?? [];
+          owned.current.set(screen, cancellers);
+          const pending: { timer?: ReturnType<typeof setTimeout> } = {};
+          const stop = (): void => {
+            clearTimeout(pending.timer);
+            resolve(false);
+          };
+          cancellers.push(stop);
+          pending.timer = setTimeout(
+            () => {
+              const at = cancellers.indexOf(stop);
+              if (at >= 0) cancellers.splice(at, 1);
+              resolve(true);
+            },
+            Math.max(0, seconds) * 1000,
+          );
+        }),
     }),
     [navigator],
   );
@@ -240,6 +280,33 @@ export function useFunnelRuntime<Ui, Component>({
     () => ({ ui, c: components, t, state: store, nav, req: request }),
     [ui, components, t, store, nav],
   );
+
+  /*
+    A screen's opening steps, each time it opens — the entry on the first
+    render, then every screen navigated to, going back included. Keyed on the
+    screen id alone, with the rest read through a ref, so a new store or a new
+    manifest object does not re-open the screen the visitor is already on.
+  */
+  const opening = useRef({ enter: manifest.enter, services });
+  useEffect(() => {
+    opening.current = { enter: manifest.enter, services };
+  });
+  useEffect(() => {
+    const { enter, services: current } = opening.current;
+    const actions = enter?.[navState.screen];
+    if (actions?.length) {
+      void run(actions, { state: current.state, nav: current.nav, req: current.req });
+    }
+  }, [navState.screen]);
+
+  // Unmounted: nothing a screen started may go on writing to a funnel that is gone.
+  useEffect(() => {
+    const byScreen = owned.current;
+    return () => {
+      byScreen.forEach((cancellers) => cancellers.forEach((cancel) => cancel()));
+      byScreen.clear();
+    };
+  }, []);
 
   return { services, navState, navigator };
 }

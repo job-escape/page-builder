@@ -127,7 +127,17 @@ export type SourceAction =
       onError?: SourceAction[];
       /** Variable that receives the error message, so a screen can show it. */
       errorInto?: string;
-    };
+    }
+  /**
+   * Hold the rest of this list for a number of seconds.
+   *
+   * It belongs to the screen it started on. If the visitor has left that screen
+   * by the time it is up, nothing after it runs: a loader that waits and then
+   * moves on must not move somebody on from a screen they already left. The
+   * host's `nav.wait` is what knows, which is why this is a step and not a timer
+   * a renderer schedules for itself.
+   */
+  | { type: "wait"; seconds: number };
 
 /**
  * What sets an interaction off.
@@ -136,8 +146,12 @@ export type SourceAction =
  * keystroke, and the moment the visitor moves on from it — which is when a
  * form checks what was typed. An event a frame cannot raise is simply never
  * raised, so a `leave` on a picture does nothing rather than failing.
+ *
+ * `load` belongs to a screen's own frame: the moment the screen opens, every
+ * time it does. It travels in the manifest rather than in the screen — see
+ * `ScreenIndex.enter` — because opening is the funnel's moment, not a node's.
  */
-export type SourceEvent = "click" | "change" | "leave";
+export type SourceEvent = "click" | "change" | "leave" | "load";
 
 export type SourceInteraction = {
   on: { event: SourceEvent };

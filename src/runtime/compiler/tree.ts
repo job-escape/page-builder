@@ -46,7 +46,7 @@ import type {
  * know; a removal moves the major and a reader must refuse. A published artifact
  * outlives the app binary that reads it, in both directions.
  */
-export const TREE_SCHEMA = "1.1";
+export const TREE_SCHEMA = "1.2";
 
 type TreeNodeBase = {
   id: string;

@@ -59,6 +59,16 @@ export type ScreenIndex = {
    * every keystroke — survivable in a desktop browser, not on a phone.
    */
   reads: string[];
+  /**
+   * What runs when this screen opens: its own frame's `load` steps, in order.
+   *
+   * Here rather than in the screen module or its tree, because opening is a
+   * moment in the funnel and not something drawn — so one place, `funnel-core`,
+   * runs it for both artifacts on every platform, where two emitters each
+   * wiring an effect would be two answers to "when". Absent when the screen
+   * does nothing on opening, so a funnel without any publishes the same bytes.
+   */
+  enter?: SourceAction[];
 };
 
 export type FunnelManifest = {
@@ -166,6 +176,26 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
   );
 
   return { next: [...next].sort(), overlays: [...overlays].sort() };
+}
+
+/**
+ * A screen's opening steps — see `ScreenIndex.enter`.
+ *
+ * Read off its top-level frames, which is the screen itself: the frame a
+ * designer selects to say what happens when it opens. A `load` on something
+ * nested would be a frame appearing, which is a different question.
+ */
+function enterOf(screen: SourceScreen): { enter?: SourceAction[] } {
+  const enter = screen.frames
+    .filter((frame) => frame.parent === null)
+    .sort((a, b) => (a.pos ?? "").localeCompare(b.pos ?? ""))
+    .flatMap(
+      (frame) =>
+        frame.interactions
+          ?.filter((interaction) => interaction.on?.event === "load")
+          .flatMap((interaction) => interaction.do) ?? [],
+    );
+  return enter.length ? { enter } : {};
 }
 
 /** The variables and visitor facts a function's value reads. */
@@ -366,6 +396,7 @@ export function buildManifest(funnel: SourceFunnel): FunnelManifest {
       ...reachable(screen),
       reads: readsOf(screen),
       presentation: presentationOf(screen),
+      ...enterOf(screen),
     })),
   };
 }
