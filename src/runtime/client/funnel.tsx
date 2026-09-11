@@ -270,7 +270,9 @@ export function Funnel({
     <FunnelContext.Provider value={services}>
     <TextLinkProvider value={follow}>
       {/* The screen's own surface. Overlays get their own, from `Overlay`. */}
-      <ScreenHost presentation={presentation}>
+      {/* Keyed by the screen, so each arrival mounts a host that plays the
+          screen's entrance — see `ScreenHost`. */}
+      <ScreenHost key={navState.screen} presentation={presentation} direction={navState.direction}>
         {Screen ? <Screen {...services} /> : null}
       </ScreenHost>
       {navState.overlays.map((overlay) => {

@@ -15,19 +15,68 @@
  * own background at the notch and leave a white band above every coloured header
  * — which no designer asked for and none can see in the canvas.
  */
-import type { ReactNode } from "react";
-import { KeyboardAvoidingView, ScrollView, StatusBar, View, type ViewStyle } from "react-native";
+import { useEffect, useRef, type ReactNode } from "react";
+import {
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  ScrollView,
+  StatusBar,
+  View,
+  useWindowDimensions,
+  type ViewStyle,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ScreenPresentation } from "../compiler/manifest";
+import type { ScreenTransition } from "../compiler/source";
 import { resolveHost, type HostConfig } from "./host-config";
 
 export const DEFAULT_PRESENTATION: ScreenPresentation = {
   scroll: true,
   bleed: false,
   statusBar: "auto",
+  transition: "none",
   keyboard: false,
 };
+
+/**
+ * A screen's entrance, as a style on the view it arrives in — the web host's
+ * keyframes, spelled with `Animated` on the native driver. `none`, and any
+ * artifact older than transitions, is a plain view that never moves.
+ *
+ * Played once, when the host mounts: `<Funnel>` keys it by the screen, so it
+ * mounts on every navigation.
+ */
+function useEntrance(
+  transition: ScreenTransition | undefined,
+  direction: "forward" | "back",
+): Animated.WithAnimatedValue<ViewStyle> | null {
+  const moving = transition === "fade" || transition === "slide" || transition === "push";
+  const progress = useRef(new Animated.Value(moving ? 0 : 1)).current;
+  const { width } = useWindowDimensions();
+
+  useEffect(() => {
+    if (!moving) return;
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: transition === "push" ? 320 : 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    // Once per mount — a new screen is a new host.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!moving) return null;
+  const sign = direction === "back" ? -1 : 1;
+  if (transition === "fade") return { opacity: progress };
+  const distance = transition === "push" ? width : 24;
+  const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [sign * distance, 0] });
+  return transition === "push"
+    ? { transform: [{ translateX }] }
+    : { opacity: progress, transform: [{ translateX }] };
+}
 
 /**
  * Light text on a dark screen, dark on a light one.
@@ -61,14 +110,18 @@ export function ScreenHost({
   presentation,
   host,
   background,
+  direction = "forward",
   children,
 }: {
   presentation: ScreenPresentation;
   host?: Partial<HostConfig>;
   /** The screen's own background, for deriving the status bar. */
   background?: string;
+  /** Which way the visitor went to get here — a slide and a push reverse on back. */
+  direction?: "forward" | "back";
   children: ReactNode;
 }) {
+  const entrance = useEntrance(presentation.transition, direction);
   const config = resolveHost(host);
   const insets = useSafeAreaInsets();
   const edges = config.insetEdges;
@@ -106,8 +159,8 @@ export function ScreenHost({
 
   return (
     // Full bleed by construction: the background paints to every edge, and only
-    // the content is inset.
-    <View style={{ flex: 1 }}>
+    // the content is inset. Animated only when the screen has an entrance.
+    <Animated.View style={entrance ? [{ flex: 1 }, entrance] : { flex: 1 }}>
       <StatusBar barStyle={statusBarStyle(presentation, background)} />
       {presentation.keyboard ? (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={config.keyboardBehaviour}>
@@ -119,6 +172,6 @@ export function ScreenHost({
         // per frame for nothing.
         presentation.scroll ? scrolling : surface
       )}
-    </View>
+    </Animated.View>
   );
 }

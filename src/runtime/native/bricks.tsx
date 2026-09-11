@@ -19,7 +19,7 @@
  *   belongs to `contentContainerStyle`. Padding on the first does nothing and a
  *   height on the second breaks scrolling, so the computed style is split.
  */
-import { createElement, type ReactNode } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import {
   I18nManager,
   Image as RNImage,
@@ -193,6 +193,9 @@ function StrokeLayer({ stroke }: { stroke: NativeOverlayStroke }) {
 
 // ─── Frame ────────────────────────────────────────────────────────────────────
 
+/** The press every tappable brick answers with — see the web brick's `pressScale`. */
+const PRESSED = { transform: [{ scale: 0.97 }] };
+
 export function Frame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
   const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup);
   const style = { ...box.style, ...layoutOf(props as FrameProps) };
@@ -238,7 +241,13 @@ export function Frame({ children, onClick, disabled, scroll, states, ...props }:
       >
         {/* Pressable inside, never outside: a Pressable wrapping a ScrollView
             swallows the drag and the surface stops scrolling. */}
-        {onClick ? <Pressable onPress={onClick}>{inner}</Pressable> : inner}
+        {onClick ? (
+          <Pressable onPress={onClick} style={({ pressed }) => (pressed ? PRESSED : null)}>
+            {inner}
+          </Pressable>
+        ) : (
+          inner
+        )}
       </ScrollView>
     );
   }
@@ -246,10 +255,16 @@ export function Frame({ children, onClick, disabled, scroll, states, ...props }:
   if (onClick) {
     return (
       <Pressable
-        style={
-          pressedStyle
-            ? ({ pressed }) => (pressed ? { ...view, ...pressedStyle } : view) as ViewStyle
-            : (view as ViewStyle)
+        // Every tappable frame shrinks a little under a finger, over whatever
+        // pressed look the design drew — the web brick's `pressScale`.
+        style={({ pressed }) =>
+          (pressed
+            ? {
+                ...view,
+                ...pressedStyle,
+                transform: [...(((view as ViewStyle).transform as never[]) ?? []), ...PRESSED.transform],
+              }
+            : view) as ViewStyle
         }
         onPress={onClick}
         disabled={disabled}
@@ -319,6 +334,8 @@ export function Text({
   ...props
 }: TextProps) {
   const follow = useFollowLink();
+  // A tappable line of copy shrinks under a finger like a frame does.
+  const [pressed, setPressed] = useState(false);
   const fontSize = size ?? 16;
   const style: TextStyle = {
     fontSize,
@@ -364,8 +381,10 @@ export function Text({
 
   return (
     <RNText
-      style={style}
+      style={onClick && pressed ? [style, PRESSED] : style}
       onPress={onClick}
+      onPressIn={onClick ? () => setPressed(true) : undefined}
+      onPressOut={onClick ? () => setPressed(false) : undefined}
       role={onClick ? "button" : undefined}
       // The words without their emphasis: a screen reader is read a name, and
       // the marks are not part of one.

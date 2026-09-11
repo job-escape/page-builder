@@ -76,6 +76,7 @@ export type {
   SourceFrame,
   SourceFunnel,
   SourceInteraction,
+  ScreenTransition,
   SourceScreen,
   SourceScreenPresentation,
   SourceValue,

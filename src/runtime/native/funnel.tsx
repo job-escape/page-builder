@@ -184,7 +184,13 @@ export function Funnel({
     <SafeAreaProvider>
       <FunnelContext.Provider value={services}>
       <TextLinkProvider value={follow}>
-        <ScreenHost presentation={presentation} host={host}>
+        {/* Keyed by the screen, so each arrival plays its entrance. */}
+        <ScreenHost
+          key={navState.screen}
+          presentation={presentation}
+          host={host}
+          direction={navState.direction}
+        >
           {Screen ? <Screen {...services} /> : null}
         </ScreenHost>
         {navState.overlays.map((overlay) => {

@@ -8,7 +8,7 @@ describe("show — one verb, stacking is a parameter", () => {
   it("replaces the screen by default", () => {
     const n = nav();
     n.show("s_plan");
-    expect(n.state()).toEqual({ screen: "s_plan", overlays: [] });
+    expect(n.state()).toEqual({ screen: "s_plan", overlays: [], direction: "forward" });
   });
 
   it("keeps the screen mounted underneath an overlay", () => {
@@ -46,7 +46,7 @@ describe("show — one verb, stacking is a parameter", () => {
     const n = nav();
     n.show("d_confirm", { as: "overlay" });
     n.show("s_plan");
-    expect(n.state()).toEqual({ screen: "s_plan", overlays: [] });
+    expect(n.state()).toEqual({ screen: "s_plan", overlays: [], direction: "forward" });
   });
 });
 
@@ -56,7 +56,8 @@ describe("back", () => {
     n.show("d_confirm", { as: "overlay" });
 
     expect(n.back()).toBe(true);
-    expect(n.state()).toEqual({ screen: "s_goal", overlays: [] });
+    // Closing an overlay is not a move between screens: the direction stays.
+    expect(n.state()).toEqual({ screen: "s_goal", overlays: [], direction: "forward" });
   });
 
   it("unwinds a stack one overlay at a time", () => {
@@ -89,7 +90,7 @@ describe("back", () => {
     n.show("d_confirm", { as: "overlay" });
     n.show("s_plan");
     n.back();
-    expect(n.state()).toEqual({ screen: "s_goal", overlays: [] });
+    expect(n.state()).toEqual({ screen: "s_goal", overlays: [], direction: "back" });
   });
 });
 

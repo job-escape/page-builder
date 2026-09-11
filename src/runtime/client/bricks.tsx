@@ -98,6 +98,8 @@ const PointerState = createContext<BrickState>(NO_STATE);
  */
 function usePointerState(tracked: boolean): {
   at: BrickState;
+  /** This brick's own pointer, without what it inherits — what press-scale reads. */
+  own: BrickState;
   handlers: Record<string, (() => void) | undefined>;
 } {
   const inherited = useContext(PointerState);
@@ -108,10 +110,11 @@ function usePointerState(tracked: boolean): {
     press: own.press || inherited.press,
   };
 
-  if (!tracked) return { at: inherited, handlers: {} };
+  if (!tracked) return { at: inherited, own: NO_STATE, handlers: {} };
 
   return {
     at,
+    own,
     handlers: {
       onPointerEnter: () => setOwn((state) => ({ ...state, hover: true })),
       // Leaving clears the press too. A pointer that goes down on a button and
@@ -310,6 +313,27 @@ function groupKeys(role: BrickRole | undefined) {
   };
 }
 
+/**
+ * The press every tappable brick answers with: a slight shrink while the
+ * pointer is down on it, and back as it lifts.
+ *
+ * Its own press only — a button inside a pressed card does not shrink twice —
+ * and composed with whatever transform the design already set rather than
+ * replacing it. A brick nothing can tap is left exactly as it was drawn.
+ */
+function pressScale(
+  interactive: boolean,
+  pressed: boolean,
+  style: CSSProperties | undefined,
+): CSSProperties {
+  if (!interactive) return {};
+  const authored = style?.transform;
+  return {
+    transform: pressed ? [authored, "scale(0.97)"].filter(Boolean).join(" ") : authored,
+    transition: [style?.transition, "transform 120ms ease-out"].filter(Boolean).join(", "),
+  };
+}
+
 const pad = (value: FrameProps["padding"]): string | number | undefined => {
   if (value === undefined) return undefined;
   if (typeof value === "number") return value;
@@ -328,7 +352,7 @@ export function Frame(props: FrameProps) {
    * one, and a frame with a layer of its own needs to know. Everything else
    * inherits from whichever ancestor did listen, and pays nothing.
    */
-  const { at, handlers } = usePointerState(interactive || Boolean(states));
+  const { at, own, handlers } = usePointerState(interactive || Boolean(states));
   const {
     layout = "none",
     gap,
@@ -368,6 +392,7 @@ export function Frame(props: FrameProps) {
     // A frame that takes clicks must also take keys; see the handler below.
     userSelect: interactive ? "none" : undefined,
     ...style,
+    ...pressScale(interactive, own.press, style),
   };
 
   /**
@@ -536,9 +561,10 @@ export function Text(props: TextProps) {
    *
    * Words inside a hovered option are the common case and they are covered by
    * the frame's context — this only attaches listeners when the copy itself is
-   * clickable, or carries a layer nothing above it would publish.
+   * clickable, which is also when it shrinks under a press.
    */
-  const { at } = usePointerState(false);
+  const tappable = Boolean(onClick) && !disabled;
+  const { at, own, handlers } = usePointerState(tappable);
   const {
     size: fontSize,
     weight,
@@ -586,7 +612,9 @@ export function Text(props: TextProps) {
         cursor: interactive ? "pointer" : undefined,
         userSelect: interactive ? "none" : undefined,
         ...style,
+        ...pressScale(interactive, own.press, style),
       }}
+      {...handlers}
       {...interactionProps({ onClick, disabled, role, ariaLabel, ariaChecked, tabStop, testId })}
     >
       {spans ? spans.map((run, at) => runElement(run, at, follow)) : children}

@@ -32,6 +32,7 @@
           "scroll": true,
           "bleed": false,
           "statusBar": "auto",
+          "transition": "none",
           "keyboard": false
         }
       },
@@ -44,6 +45,7 @@
           "scroll": true,
           "bleed": false,
           "statusBar": "auto",
+          "transition": "none",
           "keyboard": false
         }
       },
@@ -62,6 +64,7 @@
           "scroll": true,
           "bleed": false,
           "statusBar": "auto",
+          "transition": "none",
           "keyboard": false
         }
       },
@@ -78,6 +81,7 @@
           "scroll": true,
           "bleed": false,
           "statusBar": "auto",
+          "transition": "none",
           "keyboard": false
         }
       }

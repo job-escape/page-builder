@@ -271,7 +271,19 @@ export type SourceScreenPresentation = {
    * worth overriding by hand.
    */
   statusBar?: "auto" | "light" | "dark";
+  /**
+   * How this screen arrives when it is navigated to — see `ScreenTransition`.
+   * Absent is `none`: the screen swaps at once, as every funnel did before.
+   */
+  transition?: ScreenTransition;
 };
+
+/**
+ * A screen's entrance. `fade` fades it in; `slide` moves it a short way and
+ * fades; `push` slides it in from the edge. Going back plays `slide` and `push`
+ * the other way, so a visitor can feel which way they went.
+ */
+export type ScreenTransition = "none" | "fade" | "slide" | "push";
 
 export type SourceScreen = {
   id: string;

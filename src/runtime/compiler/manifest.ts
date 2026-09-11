@@ -368,6 +368,9 @@ export function presentationOf(screen: SourceScreen): ScreenPresentation {
     scroll: authored.scroll ?? true,
     bleed: authored.bleed ?? false,
     statusBar: authored.statusBar ?? "auto",
+    // None unless a designer picked one: a funnel published before transitions
+    // existed must not start moving because its renderer learned how.
+    transition: authored.transition ?? "none",
     keyboard: screen.frames.some((frame) => frame.kind === "input"),
   };
 }

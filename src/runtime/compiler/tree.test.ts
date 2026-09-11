@@ -268,6 +268,7 @@ describe("how a screen behaves as a surface", () => {
       "keyboard",
       "scroll",
       "statusBar",
+      "transition",
     ]);
   });
 

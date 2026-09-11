@@ -31,6 +31,11 @@ export type NavigationState = {
   screen: string;
   /** Innermost last. Empty when nothing is open. */
   overlays: OverlayFrame[];
+  /**
+   * Which way the visitor last moved between screens — on, or back. A screen's
+   * entrance plays the other way on back, so a visitor can feel where they went.
+   */
+  direction: "forward" | "back";
 };
 
 export type NavigatorOptions = {
@@ -52,6 +57,7 @@ export function createNavigator(options: NavigatorOptions) {
 
   let screen = entry;
   let overlays: OverlayFrame[] = [];
+  let direction: NavigationState["direction"] = "forward";
   /** Screens visited, innermost last. Overlays are not history entries. */
   let history: string[] = [];
 
@@ -63,11 +69,11 @@ export function createNavigator(options: NavigatorOptions) {
    * every render and loops until React gives up with "maximum update depth
    * exceeded". The store keeps the same discipline for the same reason.
    */
-  let snapshot: NavigationState = { screen, overlays };
+  let snapshot: NavigationState = { screen, overlays, direction };
 
   const listeners = new Set<() => void>();
   const notify = () => {
-    snapshot = { screen, overlays };
+    snapshot = { screen, overlays, direction };
     listeners.forEach((listener) => listener());
   };
 
@@ -100,6 +106,7 @@ export function createNavigator(options: NavigatorOptions) {
     onLeaveScreen?.(screen);
     history = [...history, screen];
     screen = target;
+    direction = "forward";
     // Navigating dismisses whatever was open above the screen being left.
     overlays = [];
     notify();
@@ -124,6 +131,7 @@ export function createNavigator(options: NavigatorOptions) {
     onLeaveScreen?.(screen);
     screen = history[history.length - 1];
     history = history.slice(0, -1);
+    direction = "back";
     notify();
     return true;
   }
@@ -143,6 +151,7 @@ export function createNavigator(options: NavigatorOptions) {
     screen = entry;
     overlays = [];
     history = [];
+    direction = "forward";
     notify();
   }
 
