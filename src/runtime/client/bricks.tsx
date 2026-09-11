@@ -36,18 +36,31 @@ export type BrickRole = "button" | "radio" | "checkbox" | "group" | "radiogroup"
 export type Align = "start" | "center" | "end" | "stretch";
 export type Justify = "start" | "center" | "end" | "between";
 
-const ALIGN: Record<Align, string> = {
+/*
+  The runtime's words, and the CSS spellings of the same values beside them.
+  A design written with `justify: "space-between"` — which is what a model
+  reaching for flexbox writes — was drawn as though it said nothing, here and
+  in the native brick and on the canvas. The native brick reads the same
+  aliases, so the two renderers still agree.
+*/
+// Every runtime word, and room for the aliases beside them.
+const ALIGN: Record<Align, string> & Record<string, string> = {
   start: "flex-start",
   center: "center",
   end: "flex-end",
   stretch: "stretch",
+  "flex-start": "flex-start",
+  "flex-end": "flex-end",
 };
 
-const JUSTIFY: Record<Justify, string> = {
+const JUSTIFY: Record<Justify, string> & Record<string, string> = {
   start: "flex-start",
   center: "center",
   end: "flex-end",
   between: "space-between",
+  "space-between": "space-between",
+  "flex-start": "flex-start",
+  "flex-end": "flex-end",
 };
 
 /**

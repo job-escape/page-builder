@@ -97,3 +97,34 @@ describe("nativeSize", () => {
     expect(nativeSize(48, "height")).toEqual({ height: 48 });
   });
 });
+
+describe("nativeSize, told which way the parent flows", () => {
+  // A width set to fill inside a column was a height that grew and a width
+  // nobody set — the hero image of a quiz, collapsed to nothing.
+  it("stretches across a column rather than growing down it", () => {
+    expect(nativeSize("fill", "width", "column")).toEqual({ alignSelf: "stretch" });
+  });
+
+  it("grows along a column", () => {
+    expect(nativeSize("fill", "height", "column")).toEqual({
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+    });
+  });
+
+  it("grows along a row and stretches across it", () => {
+    expect(nativeSize("fill", "width", "row")).toEqual({ flexGrow: 1, flexShrink: 1, flexBasis: 0 });
+    expect(nativeSize("fill", "height", "row")).toEqual({ alignSelf: "stretch" });
+  });
+
+  it("is the whole parent when the parent does not flow", () => {
+    expect(nativeSize("fill", "width", "none")).toEqual({ width: "100%" });
+  });
+
+  it("carries the flow through a box", () => {
+    const { style } = nativeBox({ width: "fill", height: 120 }, {}, "column");
+    expect(style).toMatchObject({ alignSelf: "stretch", height: 120 });
+    expect(style.flexGrow).toBeUndefined();
+  });
+});

@@ -86,15 +86,37 @@ export function nativeRadius(radius: Radius): NativeStyle {
   };
 }
 
+/** Which way a frame lays its children out — what a child's `fill` is measured along. */
+export type Flow = "column" | "row" | "none";
+
 /**
  * `fill` grows into the space the parent offers; `hug` is the intrinsic size,
- * which in Yoga is simply saying nothing. Same rule as the web emitter, written
- * once in `flexForSize` so the two cannot drift.
+ * which in Yoga is simply saying nothing.
+ *
+ * **Along or across — the parent decides.** `fill` used to be `flex: 1` on
+ * whichever axis asked, and flex only ever acts along the parent's direction.
+ * So a width set to fill inside a column became a *height* that grew, beside a
+ * width nobody set: the hero image of a quiz collapsed to nothing, and the
+ * header, the content and the footer of a screen became three equal bands with
+ * the logo floating in the first. The web brick never had this — `100%` is a
+ * width there — so the app and the web drew the same design differently.
+ *
+ * Given the parent's `flow`: along it, flex; across it, `alignSelf: stretch`,
+ * which is Yoga's "as wide as the parent" and beats the parent's own
+ * `alignItems`; in a parent with no flow, `100%`. Without a flow the old answer
+ * stands, so a caller that has not been told draws what it always drew.
  */
-export function nativeSize(size: Size | undefined, axis: "width" | "height"): NativeStyle {
+export function nativeSize(
+  size: Size | undefined,
+  axis: "width" | "height",
+  flow?: Flow,
+): NativeStyle {
   if (size === undefined || size === "hug") return {};
-  if (size === "fill") return { flexGrow: 1, flexShrink: 1, flexBasis: 0 };
-  return { [axis]: size };
+  if (size !== "fill") return { [axis]: size };
+  if (flow === undefined) return { flexGrow: 1, flexShrink: 1, flexBasis: 0 };
+  if (flow === "none") return { [axis]: "100%" };
+  const along = (flow === "column") === (axis === "height");
+  return along ? { flexGrow: 1, flexShrink: 1, flexBasis: 0 } : { alignSelf: "stretch" };
 }
 
 /**
@@ -159,7 +181,12 @@ export type BoxValues = {
   height?: Size;
 };
 
-export function nativeBox(box: BoxValues, lookup: TokenLookup = {}): NativeBox {
+export function nativeBox(
+  box: BoxValues,
+  lookup: TokenLookup = {},
+  /** The parent's flow, which decides what `fill` means — see `nativeSize`. */
+  flow?: Flow,
+): NativeBox {
   const unsupported: string[] = [];
   let gradient: NativeGradient | undefined;
   const style: NativeStyle = {};
@@ -204,7 +231,11 @@ export function nativeBox(box: BoxValues, lookup: TokenLookup = {}): NativeBox {
   if (box.radius !== undefined) Object.assign(style, nativeRadius(box.radius));
   if (box.opacity !== undefined) style.opacity = box.opacity;
   if (box.padding) Object.assign(style, nativePadding(box.padding));
-  Object.assign(style, nativeSize(box.width, "width"), nativeSize(box.height, "height"));
+  Object.assign(
+    style,
+    nativeSize(box.width, "width", flow),
+    nativeSize(box.height, "height", flow),
+  );
 
   return {
     style,

@@ -19,7 +19,7 @@
  *   belongs to `contentContainerStyle`. Padding on the first does nothing and a
  *   height on the second breaks scrolling, so the computed style is split.
  */
-import { createElement, useState, type ReactNode } from "react";
+import { createContext, createElement, useContext, useState, type ReactNode } from "react";
 import {
   I18nManager,
   Image as RNImage,
@@ -61,10 +61,20 @@ import {
   nativeSize,
   type NativeGradient,
   type NativeOverlayStroke,
+  type Flow,
   type NativeStyle,
 } from "../style/emit-native";
 import type { TokenLookup } from "../style/tokens";
 import type { FrameProps, ImageProps, InputProps, TextProps } from "../client/bricks";
+
+/**
+ * Which way the frame a brick sits in lays its children out.
+ *
+ * What a `fill` is measured along — see `nativeSize`. Every `Frame` provides
+ * its own for its children; a brick with no frame above it (a screen's root)
+ * reads undefined and keeps the old answer.
+ */
+const FlowContext = createContext<Flow | undefined>(undefined);
 
 /**
  * Drawn by the host app, not imported here.
@@ -129,16 +139,41 @@ function splitForScroll(
   return { view, content };
 }
 
-function layoutOf(props: FrameProps): NativeStyle {
+/*
+  The runtime's words and the CSS spellings beside them — the web brick reads
+  the same, so a design stored with `space-between` spreads in both.
+*/
+const ALONG: Record<string, string> = {
+  start: "flex-start",
+  center: "center",
+  end: "flex-end",
+  stretch: "stretch",
+  "flex-start": "flex-start",
+  "flex-end": "flex-end",
+};
+const BETWEEN: Record<string, string> = {
+  start: "flex-start",
+  center: "center",
+  end: "flex-end",
+  between: "space-between",
+  "space-between": "space-between",
+  "flex-start": "flex-start",
+  "flex-end": "flex-end",
+};
+
+function layoutOf(props: FrameProps, flow?: Flow): NativeStyle {
   const style: NativeStyle = {};
   if (props.layout && props.layout !== "none") style.flexDirection = props.layout;
   if (props.gap !== undefined) style.gap = props.gap;
 
-  const along = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" };
-  const between = { start: "flex-start", center: "center", end: "flex-end", between: "space-between" };
-  if (props.align) style.alignItems = along[props.align];
-  if (props.justify) style.justifyContent = between[props.justify];
-  if (props.grow || flexForSize(props.width).grow) style.flexGrow = 1;
+  if (props.align && ALONG[props.align]) style.alignItems = ALONG[props.align];
+  if (props.justify && BETWEEN[props.justify]) style.justifyContent = BETWEEN[props.justify];
+  /*
+    A filling width only grows when its parent flows sideways — and with the
+    flow known, `nativeSize` already says so. Growing it regardless is what
+    made a width-fill frame in a column take a third of the screen's height.
+  */
+  if (props.grow || (flow === undefined && flexForSize(props.width).grow)) style.flexGrow = 1;
   return style;
 }
 
@@ -197,9 +232,13 @@ function StrokeLayer({ stroke }: { stroke: NativeOverlayStroke }) {
 const PRESSED = { transform: [{ scale: 0.97 }] };
 
 export function Frame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
-  const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup);
-  const style = { ...box.style, ...layoutOf(props as FrameProps) };
+  // The frame this one sits in — what its own `fill` is measured along.
+  const flow = useContext(FlowContext);
+  const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup, flow);
+  const style = { ...box.style, ...layoutOf(props as FrameProps, flow) };
   const { view, content } = splitForScroll(style, scroll);
+  /** The way this frame lays out its own children, handed down to them. */
+  const own: Flow = props.layout === "column" || props.layout === "row" ? props.layout : "none";
 
   /**
    * The pressed look, resolved once rather than while a finger is down.
@@ -218,8 +257,8 @@ export function Frame({ children, onClick, disabled, scroll, states, ...props }:
           ...(states.press as Record<string, unknown>),
         };
         return {
-          ...nativeBox(boxFromProps(merged), lookup).style,
-          ...layoutOf(merged as FrameProps),
+          ...nativeBox(boxFromProps(merged), lookup, flow).style,
+          ...layoutOf(merged as FrameProps, flow),
         };
       })()
     : null;
@@ -227,7 +266,7 @@ export function Frame({ children, onClick, disabled, scroll, states, ...props }:
   const inner = (
     <>
       {box.gradient ? <GradientLayer gradient={box.gradient} /> : null}
-      {children}
+      <FlowContext.Provider value={own}>{children}</FlowContext.Provider>
       {box.overlayStroke ? <StrokeLayer stroke={box.overlayStroke} /> : null}
     </>
   );
@@ -334,6 +373,8 @@ export function Text({
   ...props
 }: TextProps) {
   const follow = useFollowLink();
+  // The frame this line sits in — what its `fill` is measured along.
+  const flow = useContext(FlowContext);
   // A tappable line of copy shrinks under a finger like a frame does.
   const [pressed, setPressed] = useState(false);
   const fontSize = size ?? 16;
@@ -342,13 +383,14 @@ export function Text({
     /**
      * The box the words are aligned in — see `TextProps.width`.
      *
-     * Resolved through the same `nativeSize` the `Frame` brick uses, so a text
-     * frame set to fill is a flex child here for the same reason and by the
-     * same rule, and the two renderers agree about what the designer picked.
+     * Resolved through the same `nativeSize` the `Frame` brick uses, with the
+     * same parent flow, so a text frame set to fill spans its column rather
+     * than growing down it — and the two renderers agree about what the
+     * designer picked.
      */
-    ...(nativeSize(width, "width") as TextStyle),
-    ...(nativeSize(height, "height") as TextStyle),
-    ...(grow || flexForSize(width).grow ? { flexGrow: 1 } : {}),
+    ...(nativeSize(width, "width", flow) as TextStyle),
+    ...(nativeSize(height, "height", flow) as TextStyle),
+    ...(grow || (flow === undefined && flexForSize(width).grow) ? { flexGrow: 1 } : {}),
     ...(weight === undefined ? {} : { fontWeight: String(weight) as TextStyle["fontWeight"] }),
     ...(color ? { color: nativeColor(color, lookup) } : {}),
     /**
@@ -399,8 +441,14 @@ export function Text({
 // ─── Image ────────────────────────────────────────────────────────────────────
 
 export function Image({ src, alt, width, height, radius, fit }: ImageProps) {
+  /*
+    The parent's flow, because a remote image has no size of its own: a width
+    set to fill that grew down a column instead of across it left the picture
+    zero wide — the hero of a quiz, missing, with an empty band where it was.
+  */
+  const flow = useContext(FlowContext);
   const style: ImageStyle = {
-    ...(nativeSize(width, "width") as ImageStyle),
+    ...(nativeSize(width, "width", flow) as ImageStyle),
     ...(height === undefined ? {} : { height }),
     ...(radius === undefined ? {} : (nativeRadius(radius) as ImageStyle)),
     resizeMode: fit ?? "cover",
@@ -435,7 +483,9 @@ export function Input({
   testId,
   ...rest
 }: InputProps) {
-  const box = nativeBox(boxFromProps(rest as Record<string, unknown>), lookup);
+  // The frame this field sits in — what its `fill` is measured along.
+  const flow = useContext(FlowContext);
+  const box = nativeBox(boxFromProps(rest as Record<string, unknown>), lookup, flow);
 
   return (
     <TextInput
@@ -457,7 +507,7 @@ export function Input({
           // (`16`, `[16, 8]`), and three shapes for one concept is three chances
           // for two renderers to expand it differently.
           ...(paddingFrom(padding) ? nativePadding(paddingFrom(padding)!) : {}),
-          ...(nativeSize(width, "width") as TextStyle),
+          ...(nativeSize(width, "width", flow) as TextStyle),
           ...(height === undefined ? {} : { height }),
           // Invalid overrides the designed border rather than sitting beside it:
           // two borders on one field is a field with a mystery second outline.
