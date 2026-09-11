@@ -145,7 +145,17 @@ export type SourceAction =
    * `runtime/track`), so the artifact carries no account of anybody's. Fired
    * and not awaited — nothing after it waits on an ad platform.
    */
-  | { type: "track"; event: string };
+  | { type: "track"; event: string }
+  /**
+   * Send the funnel's own analytics an event, and what it carries.
+   *
+   * Each property is a value as a condition reads one — a variable, a literal,
+   * a visitor fact — resolved when the step runs, so `goal: { var: "goal" }`
+   * sends the answer this visitor gave rather than one frozen into the artifact.
+   * Where it goes is the host's (see `runtime/track`); fired and not awaited,
+   * like `track`.
+   */
+  | { type: "analytics"; event: string; properties?: Record<string, SourceValue> };
 
 /**
  * What sets an interaction off.

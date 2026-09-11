@@ -17,7 +17,7 @@ import type { SourceAction, SourceCondition, SourceValue } from "./compiler/sour
 import { call, check, compare } from "./functions";
 import type { VariableValue } from "./types";
 import type { request } from "./request";
-import { track } from "./track";
+import { analytics, track, type AnalyticsProperties } from "./track";
 
 /** The reading half of the store — everything a condition can ask. */
 export type ConditionState = {
@@ -73,6 +73,23 @@ export function valueOf(value: SourceValue, state: ConditionState): unknown {
   return null;
 }
 
+/**
+ * An analytics step's properties, each read now — the answer this visitor gave,
+ * not the one the designer saw. The emitter writes the same reads. A bare value
+ * where a `SourceValue` belongs is sent as written rather than thrown on: a
+ * property is never worth the rest of the list.
+ */
+export function propertiesOf(
+  properties: Record<string, SourceValue> | undefined,
+  state: ConditionState,
+): AnalyticsProperties {
+  const read: AnalyticsProperties = {};
+  Object.entries(properties ?? {}).forEach(([name, value]) => {
+    read[name] = value !== null && typeof value === "object" ? valueOf(value, state) : (value ?? null);
+  });
+  return read;
+}
+
 export type ActionContext = {
   state: ConditionState & {
     set: (name: string, value: VariableValue) => void;
@@ -91,6 +108,11 @@ export type ActionContext = {
    * compiled module calls.
    */
   track?: (event: string) => void;
+  /**
+   * Sends an analytics event. Optional, like `track`: without it an `analytics`
+   * step goes through the configured sender (`configureTracking`).
+   */
+  analytics?: (event: string, properties: AnalyticsProperties) => void;
 };
 
 /**
@@ -272,6 +294,11 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
       case "track":
         // Not awaited, and never in the way: see `runtime/track`.
         (ctx.track ?? track)(action.event);
+        break;
+
+      case "analytics":
+        // Read now, sent without waiting — see `runtime/track`.
+        (ctx.analytics ?? analytics)(action.event, propertiesOf(action.properties, ctx.state));
         break;
 
       default:

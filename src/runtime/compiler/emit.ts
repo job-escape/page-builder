@@ -194,6 +194,20 @@ function emitAction(action: SourceAction, indent: string): string {
       // `track` is a service like `req`; a host too old to hand it over makes
       // this nothing rather than a thrown error.
       return `${indent}if (track) track(${lit(action.event)});`;
+    case "analytics": {
+      // Each property read as the step runs, through the same `state` reads a
+      // condition makes, so both renderers send the same values. Fired and not
+      // awaited like `track`, and nothing at all for a host too old to hand the
+      // service over. A bare value is sent as written, never a failed build.
+      const properties = Object.entries(action.properties ?? {})
+        .map(([name, value]) => {
+          const read = value !== null && typeof value === "object" ? emitValue(value) : lit(value);
+          return `${lit(name)}: ${read}`;
+        })
+        .join(", ");
+      const carried = properties ? `{ ${properties} }` : "{}";
+      return `${indent}if (analytics) analytics(${lit(action.event)}, ${carried});`;
+    }
     default:
       return `${indent}/* unsupported action */`;
   }
@@ -337,7 +351,7 @@ export function emitScreen(screen: SourceScreen): string {
 
   return [
     `// ${screen.id} — generated, do not edit`,
-    `export default function Screen({ ui, c, t, state, nav, req, track }) {`,
+    `export default function Screen({ ui, c, t, state, nav, req, track, analytics }) {`,
     `  return [`,
     body,
     `  ];`,

@@ -277,8 +277,21 @@ function visitorFactsInCondition(condition: SourceCondition, into: Set<string>):
   }
 }
 
+/**
+ * The values an analytics step's properties read. A bare value where one
+ * belongs reads nothing, as the interpreter sends it as written.
+ */
+const propertyValues = (action: Extract<SourceAction, { type: "analytics" }>): SourceValue[] =>
+  Object.values(action.properties ?? {}).filter(
+    (value): value is SourceValue => value !== null && typeof value === "object",
+  );
+
 function variablesInActions(actions: SourceAction[], into: Set<string>): void {
   actions.forEach((action) => {
+    if (action.type === "analytics") {
+      // What it sends is read from the store as it runs, like a payload.
+      propertyValues(action).forEach((value) => namesInValue(value, into, new Set()));
+    }
     if (action.type === "conditional") {
       action.branches.forEach((branch) => {
         if (branch.when) variablesInCondition(branch.when, into);
@@ -343,6 +356,17 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
       frame.interactions?.forEach((interaction) => {
         const walk = (actions: SourceAction[]): void => {
           actions.forEach((action) => {
+            // A fact an analytics step sends is one the host has to look up,
+            // or it arrives as null in every event.
+            if (action.type === "analytics") {
+              propertyValues(action).forEach((value) => namesInValue(value, new Set(), facts));
+            }
+            // An API call's outcomes are lists like a branch's, and a step in
+            // either can ask about the visitor too.
+            if (action.type === "submit") {
+              walk(action.onSuccess ?? []);
+              walk(action.onError ?? []);
+            }
             if (action.type !== "conditional") return;
             action.branches.forEach((branch) => {
               if (branch.when) visitorFactsInCondition(branch.when, facts);

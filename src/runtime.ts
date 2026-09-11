@@ -149,14 +149,14 @@ export type { RequestOptions } from "./runtime/request";
  */
 export { RequestFailed, configureRequests, request } from "./runtime/request";
 
-export type { TrackOptions } from "./runtime/track";
+export type { AnalyticsProperties, TrackOptions } from "./runtime/track";
 
 /**
- * What a `track` step reaches — the host's pixels — and the host's hook for
- * saying which. The step names a conversion; this decides what fires. See
- * `runtime/track`.
+ * What a `track` step reaches — the host's pixels — and what an `analytics`
+ * step reaches — the host's analytics — with the host's hook for saying which.
+ * The steps name what happened; this decides where it goes. See `runtime/track`.
  */
-export { configureTracking, track } from "./runtime/track";
+export { analytics, configureTracking, track } from "./runtime/track";
 
 /**
  * The palette an artifact carries, and the two ways a renderer spends it.
