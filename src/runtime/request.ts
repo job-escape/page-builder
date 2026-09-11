@@ -44,11 +44,31 @@ export class RequestFailed extends Error {
 
 const DEFAULT_TIMEOUT = 15_000;
 
-let options: RequestOptions = {};
+/**
+ * The configuration, kept on `globalThis` under one registered symbol rather
+ * than in a module variable.
+ *
+ * This file is bundled into every entry — `runtime`, `runtime-client`,
+ * `runtime-native` — as a copy of its own, and a host configures through one
+ * entry (`configureRequests` from `…/runtime`) while `<Funnel>` sends through
+ * another (`…/runtime-client`). A module variable gave each copy its own
+ * answer: the copy `<Funnel>` used was never configured, so every request —
+ * an API call step, a lead — failed before it was sent, into the step's error
+ * branch, with nothing on the page to say so. One symbol, one configuration,
+ * whichever copy asks.
+ */
+const SHARED = Symbol.for("@job-escape/page-builder/requests");
+
+const shared = (): { options: RequestOptions } => {
+  const holder = globalThis as unknown as Record<symbol, { options: RequestOptions } | undefined>;
+  holder[SHARED] ??= { options: {} };
+  return holder[SHARED];
+};
 
 /** Configure once, at mount. The compiled module never sees any of this. */
 export function configureRequests(next: RequestOptions): void {
-  options = { ...options, ...next };
+  const state = shared();
+  state.options = { ...state.options, ...next };
 }
 
 /**
@@ -63,6 +83,7 @@ export async function request(
   action: string,
   payload: Record<string, unknown> = {},
 ): Promise<Record<string, unknown>> {
+  const { options } = shared();
   const endpoint = options.endpoint;
   if (!endpoint) {
     throw new RequestFailed(action, 0, "This funnel has no request endpoint configured.");
