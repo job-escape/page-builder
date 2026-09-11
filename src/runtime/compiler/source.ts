@@ -137,7 +137,15 @@ export type SourceAction =
    * host's `nav.wait` is what knows, which is why this is a step and not a timer
    * a renderer schedules for itself.
    */
-  | { type: "wait"; seconds: number };
+  | { type: "wait"; seconds: number }
+  /**
+   * Tell the ad platforms a conversion happened — `lead`, `purchase`.
+   *
+   * A conversion's *key*, never a pixel id: the ids are the host's (see
+   * `runtime/track`), so the artifact carries no account of anybody's. Fired
+   * and not awaited — nothing after it waits on an ad platform.
+   */
+  | { type: "track"; event: string };
 
 /**
  * What sets an interaction off.

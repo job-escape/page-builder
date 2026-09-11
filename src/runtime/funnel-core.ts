@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "r
 
 import { createNavigator, type NavigationState, type Presentation } from "./navigation";
 import { request } from "./request";
+import { track } from "./track";
 import type { VariableValue } from "./types";
 import { createFunnelStore, type FunnelStore } from "./store";
 import type { VariableDecl, VariableTable } from "./types";
@@ -98,6 +99,8 @@ export type FunnelServices<Ui, Component> = {
   nav: FunnelNav;
   /** The one call a compiled screen makes to a backend. A name, never a URL. */
   req: typeof request;
+  /** Tells the host's pixels a conversion happened. A key, never a pixel id. */
+  track: typeof track;
 };
 
 export type FunnelCoreOptions<Ui, Component> = {
@@ -286,7 +289,7 @@ export function useFunnelRuntime<Ui, Component>({
   );
 
   const services = useMemo<FunnelServices<Ui, Component>>(
-    () => ({ ui, c: components, t, state: store, nav, req: request }),
+    () => ({ ui, c: components, t, state: store, nav, req: request, track }),
     [ui, components, t, store, nav],
   );
 

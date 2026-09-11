@@ -10,13 +10,14 @@
  *
  * **No React, no DOM, no `ui`.** Which is the point: a native runtime gets this
  * file unchanged, and only the drawing differs. Nothing here is an interpreter
- * in the expensive sense either — the vocabulary is eleven conditions and six
- * actions, closed, so this is a switch, not a language.
+ * in the expensive sense either — the vocabulary is eleven conditions and a
+ * handful of actions, closed, so this is a switch, not a language.
  */
 import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
 import { call, check, compare } from "./functions";
 import type { VariableValue } from "./types";
 import type { request } from "./request";
+import { track } from "./track";
 
 /** The reading half of the store — everything a condition can ask. */
 export type ConditionState = {
@@ -84,6 +85,12 @@ export type ActionContext = {
     wait?: (seconds: number) => Promise<boolean>;
   };
   req: typeof request;
+  /**
+   * Fires the pixels for a conversion. Optional: without it a `track` step goes
+   * through the configured tracker (`configureTracking`) — the same one a
+   * compiled module calls.
+   */
+  track?: (event: string) => void;
 };
 
 /**
@@ -260,6 +267,11 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
       case "wait":
         // eslint-disable-next-line no-await-in-loop
         if (!(await pause(ctx, secondsOf(action.seconds)))) return false;
+        break;
+
+      case "track":
+        // Not awaited, and never in the way: see `runtime/track`.
+        (ctx.track ?? track)(action.event);
         break;
 
       default:
