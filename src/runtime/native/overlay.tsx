@@ -22,6 +22,12 @@ const PLACEMENT: Record<string, ViewStyle> = {
   bottom: { justifyContent: "flex-end" },
   top: { justifyContent: "flex-start" },
   side: { justifyContent: "center", alignItems: "flex-end" },
+  /**
+   * The frame takes the whole modal and places its own content — the native
+   * half of the web's `fill`. Nothing to set here: the container is already
+   * `flex: 1`, and the panel below claims it.
+   */
+  fill: {},
 };
 
 export function Overlay({
@@ -65,6 +71,16 @@ export function Overlay({
             // near it, and padding it would float it oddly high.
             ...(position === "bottom" ? { paddingBottom: insets.bottom } : {}),
             ...(position === "top" ? { paddingTop: insets.top } : {}),
+            /**
+             * `fill` claims the modal, as it claims the viewport on web.
+             *
+             * No safe-area padding with it: a frame that asked for the whole
+             * surface means the whole surface, and insetting it would leave the
+             * band above the home indicator painted by whatever is underneath.
+             * A frame that wants to clear the chrome says so with its own
+             * padding, which is the same answer `bleed` gives a screen.
+             */
+            ...(position === "fill" ? { flex: 1 } : {}),
           }}
         >
           {children}

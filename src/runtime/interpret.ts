@@ -195,7 +195,7 @@ export function evaluate(condition: SourceCondition, state: ConditionState): boo
  */
 export function showPresentation(link: {
   as?: "replace" | "overlay";
-  position?: "center" | "bottom" | "top" | "side";
+  position?: "center" | "bottom" | "top" | "side" | "fill";
   dim?: boolean;
   closeOnOutside?: boolean;
 }): Record<string, unknown> | undefined {

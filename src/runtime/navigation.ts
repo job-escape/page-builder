@@ -19,7 +19,19 @@
 
 export type Presentation = {
   as?: "replace" | "overlay";
-  position?: "center" | "bottom" | "top" | "side";
+  /**
+   * Where the frame sits over the screen — and `fill` is the one that is not a
+   * placement at all.
+   *
+   * The four placements put a *panel* somewhere: the frame is as big as its
+   * content and the runtime decides where that content lands. `fill` hands the
+   * whole viewport to the frame instead, so where things sit inside it is the
+   * frame's own layout — its padding, its align and justify — rather than
+   * anything chosen here. That is what a designer means by drawing a dialog at
+   * the size of the page and putting the body where they want it: a sheet is
+   * then `justify: "end"` on the frame, not `position: "bottom"` on the step.
+   */
+  position?: "center" | "bottom" | "top" | "side" | "fill";
   dim?: boolean;
   closeOnOutside?: boolean;
 };
