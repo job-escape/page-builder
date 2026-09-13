@@ -24,7 +24,7 @@ import { Funnel } from "./funnel";
 import { screensFromTree } from "./tree-screen";
 
 const PLANS = [
-  { id: 2, code: "1Week", name: "1-week plan", price_amount: 6.93, currency: "USD" },
+  { id: 2, code: "1Week", name: "1-week plan", price_amount: 6.93, currency: "USD", image: "https://cdn.test/week.png" },
   { id: 3, code: "4Week", name: "4-week plan", price_amount: 15.19, currency: "USD" },
 ];
 
@@ -77,6 +77,15 @@ function paywall(): SourceFunnel {
             interactions: [
               { on: { event: "click" }, do: [{ type: "set", variable: "selected", from: { var: "$item" } }] },
             ],
+          },
+          {
+            id: "card-image",
+            parent: "card",
+            kind: "image",
+            pos: "a1",
+            src: "https://cdn.test/placeholder.png",
+            props: { alt: "plan" },
+            bindings: { src: { value: { var: "$item", path: "image" } } },
           },
           {
             id: "card-title",
@@ -179,6 +188,12 @@ describe("a catalogue drawn as cards", () => {
     expect(cards[0]).toHaveTextContent("1-week plan — $6.93");
     expect(cards[1]).toHaveTextContent("4-week plan — $15.19");
     expect(cards[1]).toHaveAttribute("aria-label", "4Week");
+  });
+
+  it("draws an entry's own picture, and the drawn one where the entry has none", () => {
+    mount(paywall());
+    const sources = screen.getAllByRole("img").map((image) => image.getAttribute("src"));
+    expect(sources).toEqual(["https://cdn.test/week.png", "https://cdn.test/placeholder.png"]);
   });
 
   it("draws an empty container while the list has not arrived", () => {

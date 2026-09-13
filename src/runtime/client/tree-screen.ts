@@ -144,7 +144,10 @@ function renderNode(node: TreeNode, screen: ScreenProps, scope?: Scope): ReactNo
   }
 
   if (node.kind === "image") {
-    return props.ui.Image({ ...resolved, src: node.src } as never);
+    // A bound source — a card's picture from `$item` — wins; the drawn one is
+    // what shows while the value is not there yet.
+    const bound = typeof resolved.src === "string" && resolved.src ? resolved.src : null;
+    return props.ui.Image({ ...resolved, src: bound ?? node.src } as never);
   }
 
   if (node.kind === "input") {
