@@ -16,6 +16,7 @@
  * negligible at funnel scale, and it removes the "lost the last answer" failure
  * that a debounce introduces when someone navigates during the window.
  */
+import { DEVICE_VARIABLE, type Device } from "./device";
 import { call, check, compare } from "./functions";
 import * as persistence from "./persistence";
 import type { PersistenceOptions } from "./persistence";
@@ -61,6 +62,17 @@ export type FunnelStoreOptions = {
    */
   visitor?: Readonly<Record<string, string | number | boolean | null>>;
   /**
+   * Which device the funnel is drawn for at first — `$device`. See `runtime/device`.
+   *
+   * Not a visitor fact, although it arrives from the host like one, because it
+   * can change while the funnel is open: a browser window dragged narrower is a
+   * phone layout from that moment. Visitor facts are fixed for the life of the
+   * store, and replacing them rebuilds it. `setDevice` changes this one in place.
+   *
+   * Absent is `mobile`, the design as drawn.
+   */
+  device?: Device;
+  /**
    * An answer changed — for a host that wants to record that somewhere.
    *
    * Analytics belongs to the host and not to the artifact, for the reason
@@ -105,6 +117,10 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   // request that is not running.
   const requests = new Map<string, { status: RequestStatus; error?: string }>();
 
+  // The device lives apart from answers for the same reason: it is never
+  // persisted and never reported, because the visitor did not say it.
+  let device: Device = options.device ?? "mobile";
+
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((listener) => listener());
 
@@ -120,6 +136,9 @@ export function createFunnelStore(options: FunnelStoreOptions) {
 
   function get(name: string): VariableValue {
     if (name.startsWith(REQ)) return readRequest(name);
+    // Before the table, so an artifact that once declared `$device` as an
+    // ordinary variable reads the runtime's answer rather than its own default.
+    if (name === DEVICE_VARIABLE) return device;
     const decl = declOf(name);
     if (!decl) return null;
     return values[name] ?? null;
@@ -198,6 +217,23 @@ export function createFunnelStore(options: FunnelStoreOptions) {
 
   const status = (id: string): RequestStatus => requests.get(id)?.status ?? "idle";
 
+  /**
+   * The window crossed the breakpoint, or a host decided the device.
+   *
+   * Not `set`: nothing is written to the cookie and nothing is reported. The
+   * answers object is replaced all the same, because `snapshot` is what a React
+   * binding compares — an unchanged reference would leave every screen showing
+   * the layout for the device it has just stopped being.
+   */
+  function setDevice(next: Device): void {
+    if (next === device) return;
+    device = next;
+    values = { ...values };
+    notify();
+  }
+
+  const deviceOf = (): Device => device;
+
   /** Operators. Unknown names answer falsely rather than throwing. */
   const has = (name: string, value: string): boolean => {
     const decl = declOf(name);
@@ -205,6 +241,8 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   };
   const count = (name: string): number => countOf(values[name]);
   const isSet = (name: string): boolean => {
+    // Always answered — there is no moment a funnel is drawn for no device.
+    if (name === DEVICE_VARIABLE) return true;
     const decl = declOf(name);
     return decl ? isSetOf(decl, values[name]) : false;
   };
@@ -300,6 +338,8 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     forgetScreen,
     status,
     setStatus,
+    device: deviceOf,
+    setDevice,
     subscribe,
     snapshot,
     reset,

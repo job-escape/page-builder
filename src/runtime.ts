@@ -56,6 +56,20 @@ export type { FunnelStore, FunnelStoreOptions, RequestStatus } from "./runtime/s
 
 export { createFunnelStore } from "./runtime/store";
 
+/**
+ * Which device a funnel is drawn for — `$device`. Server-safe, so a host can
+ * guess from the request's headers before there is a window to measure.
+ */
+export type { Device } from "./runtime/device";
+export {
+  DESKTOP_MEDIA_QUERY,
+  DESKTOP_MIN_WIDTH,
+  DEVICE_VARIABLE,
+  deviceForWidth,
+  deviceFromRequest,
+  isDevice,
+} from "./runtime/device";
+
 export type {
   NavigationState,
   Navigator,

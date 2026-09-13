@@ -111,6 +111,8 @@ export function Funnel({
   visitor,
 }: NativeFunnelProps) {
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
+  // No `device`: the app runs on phones only, so `$device` is always `mobile`
+  // here and a design's desktop layer never applies. See `runtime/device`.
   const { services, navState, navigator } = useFunnelRuntime<Ui, Component>({
     manifest,
     known,

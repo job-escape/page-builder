@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { DESKTOP_MEDIA_QUERY, type Device } from "../device";
 import {
   useDismissOnBack,
   useFunnelRuntime,
@@ -114,9 +115,50 @@ export type FunnelProps = {
    * branch that catches everybody is the one they get.
    */
   visitor?: Readonly<Record<string, string | number | boolean | null>>;
+  /**
+   * Draw for this device and never ask the window — `$device`, fixed.
+   *
+   * For a host whose window is not the visitor's screen: a preview drawing the
+   * funnel inside a phone frame on a laptop is `mobile` however wide the laptop
+   * is. Absent, the window decides. See `runtime/device`.
+   */
+  device?: Device;
+  /**
+   * The server's guess at the device, for the render that happens before there
+   * is a window — `deviceFromRequest` over the request's headers.
+   *
+   * Only the first paint uses it; the window's own answer replaces it as soon
+   * as the page hydrates, and follows the window from then on. A host that
+   * renders only in the browser can leave it out.
+   */
+  deviceHint?: Device;
 };
 
 const FunnelContext = createContext<ScreenProps | null>(null);
+
+/**
+ * Which device this window is, as a value React can subscribe to.
+ *
+ * The same shape as `useSystemMode`: `matchMedia` in the browser, following the
+ * window across the breakpoint; the server's guess where there is no window,
+ * which is also the snapshot hydration compares against — so a correct guess
+ * hydrates with nothing to change, and a wrong one is corrected before paint.
+ */
+function useWindowDevice(hint: Device | undefined): Device {
+  return useSyncExternalStore(
+    (onChange) => {
+      if (typeof window === "undefined" || !window.matchMedia) return () => {};
+      const query = window.matchMedia(DESKTOP_MEDIA_QUERY);
+      query.addEventListener("change", onChange);
+      return () => query.removeEventListener("change", onChange);
+    },
+    () => {
+      if (typeof window === "undefined" || !window.matchMedia) return hint ?? "mobile";
+      return window.matchMedia(DESKTOP_MEDIA_QUERY).matches ? "desktop" : "mobile";
+    },
+    () => hint ?? "mobile",
+  );
+}
 
 /**
  * Whether this visitor's system is set to dark, as a value React can subscribe
@@ -158,8 +200,13 @@ export function Funnel({
   onUnknown,
   onAnswer,
   visitor,
+  device: fixedDevice,
+  deviceHint,
 }: FunnelProps) {
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
+  // Subscribed even when fixed, so the hook order never depends on a prop.
+  const windowDevice = useWindowDevice(deviceHint);
+  const device = fixedDevice ?? windowDevice;
   const { services, navState, navigator } = useFunnelRuntime<Ui, (props: never) => ReactNode>({
     manifest,
     known,
@@ -171,6 +218,7 @@ export function Funnel({
     onUnknown,
     onAnswer,
     visitor,
+    device,
   });
 
   // Escape closes the top overlay rather than leaving the funnel — the same

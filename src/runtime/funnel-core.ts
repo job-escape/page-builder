@@ -10,8 +10,9 @@
  *
  * No JSX and no platform imports, so React Native gets it unchanged.
  */
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
+import type { Device } from "./device";
 import { createNavigator, type NavigationState, type Presentation } from "./navigation";
 import { request } from "./request";
 import { analytics, track } from "./track";
@@ -154,7 +155,24 @@ export type FunnelCoreOptions<Ui, Component> = {
    * fact matches nothing. See `createFunnelStore`.
    */
   visitor?: Readonly<Record<string, string | number | boolean | null>>;
+  /**
+   * Which device the funnel is drawn for — `$device`. See `runtime/device`.
+   *
+   * Changing it re-renders in place and never rebuilds the store: a window
+   * dragged across the breakpoint keeps every answer, every screen's own state
+   * and every flow still running. The web decides it from the window; native
+   * leaves it absent, which is `mobile`.
+   */
+  device?: Device;
 };
+
+/**
+ * A layout effect where there is a layout, a plain effect on a server.
+ *
+ * The device has to reach the store before the browser paints, or a desktop
+ * visitor sees one frame of the phone layout on every crossing.
+ */
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export function useFunnelRuntime<Ui, Component>({
   manifest,
@@ -167,6 +185,7 @@ export function useFunnelRuntime<Ui, Component>({
   onUnknown,
   onAnswer,
   visitor,
+  device,
 }: FunnelCoreOptions<Ui, Component>) {
   const table: VariableTable = useMemo(
     () => Object.fromEntries(manifest.variables.map((decl) => [decl.name, decl])),
@@ -185,18 +204,30 @@ export function useFunnelRuntime<Ui, Component>({
     step waiting two seconds — finished into a store nobody was drawing from.
   */
   const persistKey = persist ? `${persist.funnelId} ${persist.version}` : null;
+  /*
+    The device at the moment a store is made, read through a ref so that a
+    device change is not a reason to make a new one — see `device` above. A
+    store rebuilt for another reason starts on the device the funnel is on now.
+  */
+  const currentDevice = useRef(device);
+  currentDevice.current = device;
   const store = useMemo(
     () =>
       createFunnelStore({
         table,
         persist,
         visitor,
+        device: currentDevice.current,
         onUnknown: (name) => onUnknown?.("variable", name),
         onChange: onAnswer,
       }),
     // A new store per funnel identity, not per render.
     [table, persistKey, visitor, onUnknown, onAnswer],
   );
+
+  useBeforePaint(() => {
+    store.setDevice(device ?? "mobile");
+  }, [store, device]);
 
   const navigator = useMemo(
     () =>

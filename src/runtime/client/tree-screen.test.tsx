@@ -11,7 +11,7 @@
  * converting worse for a month before anyone looks.
  */
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { compile } from "../compiler/emit";
 import { locale, source } from "../compiler/fixture";
@@ -272,5 +272,166 @@ describe("one artifact, drawn for the context it is running in", () => {
       // Named so a failure says which emitter disagreed.
       expect(path).toBeTruthy();
     });
+  });
+});
+
+/**
+ * A desktop layer over the phone design, decided by the window.
+ *
+ * The console publishes a desktop override as a case on `$device` and nothing
+ * declares the variable — the runtime owns it. So this is the whole chain on
+ * the visitor's side: the window crosses 1024px, `matchMedia` says so, the
+ * store changes device without rebuilding, and both emitters redraw.
+ */
+function deviceSource(): SourceFunnel {
+  return {
+    id: 11,
+    version: "v1",
+    entry: "hero",
+    variables: [{ name: "goal", type: "string" }],
+    screens: [
+      {
+        id: "hero",
+        frames: [
+          {
+            id: "root",
+            parent: null,
+            kind: "frame",
+            pos: "a0",
+            props: { testId: "root", layout: "column", gap: 12 },
+            bindings: {
+              layout: { cases: [{ when: { op: "eq", variable: "$device", value: "desktop" }, value: "row" }], default: "column" },
+            },
+          },
+          {
+            id: "title",
+            parent: "root",
+            pos: "a1",
+            kind: "text",
+            textKey: "title",
+            props: { testId: "title", size: 18 },
+            bindings: {
+              size: { cases: [{ when: { op: "eq", variable: "$device", value: "desktop" }, value: 32 }], default: 18 },
+            },
+          },
+          {
+            id: "goal",
+            parent: "root",
+            pos: "a3",
+            kind: "input",
+            variable: "goal",
+            props: { testId: "goal" },
+          },
+          {
+            id: "side",
+            parent: "root",
+            pos: "a2",
+            kind: "frame",
+            props: { testId: "side" },
+            when: { op: "neq", variable: "$device", value: "mobile" },
+          },
+        ],
+      },
+    ],
+    locales: { en: { title: "Find a job you love" } },
+  };
+}
+
+/** A window whose width a test can change, as far as `matchMedia` can tell. */
+function fakeWindow(width: number) {
+  let current = width;
+  const listeners = new Set<() => void>();
+  const original = window.matchMedia;
+  window.matchMedia = ((query: string) => {
+    const min = Number(/min-width:\s*(\d+)px/.exec(query)?.[1] ?? 0);
+    return {
+      get matches() {
+        return current >= min;
+      },
+      media: query,
+      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+    } as unknown as MediaQueryList;
+  }) as typeof window.matchMedia;
+  return {
+    resize(next: number) {
+      current = next;
+      act(() => listeners.forEach((listener) => listener()));
+    },
+    restore() {
+      window.matchMedia = original;
+    },
+  };
+}
+
+function mountDevice(screens: Record<string, ScreenModule>, props: { device?: "mobile" | "desktop" } = {}) {
+  const funnel = deviceSource();
+  const { manifest } = compile(funnel);
+  return render(
+    <Funnel
+      manifest={{ entry: manifest.entry, variables: manifest.variables }}
+      screens={screens}
+      locale={funnel.locales?.en ?? {}}
+      {...props}
+    />,
+  );
+}
+
+describe("one design, a desktop layer over it", () => {
+  it("draws the phone design below 1024 and the desktop layer from it, following the window", () => {
+    bothPaths(deviceSource()).forEach(([path, screens]) => {
+      const window = fakeWindow(390);
+      const view = mountDevice(screens);
+      const title = () => within(view.container).getByTestId("title");
+      const root = () => within(view.container).getByTestId("root");
+
+      expect(title()).toHaveStyle({ fontSize: "18px" });
+      expect(root()).toHaveStyle({ flexDirection: "column" });
+      expect(within(view.container).queryByTestId("side")).toBeNull();
+
+      window.resize(1280);
+      expect(title()).toHaveStyle({ fontSize: "32px" });
+      expect(root()).toHaveStyle({ flexDirection: "row" });
+      expect(within(view.container).queryByTestId("side")).not.toBeNull();
+
+      window.resize(800);
+      expect(title()).toHaveStyle({ fontSize: "18px" });
+
+      view.unmount();
+      window.restore();
+      expect(path).toBeTruthy();
+    });
+  });
+
+  it("keeps a visitor's answers when the window crosses the breakpoint", () => {
+    const window = fakeWindow(390);
+    const view = mountDevice(screensFromTree(compileToTree(deviceSource())));
+    try {
+      const field = () => within(view.container).getByTestId("goal") as HTMLInputElement;
+      fireEvent.change(field(), { target: { value: "remote" } });
+      expect(field().value).toBe("remote");
+
+      window.resize(1400);
+      // Redrawn for desktop, and the store was not rebuilt underneath it.
+      expect(within(view.container).getByTestId("title")).toHaveStyle({ fontSize: "32px" });
+      expect(field().value).toBe("remote");
+    } finally {
+      view.unmount();
+      window.restore();
+    }
+  });
+
+  it("draws the device it is told to, whatever the window says", () => {
+    const window = fakeWindow(1600);
+    const view = mountDevice(screensFromTree(compileToTree(deviceSource())), { device: "mobile" });
+    expect(within(view.container).getByTestId("title")).toHaveStyle({ fontSize: "18px" });
+    view.unmount();
+    window.restore();
+  });
+
+  it("is mobile where there is no matchMedia at all", () => {
+    const view = mountDevice(screensFromTree(compileToTree(deviceSource())));
+    expect(within(view.container).getByTestId("title")).toHaveStyle({ fontSize: "18px" });
+    view.unmount();
   });
 });
