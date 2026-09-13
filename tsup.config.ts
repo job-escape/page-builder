@@ -92,6 +92,19 @@ export default defineConfig([
     target: "es2020",
     external,
   },
+  // Beta client entry — the checkout a design's slot draws. Imports no payment
+  // SDK (the host passes loaders) and nothing from the runtime.
+  {
+    entry: { checkout: "src/checkout.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+    banner: { js: `"use client";` },
+  },
   // Beta native entry — the React Native half. Its own build for the same reason
   // the others have theirs: nothing resolving `.` or `./client` may pull
   // `react-native` in, and nothing here may drag the DOM bricks onto a phone.
