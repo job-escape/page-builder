@@ -88,6 +88,19 @@ describe("createRequestRoute", () => {
     expect(error).toHaveBeenCalledWith("funnel_request_failed", expect.objectContaining({ action: "plans.list" }));
   });
 
+  it("picks the handlers by the design's project when the host serves more than one", async () => {
+    const jobescape = { "plans.list": async () => ({ from: "jobescape" }) };
+    const sart = { "plans.list": async () => ({ from: "sart" }) };
+    const route = createRequestRoute({
+      actions: (context) => (context.project === "sart" ? sart : jobescape),
+    });
+    expect(await (await route(post({ action: "plans.list", context: { project: "sart" } }))).json()).toEqual({ from: "sart" });
+    expect(await (await route(post({ action: "plans.list", context: { project: "jobescape" } }))).json()).toEqual({
+      from: "jobescape",
+    });
+    expect(await (await route(post({ action: "plans.list" }))).json()).toEqual({ from: "jobescape" });
+  });
+
   it("passes api:<id> to the host's project API call", async () => {
     const apiCall = jest.fn(async (id: number) => new Response(JSON.stringify({ id }), { status: 201 }));
     const route = createRequestRoute({ actions: {}, apiCall });

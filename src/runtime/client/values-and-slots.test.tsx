@@ -16,6 +16,7 @@ import { pathGet } from "../data";
 import { call } from "../functions";
 import { run } from "../interpret";
 import { serialize } from "../persistence";
+import { interpolate } from "../rich-text";
 import { createFunnelStore } from "../store";
 import { configureTracking } from "../track";
 import type { VariableTable } from "../types";
@@ -314,6 +315,13 @@ describe("a request's answer as data", () => {
 });
 
 describe("paths and the functions a card needs", () => {
+  it("fills a placeholder that names a field of the entry, and leaves a malformed one", () => {
+    expect(interpolate("{item.name} for {item.price.amount}, {plain}", { "item.name": "4 Weeks", "item.price.amount": 15.19, plain: "ok" })).toBe(
+      "4 Weeks for 15.19, ok",
+    );
+    expect(interpolate("{item.} {.name} {item..name}", { "item.": "x", ".name": "y" })).toBe("{item.} {.name} {item..name}");
+  });
+
   it("reads keys, indexes and nothing past a gap", () => {
     const value = { data: { plans: PLANS } };
     expect(pathGet(value, "data.plans[1].code")).toBe("4Week");

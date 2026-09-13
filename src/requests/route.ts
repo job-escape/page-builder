@@ -10,8 +10,15 @@
 import { ActionError, silentLog, type ActionHandlers, type Log, type Payload, type RequestContext } from "./contract";
 
 export type RequestRouteOptions = {
-  /** The named actions this host answers. An action not here is a 400. */
-  actions: ActionHandlers;
+  /**
+   * The named actions this host answers. An action not here is a 400.
+   *
+   * A function when the host serves more than one backend: it is handed the
+   * request's context — `context.project` above all — and answers with the
+   * handlers for it. Build the handler sets once, outside it; a set holds a
+   * cache (the NVS catalogue) that a set built per request would throw away.
+   */
+  actions: ActionHandlers | ((context: RequestContext) => ActionHandlers);
   /**
    * `api:<id>` project API calls — funnel_backend's `design-api-calls/run`.
    * Absent, such an action is a 400 like any unknown one.
@@ -53,6 +60,7 @@ export function createRequestRoute(options: RequestRouteOptions): (request: Requ
       design: typeof sent.design === "string" || typeof sent.design === "number" ? sent.design : undefined,
       version: typeof sent.version === "string" ? sent.version : undefined,
       variant: typeof sent.variant === "string" ? sent.variant : undefined,
+      project: typeof sent.project === "string" ? sent.project : undefined,
       page: objectOf(sent.page) ?? undefined,
       request,
       responseHeaders: new Headers(),
@@ -64,7 +72,8 @@ export function createRequestRoute(options: RequestRouteOptions): (request: Requ
       return options.apiCall(Number(apiCall[1]), payload, context);
     }
 
-    const handler = options.actions[action];
+    const actions = typeof options.actions === "function" ? options.actions(context) : options.actions;
+    const handler = actions[action];
     if (!handler) {
       log.warn("funnel_request_unknown_action", { action });
       return json({ error: "unknown_action", message: `Unknown action: ${action}` }, 400);

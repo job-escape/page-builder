@@ -118,14 +118,16 @@ export function plainOf(value: RichText | null | undefined): string {
 }
 
 /**
- * What a placeholder looks like: `{name}`.
+ * What a placeholder looks like: `{name}`, or a path into one — `{item.price}`.
  *
  * Braces and a bare identifier — the shape every templating vocabulary in this
  * codebase already uses, and narrow enough that ordinary copy does not trip it.
- * `{` on its own, `{ name }` with spaces, and `{not-an-identifier}` are all
- * left exactly as they are.
+ * The dotted form is a card in a repeat naming a field of the entry it draws;
+ * the text node's params are keyed by the same dotted name. `{` on its own,
+ * `{ name }` with spaces, and `{not-an-identifier}` are all left exactly as
+ * they are.
  */
-const PLACEHOLDER = /\{(\w+)\}/g;
+const PLACEHOLDER = /\{(\w+(?:\.\w+)*)\}/g;
 
 /** The values a placeholder can be filled with. */
 export type CopyParams = Readonly<Record<string, string | number>>;

@@ -48,6 +48,13 @@ export type RequestContext = {
   /** The brand this visitor was assigned, when the design has variants. */
   variant?: string;
   /**
+   * The project the design belongs to — its slug, as the publish stamped it on
+   * the manifest (`jobescape`, `sart`). A host that serves more than one
+   * project's funnels picks the backend by it (`createRequestRoute`'s
+   * `actions` as a function).
+   */
+  project?: string;
+  /**
    * Values the host's page knows and the design does not: pixel ids from
    * GrowthBook, paywall experiment flags, the device id. Forwarded verbatim by
    * the host's `configureRequests` context; an implementation reads only the
