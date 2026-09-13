@@ -183,6 +183,15 @@ export type SourceAction =
       onError?: SourceAction[];
       /** Variable that receives the error message, so a screen can show it. */
       errorInto?: string;
+      /**
+       * What a refusal puts in which variable, by variable name — `into` for the
+       * failure. The path reads the refusal's body with its HTTP `status` and
+       * the `message` beside it: `"action"` is what a checkout should do next
+       * (`continue`, `card_error`, …), `"error"` the machine code. A failure
+       * nothing answered — a timeout — has only `status` 0 and the message.
+       * Tree only: the JS emitter drops it.
+       */
+      errorFields?: Record<string, string>;
     }
   /**
    * Hold the rest of this list for a number of seconds.

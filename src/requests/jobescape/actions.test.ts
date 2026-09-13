@@ -288,6 +288,25 @@ describe("payments.create_session", () => {
     expect(answer).toEqual({ gateway: "solidgate", merchantData: { paymentIntent: "pi", merchant: "m", signature: "s" } });
   });
 
+  it("opens a PayPal order through Solidgate's init_paypal", async () => {
+    const { calls, handlers } = actions({ script_url: "https://paypal.example/sdk.js", order_id: "pp-1" });
+    const answer = await handlers["payments.create_session"]!({ subscriptionId: 7, gateway: "paypal" }, withUser());
+    expect(calls[0].url).toBe(`${API}/solidgate/init_paypal/`);
+    expect(calls[0].init).toMatchObject({ method: "POST", cache: "no-cache" });
+    expect(String(calls[0].init.body)).toBe(
+      JSON.stringify({
+        ip_address: "1.2.3.4",
+        email: "cookie@example.com",
+        trial_type: "standard",
+        subscription_id: 7,
+        currency: "USD",
+        pixel_ids: ["px1"],
+        x_pixel_ids: ["x1"],
+      }),
+    );
+    expect(answer).toEqual({ gateway: "paypal", scriptUrl: "https://paypal.example/sdk.js", orderId: "pp-1" });
+  });
+
   it("refuses without a user, a plan or an email", async () => {
     const { calls, handlers } = actions();
     await expect(handlers["payments.create_session"]!({ subscriptionId: 7 }, contextWith())).rejects.toMatchObject({
@@ -314,6 +333,20 @@ describe("payments.confirm", () => {
       JSON.stringify({ order_id: "ord-1", pixel_ids: ["px1"], x_pixel_ids: ["x1"], x_pixel: "xp" }),
     );
     expect(answer).toEqual({ token: "t", fb_event_id: "e", mid: "solidgate", paid: true });
+  });
+
+  it("confirms a PayPal order", async () => {
+    const { calls, handlers } = actions({ token: "t", ltv: 30 });
+    const answer = await handlers["payments.confirm"]!(
+      { orderId: "pp-1", gateway: "paypal" },
+      contextWith({ page: { pixel_ids: ["px1"] } }),
+    );
+    expect(calls[0].url).toBe(`${API}/solidgate/confirm_paypal/`);
+    expect(calls[0].init).toMatchObject({ cache: "no-cache" });
+    expect(String(calls[0].init.body)).toBe(
+      JSON.stringify({ order_id: "pp-1", is_paypal: true, pixel_ids: ["px1"], x_pixel_ids: [] }),
+    );
+    expect(answer).toEqual({ token: "t", ltv: 30, paid: true });
   });
 
   it("confirms a Solidgate order", async () => {

@@ -276,6 +276,37 @@ describe("a request's answer as data", () => {
     expect(store.get("$req.catalogue.status")).toBe("success");
   });
 
+  it("puts a refusal's fields where the design asked, and the message where it always went", async () => {
+    const store = createFunnelStore({
+      table: { ...table, next: { name: "next", type: "string" }, code: { name: "code", type: "string" }, why: { name: "why", type: "string" } },
+    });
+    const failure = Object.assign(new Error("Your payment was declined. Please try another card."), {
+      status: 402,
+      body: { error: "gateway_declined", action: "card_error" },
+    });
+    await run(
+      [
+        {
+          type: "submit",
+          action: "payments.confirm",
+          errorInto: "why",
+          errorFields: { next: "action", code: "error", userId: "status" },
+        },
+      ],
+      {
+        state: store,
+        nav: { show: () => {}, close: () => {} },
+        req: (async () => {
+          throw failure;
+        }) as never,
+      },
+    );
+    expect(store.get("next")).toBe("card_error");
+    expect(store.get("code")).toBe("gateway_declined");
+    expect(store.get("userId")).toBe(402);
+    expect(store.get("why")).toBe("Your payment was declined. Please try another card.");
+  });
+
   it("never puts a request's data in the cookie", () => {
     const stored = JSON.parse(serialize(table, { email: "x", plans: PLANS as never, first: PLANS[0] as never }, "v1"));
     expect(Object.keys(stored.a)).toEqual(["email"]);

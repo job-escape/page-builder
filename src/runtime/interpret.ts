@@ -299,6 +299,15 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
           if (action.errorInto) {
             ctx.state.set(action.errorInto, message);
           }
+          if (action.errorFields) {
+            const refused = failure as { body?: unknown; status?: unknown };
+            const body =
+              refused.body !== null && typeof refused.body === "object" ? (refused.body as Record<string, unknown>) : {};
+            const answer = { ...body, status: typeof refused.status === "number" ? refused.status : 0, message };
+            Object.entries(action.errorFields).forEach(([variable, field]) => {
+              ctx.state.set(variable, (pathGet(answer, field) ?? null) as VariableValue);
+            });
+          }
           // eslint-disable-next-line no-await-in-loop
           if (!(await run(action.onError ?? [], ctx))) return false;
         }

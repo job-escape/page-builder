@@ -10,8 +10,13 @@
  * | `leads.create` | `entities/user/api/createUser.tsx` | `POST /new_users/get_or_create/` |
  * | `leads.update_name` | `entities/user/api/add-name.ts` | `POST /new_users/add_name/` |
  * | `plans.list` | `entities-v2/subscription/api/get-subscriptions.ts` | `GET /subscriptions/?price_currency=` |
- * | `payments.create_session` | `payments/primer/api.ts`, `payments/solidgate/api.ts` | `/primer/create_payment_session/` or `update_session/`, or `/solidgate/payment_intent/` |
- * | `payments.confirm` | the same files | `/primer/confirm_order/` or `/solidgate/confirm_order/` |
+ * | `payments.create_session` | `payments/primer/api.ts`, `payments/solidgate/api.ts`, `payments/paypal/model/api.ts` | `/primer/create_payment_session/` or `update_session/`, `/solidgate/payment_intent/`, or `/solidgate/init_paypal/` |
+ * | `payments.confirm` | the same files | `/primer/confirm_order/`, `/solidgate/confirm_order/` or `/solidgate/confirm_paypal/` |
+ *
+ * The gateway is the payload's `gateway` (`primer`, `solidgate`, `paypal`),
+ * else the page's `payment_form`, else Primer. Primer's decline-reason and 3DS
+ * lookups are the same `confirm_order` call, so `payments.confirm` answers
+ * them too — its answer carries whatever the backend said.
  *
  * The values the browser used to reach for itself come from where a server
  * finds them: the `user_data` cookie the middleware keeps (answers, geo, device
@@ -126,9 +131,9 @@ export function jobescapeActions(options: JobescapeActionsOptions): ActionHandle
     });
 
   /** Payment gateway: the design's word, else the page's `payment_form` (GrowthBook `paywall`), else Primer. */
-  const gatewayOf = (payload: Payload, context: RequestContext): "primer" | "solidgate" => {
+  const gatewayOf = (payload: Payload, context: RequestContext): "primer" | "solidgate" | "paypal" => {
     const chosen = text(payload, "gateway") ?? (typeof page(context, "payment_form") === "string" ? String(page(context, "payment_form")) : "");
-    return chosen === "solidgate" ? "solidgate" : "primer";
+    return chosen === "solidgate" || chosen === "paypal" ? chosen : "primer";
   };
 
   return {
@@ -240,7 +245,28 @@ export function jobescapeActions(options: JobescapeActionsOptions): ActionHandle
       const pixelIds = list(page(context, "pixel_ids"));
       const xPixelIds = list(page(context, "x_pixel_ids"));
 
-      if (gatewayOf(payload, context) === "solidgate") {
+      const gateway = gatewayOf(payload, context);
+
+      if (gateway === "paypal") {
+        const response = await post(
+          "/solidgate/init_paypal/",
+          {
+            ip_address: ip,
+            email,
+            trial_type: trialType,
+            subscription_id: subscriptionId,
+            currency,
+            pixel_ids: pixelIds,
+            x_pixel_ids: xPixelIds,
+          },
+          "no-cache",
+        );
+        if (!response.ok) return refusal(response, "payment_session_failed");
+        const data = (await response.json()) as { script_url: string; order_id: string };
+        return { gateway: "paypal", scriptUrl: data.script_url, orderId: data.order_id };
+      }
+
+      if (gateway === "solidgate") {
         const response = await post(
           "/solidgate/payment_intent/",
           {
@@ -318,8 +344,20 @@ export function jobescapeActions(options: JobescapeActionsOptions): ActionHandle
       if (!orderId) throw new ActionError(400, { error: "invalid_argument", message: "orderId is required." });
       const pixelIds = list(page(context, "pixel_ids"));
       const xPixelIds = list(page(context, "x_pixel_ids"));
+      const gateway = gatewayOf(payload, context);
 
-      if (gatewayOf(payload, context) === "solidgate") {
+      if (gateway === "paypal") {
+        const response = await post(
+          "/solidgate/confirm_paypal/",
+          { order_id: orderId, is_paypal: true, pixel_ids: pixelIds, x_pixel_ids: xPixelIds },
+          "no-cache",
+        );
+        if (!response.ok) return refusal(response, "payment_not_confirmed");
+        const data = (await response.json()) as { token?: string; fb_event_id?: string; ltv?: number };
+        return { ...data, paid: Boolean(data.token) };
+      }
+
+      if (gateway === "solidgate") {
         const response = await post(
           "/solidgate/confirm_order/",
           { order_id: orderId, pixel_ids: pixelIds, x_pixel_ids: xPixelIds },

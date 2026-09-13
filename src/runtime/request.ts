@@ -25,8 +25,12 @@ export type RequestOptions = {
   endpoint?: string;
   /** Abandoned after this. A funnel that hangs has lost the visitor anyway. */
   timeoutMs?: number;
-  /** Identifies the funnel to the backend, so it can authorise the call. */
-  context?: Record<string, string | number>;
+  /**
+   * Identifies the funnel to the backend, so it can authorise the call — and
+   * carries what only the host's page knows (`page`: pixel ids, paywall flags),
+   * which a named action reads on the server. Sent as JSON, verbatim.
+   */
+  context?: Record<string, unknown>;
 };
 
 export class RequestFailed extends Error {
@@ -34,11 +38,20 @@ export class RequestFailed extends Error {
 
   readonly status: number;
 
-  constructor(action: string, status: number, message: string) {
+  /**
+   * The refusal's JSON body — `{ error, message, action }` from a named action —
+   * or empty when nothing answered. A design reads fields off it with a
+   * submit's `errorFields`, so a checkout can branch on what the server said to
+   * do rather than on the wording it said it in.
+   */
+  readonly body: Record<string, unknown>;
+
+  constructor(action: string, status: number, message: string, body: Record<string, unknown> = {}) {
     super(message);
     this.name = "RequestFailed";
     this.action = action;
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -106,12 +119,18 @@ export async function request(
     const body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
 
     if (!response.ok) {
+      // A named action words its refusal in `message` and codes it in `error`
+      // (`page-builder/requests`); older routes put the wording in `error`.
       const message =
-        typeof body.error === "string" ? body.error : `The request failed (${response.status}).`;
+        typeof body.message === "string" && body.message
+          ? body.message
+          : typeof body.error === "string"
+            ? body.error
+            : `The request failed (${response.status}).`;
       // Stable event name: alerting selects on it, so renaming it breaks
       // whatever is watching a funnel's integrations.
       console.error("funnel_request_failed", { action, status: response.status });
-      throw new RequestFailed(action, response.status, message);
+      throw new RequestFailed(action, response.status, message, body);
     }
 
     return body;
