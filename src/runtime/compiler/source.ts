@@ -23,13 +23,40 @@ import type { VariableDecl } from "../types";
  * of this package, which is the point.
  */
 export type SourceValue =
-  | { var: string }
+  /**
+   * A variable, or a place inside one.
+   *
+   * `path` reads into what a request returned — `{ var: "plan", path:
+   * "price_amount" }`, `{ var: "plans", path: "[0].name" }` — and is data, dots
+   * and indexes, never an expression (`runtime/data`). The names `$item`,
+   * `$index`, `$event` and `$payment` are the renderer's scope, not variables:
+   * the item a repeat is drawing, and what a slot's trigger reported.
+   */
+  | { var: string; path?: string }
   | { lit: string | number | boolean | null }
   | { visitor: string }
   | { fn: ValueFunction; args: SourceValue[] };
 
-/** Functions that answer a value — `length(name)`. */
-export type ValueFunction = "length" | "count" | "lower" | "trim";
+/**
+ * Functions that answer a value — `length(name)`, `money(amount, currency)`.
+ *
+ * The arithmetic ones exist for one job and are kept to it: a plan card shows
+ * a price per day, a saving, a price in the visitor's currency. `find` picks one
+ * object out of a list by a field — the plan a designer means, by its id.
+ */
+export type ValueFunction =
+  | "length"
+  | "count"
+  | "lower"
+  | "trim"
+  | "upper"
+  | "concat"
+  | "money"
+  | "divide"
+  | "multiply"
+  | "round"
+  | "first"
+  | "find";
 
 /** Functions that answer yes or no — `validEmail(email)`. */
 export type CheckFunction =
@@ -95,7 +122,19 @@ export type SourceCondition =
 
 export type SourceAction =
   | { type: "select"; variable: string; value: string }
-  | { type: "set"; variable: string; value: string | number | boolean | null }
+  /**
+   * Put a value in a variable.
+   *
+   * `value` is a literal, as it always was. `from` is a value read when the step
+   * runs — the plan a card is drawing (`{ var: "$item" }`), a field of a
+   * response, a price computed from two others — and wins when both are given.
+   */
+  | {
+      type: "set";
+      variable: string;
+      value?: string | number | boolean | null;
+      from?: SourceValue;
+    }
   | {
       type: "show";
       target: string;
@@ -120,8 +159,25 @@ export type SourceAction =
       type: "submit";
       action: string;
       fields?: Record<string, string>;
-      /** Response fields written back into variables, by variable name. */
+      /**
+       * Payload entries read from values rather than named variables — a
+       * literal, a field of the selected plan, `$item`. Beside `fields`, which
+       * stays as it was; a key in both takes this one.
+       */
+      values?: Record<string, SourceValue>;
+      /**
+       * What the response puts in which variable, by variable name.
+       *
+       * The field is a path (`runtime/data`): `"userId"`, `"plans"`,
+       * `"data.items[0].id"`. An empty string is the whole response.
+       */
       into?: Record<string, string>;
+      /**
+       * The name this request answers to in conditions — `$req.<id>.status` is
+       * `pending` while it runs, then `success` or `error`, so a screen can
+       * draw its own loading and failure states. Absent, the action's name.
+       */
+      id?: string;
       /** Run when it succeeds, and when it does not. Real branches, generated. */
       onSuccess?: SourceAction[];
       onError?: SourceAction[];
@@ -171,8 +227,17 @@ export type SourceAction =
  */
 export type SourceEvent = "click" | "change" | "leave" | "load";
 
+/**
+ * A slot's own triggers — whatever the component in it reports.
+ *
+ * A checkout says `purchase_click`, `success`, `decline`; a component the next
+ * host provides will say something else. The names are the component's
+ * contract with the design, so they are strings rather than a closed list here.
+ */
+export type SlotTrigger = string;
+
 export type SourceInteraction = {
-  on: { event: SourceEvent };
+  on: { event: SourceEvent | SlotTrigger };
   do: SourceAction[];
 };
 
@@ -202,7 +267,13 @@ export type SourceBinding =
       cases: Array<{ when: SourceCondition; value: unknown }>;
       /** What the prop is when no case matches. The unconditional value. */
       default: unknown;
-    };
+    }
+  /**
+   * The prop *is* a value — a card's image from `$item`, a badge's colour from
+   * the plan. The third shape, and additive: a reader that predates it sees an
+   * unknown binding and keeps the static prop.
+   */
+  | { value: SourceValue };
 
 /** Narrow to the case-list shape. The one place the two are told apart. */
 export function isCaseBinding(
@@ -211,12 +282,46 @@ export function isCaseBinding(
   return Array.isArray((binding as { cases?: unknown }).cases);
 }
 
+/** Narrow to the value shape. */
+export function isValueBinding(binding: SourceBinding): binding is { value: SourceValue } {
+  return (
+    typeof binding === "object" &&
+    binding !== null &&
+    "value" in binding &&
+    !("when" in binding) &&
+    !("cases" in binding)
+  );
+}
+
 export type SourceFrame = {
   id: string;
   name?: string;
   /** null at the top level of a screen. */
   parent: string | null;
-  kind: "frame" | "text" | "image" | "input";
+  /**
+   * `slot` is the one kind the design does not draw: the host renders the
+   * component `slot` names (a checkout) with the frame's props, and the
+   * component's reports run the frame's interactions of the same name.
+   */
+  kind: "frame" | "text" | "image" | "input" | "slot";
+  /** For a slot: the host component it asks for — `"checkout"`. */
+  slot?: string;
+  /**
+   * For a frame: draw the children once per entry of a list.
+   *
+   * The list is a value — usually a variable a request filled. Inside, `$item`
+   * is the entry and `$index` its position, in text params, bindings,
+   * conditions and the interactions of everything under the frame. The frame
+   * itself is drawn once, as the container.
+   */
+  repeat?: { list: SourceValue };
+  /**
+   * For a text frame: what its copy's `{placeholders}` are filled with.
+   *
+   * The words stay in the locale table — `"{price} per week"` — and only the
+   * values come from here, so a translated card still shows the live price.
+   */
+  params?: Record<string, SourceValue>;
   /** For an input: the declared variable it reads from and writes to. */
   variable?: string;
   /** Static props — layout, fill, radius, padding. */

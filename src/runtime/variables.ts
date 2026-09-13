@@ -16,23 +16,23 @@
  * declared type and is responsible for emitting correctly-typed literals, which
  * is a check it can make at build time rather than one a user discovers.
  */
-import { isListType, type VariableDecl, type VariableValue } from "./types";
+import { isDataType, isListType, type VariableDecl, type VariableValue } from "./types";
 
 /** The empty value for a type: unanswered scalars are `null`, lists are `[]`. */
 export function emptyFor(decl: VariableDecl): VariableValue {
-  return isListType(decl) ? [] : null;
+  return isListType(decl) || decl.type === "list<object>" ? [] : null;
 }
 
 /** What a variable holds before anyone has answered anything. */
 export function defaultFor(decl: VariableDecl): VariableValue {
   if (decl.default === undefined) return emptyFor(decl);
   // A declared default of `[]` must not be shared between funnels or sessions.
-  return Array.isArray(decl.default) ? [...decl.default] : decl.default;
+  return Array.isArray(decl.default) ? ([...decl.default] as VariableValue) : decl.default;
 }
 
 /** A list variable's current selections, tolerating null/undefined/wrong shapes. */
 function asList(current: VariableValue | undefined): string[] {
-  return Array.isArray(current) ? current : [];
+  return Array.isArray(current) ? (current as string[]) : [];
 }
 
 /**
@@ -75,7 +75,7 @@ export function meetsMin(decl: VariableDecl, current: VariableValue | undefined)
 
 /** Answered at all. An empty string counts as unanswered; `false` and `0` do not. */
 export function isSet(decl: VariableDecl, current: VariableValue | undefined): boolean {
-  if (isListType(decl)) return count(current) > 0;
+  if (isListType(decl) || decl.type === "list<object>") return count(current) > 0;
   if (current === null || current === undefined) return false;
   return current !== "";
 }
@@ -105,6 +105,8 @@ export function select(
   current: VariableValue | undefined,
   value: string,
 ): VariableValue {
+  // Picking is for answers. Data is replaced whole, by `set` from a value.
+  if (isDataType(decl)) return current ?? emptyFor(decl);
   if (!isListType(decl)) return value;
 
   const chosen = asList(current);

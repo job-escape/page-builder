@@ -86,7 +86,7 @@
         }
       }
     ],
-    "schema": "1.2"
+    "schema": "1.3"
   },
   "trees": {
     "d_why": {

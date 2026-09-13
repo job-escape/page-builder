@@ -785,7 +785,14 @@ export const ui: {
   Text: TextFactory;
   Image: Factory<ImageProps>;
   Input: Factory<InputProps>;
+  /**
+   * A host component the design leaves room for — see the `slot` node.
+   * Created here rather than called, so the component keeps its own hooks.
+   */
+  Slot: (component: unknown, props: Record<string, unknown>) => ReactNode;
 } = {
+  Slot: (component, props) =>
+    createElement(component as (props: Record<string, unknown>) => ReactNode, props),
   Frame: (props, children) =>
     createElement(Frame, props as FrameProps, ...spread(children)),
   /**

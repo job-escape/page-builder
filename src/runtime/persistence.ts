@@ -24,7 +24,13 @@
  */
 import Cookies from "js-cookie";
 
-import { isListType, type VariableDecl, type VariableTable, type VariableValue } from "./types";
+import {
+  isDataType,
+  isListType,
+  type VariableDecl,
+  type VariableTable,
+  type VariableValue,
+} from "./types";
 
 /** How long answers survive. Long-lived by choice; a returning visitor resumes. */
 export const DEFAULT_DAYS = 90;
@@ -78,8 +84,9 @@ export function serialize(
   const answers: Record<string, VariableValue> = {};
 
   Object.values(table).forEach((decl) => {
-    // A screen's own state is not an answer — see `VariableDecl.screen`.
-    if (decl.sensitive || decl.screen) return;
+    // A screen's own state is not an answer — see `VariableDecl.screen`. Nor is
+    // what a request returned: it is loaded again, never restored stale.
+    if (decl.sensitive || decl.screen || isDataType(decl)) return;
     const value = state[decl.name];
     if (value === undefined) return;
     answers[decl.name] = value;
@@ -119,7 +126,7 @@ export function deserialize(
   const restored: Record<string, VariableValue> = {};
   Object.entries(stored.a).forEach(([name, value]) => {
     const decl = table[name];
-    if (!decl || decl.sensitive || decl.screen) return;
+    if (!decl || decl.sensitive || decl.screen || isDataType(decl)) return;
     if (!matchesDecl(decl, value)) return;
     restored[name] = value as VariableValue;
   });

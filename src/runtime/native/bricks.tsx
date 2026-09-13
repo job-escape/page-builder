@@ -529,6 +529,9 @@ type Children = ReactNode | ReactNode[];
 const spread = (children: Children): ReactNode[] => (Array.isArray(children) ? children : [children]);
 
 export const ui = {
+  /** A host component the design leaves room for — see `ui.Slot` on web. */
+  Slot: (component: unknown, props: Record<string, unknown>) =>
+    createElement(component as (props: Record<string, unknown>) => ReactNode, props),
   Frame: (props?: Omit<FrameProps, "children">, children?: Children) =>
     createElement(Frame, props as FrameProps, ...spread(children)),
   /**

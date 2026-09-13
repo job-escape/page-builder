@@ -14,13 +14,48 @@
  * **The walk itself is platform-free.** It only ever calls `props.ui.*`, and the
  * catalogue arrives as an argument — so React Native reuses this file verbatim
  * with a native `ui`. React appears here as a type and nowhere else.
+ *
+ * **Schema 1.3 is tree-only.** Repeats, text params, value bindings and slots
+ * are drawn here and not by the JavaScript emitter, which no host reads.
  */
 import type { ReactNode } from "react";
 
 import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
-import { isCaseBinding } from "../compiler/source";
-import { evaluate, run } from "../interpret";
+import { isCaseBinding, isValueBinding } from "../compiler/source";
+import { isScopeName, type Scope } from "../data";
+import { evaluate, run, valueOf } from "../interpret";
+import type { CopyParams } from "../rich-text";
 import type { ScreenModule, ScreenProps } from "./funnel";
+
+/**
+ * The store, with the renderer's scope answered first.
+ *
+ * `$item` and `$index` while a repeat draws an entry; `$event` and `$payment`
+ * while a slot's trigger runs. Everything else goes to the store unchanged, so
+ * a card's tap can still `set` a funnel variable — to the item it is drawing.
+ */
+function scoped(state: ScreenProps["state"], scope: Scope): ScreenProps["state"] {
+  const answer = (name: string) => (scope as Record<string, unknown>)[name] ?? null;
+  return {
+    ...state,
+    get: (name: string) => (isScopeName(name) ? (answer(name) as never) : state.get(name)),
+    isSet: (name: string) => {
+      if (!isScopeName(name)) return state.isSet(name);
+      const held = answer(name);
+      return held !== null && held !== "";
+    },
+    isEmpty: (name: string) => {
+      if (!isScopeName(name)) return state.isEmpty(name);
+      const held = answer(name);
+      return held === null || held === "";
+    },
+  };
+}
+
+/** The screen's services, looking through a scope when there is one. */
+function within(props: ScreenProps, scope: Scope | undefined): ScreenProps {
+  return scope ? { ...props, state: scoped(props.state, scope) } : props;
+}
 
 /**
  * Static props with the bound ones applied over them.
@@ -34,6 +69,13 @@ function propsOf(node: TreeNode, props: ScreenProps): Record<string, unknown> {
   const resolved: Record<string, unknown> = { ...node.props };
 
   Object.entries(node.bindings ?? {}).forEach(([key, binding]) => {
+    if (isValueBinding(binding)) {
+      // The prop is a value — a card's image from `$item`. Nothing read keeps
+      // the static prop rather than blanking it.
+      const value = valueOf(binding.value, props.state);
+      if (value !== null && value !== undefined) resolved[key] = value;
+      return;
+    }
     if (!isCaseBinding(binding)) {
       resolved[key] = evaluate(binding.when, props.state) ? binding.whenTrue : binding.whenFalse;
       return;
@@ -58,7 +100,31 @@ function propsOf(node: TreeNode, props: ScreenProps): Record<string, unknown> {
   return resolved;
 }
 
-function renderNode(node: TreeNode, props: ScreenProps): ReactNode {
+/**
+ * A text node's params, as the copy lookup takes them.
+ *
+ * `undefined` when the node has none, so copy that was never interpolated is
+ * never scanned (`runtime/rich-text`). A value that reads as nothing becomes an
+ * empty string rather than leaving `{price}` on a card whose plan has no price.
+ */
+function paramsOf(
+  node: Extract<TreeNode, { kind: "text" }>,
+  props: ScreenProps,
+): CopyParams | undefined {
+  if (!node.params) return undefined;
+  const params: Record<string, string | number> = {};
+  Object.entries(node.params).forEach(([name, value]) => {
+    const read = valueOf(value, props.state);
+    params[name] = typeof read === "number" ? read : read === null || read === undefined ? "" : String(read);
+  });
+  return params;
+}
+
+type SlotFactory = (component: unknown, props: Record<string, unknown>) => ReactNode;
+
+function renderNode(node: TreeNode, screen: ScreenProps, scope?: Scope): ReactNode {
+  const props = within(screen, scope);
+
   /**
    * Presence, before anything else.
    *
@@ -73,7 +139,8 @@ function renderNode(node: TreeNode, props: ScreenProps): ReactNode {
   const resolved = propsOf(node, props);
 
   if (node.kind === "text") {
-    return props.ui.Text(resolved, props.t(node.textKey));
+    const params = paramsOf(node, props);
+    return props.ui.Text(resolved, params ? props.t(node.textKey, params) : props.t(node.textKey));
   }
 
   if (node.kind === "image") {
@@ -99,9 +166,52 @@ function renderNode(node: TreeNode, props: ScreenProps): ReactNode {
     } as never);
   }
 
+  if (node.kind === "slot") {
+    /**
+     * A component the host draws, reporting back into the design.
+     *
+     * The design owns what happens: each report the component makes —
+     * `purchase_click`, `success`, `decline` — runs the design's steps of that
+     * name, with what it reported readable as `$event` (and `$payment`, which is
+     * its name on a checkout). A host that provides no such component, or a
+     * renderer with no `Slot`, draws nothing rather than failing the screen.
+     */
+    const Component = (props.c as Record<string, unknown> | undefined)?.[node.name];
+    const Slot = (props.ui as { Slot?: SlotFactory }).Slot;
+    if (!Component || !Slot) return null;
+    const triggers = node.triggers ?? {};
+    return Slot(Component, {
+      ...resolved,
+      trigger: (name: string, values?: Record<string, unknown>): Promise<boolean> => {
+        const actions = triggers[name];
+        if (!actions?.length) return Promise.resolve(true);
+        const reported = within(screen, { ...scope, $event: values ?? {}, $payment: values ?? {} });
+        return run(actions, { state: reported.state, nav: reported.nav, req: reported.req });
+      },
+    });
+  }
+
+  /**
+   * A repeated frame: the container once, its children once per entry.
+   *
+   * The list is read now, so a request that fills it re-renders the screen
+   * with the entries in it. Anything that is not a list draws an empty
+   * container — the loading state of a catalogue that has not arrived.
+   */
+  if (node.repeat) {
+    const list = valueOf(node.repeat.list, props.state);
+    const entries = Array.isArray(list) ? list : [];
+    return props.ui.Frame(
+      resolved,
+      entries.flatMap((item, index) =>
+        node.children.map((child) => renderNode(child, screen, { ...scope, $item: item, $index: index })),
+      ),
+    );
+  }
+
   return props.ui.Frame(
     resolved,
-    node.children.map((child) => renderNode(child, props)),
+    node.children.map((child) => renderNode(child, screen, scope)),
   );
 }
 

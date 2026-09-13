@@ -15,10 +15,28 @@
  * rather than accreting.
  */
 
-export type VariableType = "string" | "number" | "boolean" | "list<string>";
+export type VariableType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "list<string>"
+  /**
+   * What a request answered — a plan, or the catalogue of them.
+   *
+   * Data, not answers: filled by a `submit`'s `into` or a `set` from a value,
+   * read by path (`{ var: "plan", path: "price_amount" }`), repeated over by a
+   * frame. Never kept in the cookie — a catalogue does not fit in one and a
+   * price restored from last week is the wrong price — so a screen that needs
+   * one loads it when it opens.
+   */
+  | "object"
+  | "list<object>";
+
+/** An object a request returned — a plan, a user. */
+export type DataObject = { readonly [key: string]: unknown };
 
 /** Every value a variable may hold. `null` means unanswered. */
-export type VariableValue = string | number | boolean | string[] | null;
+export type VariableValue = string | number | boolean | string[] | DataObject | DataObject[] | null;
 
 export type VariableDecl = {
   name: string;
@@ -56,3 +74,7 @@ export type VariableDecl = {
 export type VariableTable = Record<string, VariableDecl>;
 
 export const isListType = (decl: VariableDecl): boolean => decl.type === "list<string>";
+
+/** A variable that holds what a request returned rather than what a visitor said. */
+export const isDataType = (decl: VariableDecl): boolean =>
+  decl.type === "object" || decl.type === "list<object>";

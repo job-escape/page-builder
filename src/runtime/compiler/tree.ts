@@ -32,6 +32,7 @@ import type {
   SourceFrame,
   SourceFunnel,
   SourceScreen,
+  SourceValue,
 } from "./source";
 
 /**
@@ -46,7 +47,13 @@ import type {
  * know; a removal moves the major and a reader must refuse. A published artifact
  * outlives the app binary that reads it, in both directions.
  */
-export const TREE_SCHEMA = "1.2";
+/*
+  1.3 — values: `repeat` on a frame, `params` on a text node, value bindings,
+  `slot` nodes and their `triggers`, `set` from a value, a `submit`'s `values`,
+  path `into` and `id`. All additive: a 1.2 reader ignores the keys and draws a
+  repeated frame's template once, a slot as nothing.
+*/
+export const TREE_SCHEMA = "1.3";
 
 type TreeNodeBase = {
   id: string;
@@ -83,10 +90,27 @@ type TreeNodeBase = {
 };
 
 export type TreeNode =
-  | (TreeNodeBase & { kind: "frame"; children: TreeNode[] })
-  | (TreeNodeBase & { kind: "text"; textKey: string })
+  | (TreeNodeBase & {
+      kind: "frame";
+      children: TreeNode[];
+      /** Children drawn once per entry — see `SourceFrame.repeat`. */
+      repeat?: { list: SourceValue };
+    })
+  | (TreeNodeBase & {
+      kind: "text";
+      textKey: string;
+      /** What the copy's placeholders are filled with — see `SourceFrame.params`. */
+      params?: Record<string, SourceValue>;
+    })
   | (TreeNodeBase & { kind: "image"; src: string })
-  | (TreeNodeBase & { kind: "input"; variable: string });
+  | (TreeNodeBase & { kind: "input"; variable: string })
+  | (TreeNodeBase & {
+      kind: "slot";
+      /** The host component asked for — `"checkout"`. */
+      name: string;
+      /** What runs when the component reports, by report name. */
+      triggers?: Record<string, SourceAction[]>;
+    });
 
 export type ScreenTree = {
   id: string;
@@ -140,7 +164,31 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
 function nodeOf(frame: SourceFrame, all: SourceFrame[]): TreeNode {
   const base = baseOf(frame);
 
-  if (frame.kind === "text") return { ...base, kind: "text", textKey: frame.textKey ?? "" };
+  if (frame.kind === "text") {
+    return {
+      ...base,
+      kind: "text",
+      textKey: frame.textKey ?? "",
+      ...(frame.params && Object.keys(frame.params).length ? { params: frame.params } : {}),
+    };
+  }
+  if (frame.kind === "slot") {
+    // Every interaction that is not one of a frame's own events is a report
+    // the component makes, run by name.
+    const own = new Set(["click", "change", "leave", "load"]);
+    const triggers: Record<string, SourceAction[]> = {};
+    (frame.interactions ?? []).forEach((interaction) => {
+      const event = interaction.on?.event ?? "click";
+      if (own.has(event)) return;
+      triggers[event] = [...(triggers[event] ?? []), ...interaction.do];
+    });
+    return {
+      ...base,
+      kind: "slot",
+      name: frame.slot ?? "",
+      ...(Object.keys(triggers).length ? { triggers } : {}),
+    };
+  }
   if (frame.kind === "image") return { ...base, kind: "image", src: frame.src ?? "" };
   if (frame.kind === "input") return { ...base, kind: "input", variable: frame.variable ?? "" };
 
@@ -148,6 +196,7 @@ function nodeOf(frame: SourceFrame, all: SourceFrame[]): TreeNode {
     ...base,
     kind: "frame",
     children: childrenOf(frame, all).map((child) => nodeOf(child, all)),
+    ...(frame.repeat ? { repeat: frame.repeat } : {}),
   };
 }
 

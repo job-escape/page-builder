@@ -14,6 +14,7 @@
  * handful of actions, closed, so this is a switch, not a language.
  */
 import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
+import { pathGet } from "./data";
 import { call, check, compare } from "./functions";
 import type { VariableValue } from "./types";
 import type { request } from "./request";
@@ -62,11 +63,17 @@ export type ConditionState = {
    * without it a fact reads as unknown, which is what `visitorIsSet` says too.
    */
   visitorValue?: (property: string) => string | number | boolean | null;
+  /**
+   * Mark a request's progress — `$req.<id>.status`. Optional, so a host state
+   * written before requests had a status still runs; without it the status
+   * simply stays `idle`.
+   */
+  setStatus?: (id: string, status: "idle" | "pending" | "success" | "error", error?: string) => void;
 };
 
 /** A value a function or a comparison reads, resolved against the state. */
 export function valueOf(value: SourceValue, state: ConditionState): unknown {
-  if ("var" in value) return state.get(value.var);
+  if ("var" in value) return pathGet(state.get(value.var), value.path);
   if ("lit" in value) return value.lit;
   if ("visitor" in value) return state.visitorValue?.(value.visitor) ?? null;
   if ("fn" in value) return call(value.fn, value.args.map((arg) => valueOf(arg, state)));
@@ -236,7 +243,11 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         break;
 
       case "set":
-        ctx.state.set(action.variable, action.value);
+        // A value read now wins over the literal — see `SourceAction`'s `set`.
+        ctx.state.set(
+          action.variable,
+          (action.from ? valueOf(action.from, ctx.state) : (action.value ?? null)) as VariableValue,
+        );
         break;
 
       case "close":
@@ -260,24 +271,32 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
       }
 
       case "submit": {
+        const requestId = action.id ?? action.action;
         try {
           const payload: Record<string, unknown> = {};
           Object.entries(action.fields ?? {}).forEach(([key, variable]) => {
             // Read at click time, so no answer is baked into the artifact.
             payload[key] = ctx.state.get(variable);
           });
+          Object.entries(action.values ?? {}).forEach(([key, value]) => {
+            payload[key] = valueOf(value, ctx.state);
+          });
 
+          ctx.state.setStatus?.(requestId, "pending");
           // eslint-disable-next-line no-await-in-loop
           const response = await ctx.req(action.action, payload);
 
           Object.entries(action.into ?? {}).forEach(([variable, field]) => {
-            ctx.state.set(variable, (response[field] ?? null) as VariableValue);
+            // A path into the response; an empty one is the response itself.
+            ctx.state.set(variable, pathGet(response, field) as VariableValue);
           });
+          ctx.state.setStatus?.(requestId, "success");
           // eslint-disable-next-line no-await-in-loop
           if (!(await run(action.onSuccess ?? [], ctx))) return false;
         } catch (failure) {
+          const message = failure instanceof Error ? failure.message : String(failure);
+          ctx.state.setStatus?.(requestId, "error", message);
           if (action.errorInto) {
-            const message = failure instanceof Error ? failure.message : String(failure);
             ctx.state.set(action.errorInto, message);
           }
           // eslint-disable-next-line no-await-in-loop

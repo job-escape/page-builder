@@ -133,9 +133,76 @@ export function call(fn: ValueFunction | string, args: readonly unknown[]): unkn
       return asText(first).toLowerCase();
     case "trim":
       return asText(first).trim();
+    case "upper":
+      return asText(first).toUpperCase();
+    case "concat":
+      return args.map(asText).join("");
+    case "money":
+      return money(first, args[1], args[2]);
+    case "divide": {
+      const a = asNumber(first);
+      const b = asNumber(args[1]);
+      return Number.isFinite(a) && Number.isFinite(b) && b !== 0 ? a / b : null;
+    }
+    case "multiply": {
+      const a = asNumber(first);
+      const b = asNumber(args[1]);
+      return Number.isFinite(a) && Number.isFinite(b) ? a * b : null;
+    }
+    case "round": {
+      const a = asNumber(first);
+      const places = Math.max(0, Math.min(6, Math.trunc(asNumber(args[1]) || 0)));
+      if (!Number.isFinite(a)) return null;
+      const factor = 10 ** places;
+      return Math.round(a * factor) / factor;
+    }
+    case "first":
+      return Array.isArray(first) ? (first[0] ?? null) : null;
+    case "find":
+      return findBy(first, args[1], args[2]);
     default:
       return null;
   }
+}
+
+/**
+ * An amount as a visitor reads a price — `$15.19`, `15,19 €`.
+ *
+ * `Intl` with the currency the backend named, in the locale given (default
+ * `en-US`), so a card never hand-assembles a symbol. A currency `Intl` does not
+ * know falls back to the amount and the code rather than throwing: a price
+ * that reads `15.19 XYZ` is a price, and a blank card is a lost sale.
+ */
+function money(amount: unknown, currency: unknown, locale: unknown): string | null {
+  const value = asNumber(amount);
+  if (!Number.isFinite(value)) return null;
+  const code = asText(currency).trim().toUpperCase();
+  if (!code) return String(value);
+  try {
+    return new Intl.NumberFormat(asText(locale) || "en-US", {
+      style: "currency",
+      currency: code,
+    }).format(value);
+  } catch {
+    return `${value} ${code}`;
+  }
+}
+
+/**
+ * The first object in a list whose field equals a value — the plan whose id
+ * is 3. Compared as `compare` does, so a numeric id matches its text form.
+ */
+function findBy(list: unknown, field: unknown, wanted: unknown): unknown {
+  if (!Array.isArray(list)) return null;
+  const key = asText(field);
+  return (
+    list.find(
+      (entry) =>
+        entry !== null &&
+        typeof entry === "object" &&
+        compare((entry as Record<string, unknown>)[key], "eq", wanted),
+    ) ?? null
+  );
 }
 
 /**

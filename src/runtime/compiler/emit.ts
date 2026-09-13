@@ -21,7 +21,7 @@ import { buildManifest, sortedScreens, type FunnelManifest } from "./manifest";
 /** Emitted code is line-based; naming the separator keeps it out of literals. */
 const NL = String.fromCharCode(10);
 import {
-  isCaseBinding,
+  isCaseBinding, isValueBinding,
   type SourceAction,
   type SourceBinding,
   type SourceCondition,
@@ -114,7 +114,8 @@ function emitAction(action: SourceAction, indent: string): string {
     case "select":
       return `${indent}state.select(${lit(action.variable)}, ${lit(action.value)});`;
     case "set":
-      return `${indent}state.set(${lit(action.variable)}, ${lit(action.value)});`;
+      // `from` is tree-only, like value bindings — see `emitBinding`.
+      return `${indent}state.set(${lit(action.variable)}, ${lit(action.value ?? null)});`;
     case "close":
       return `${indent}nav.close();`;
     case "show": {
@@ -256,6 +257,10 @@ function emitLeave(frame: SourceFrame, indent: string): string[] {
  * always did: an artifact published years ago has to keep compiling.
  */
 function emitBinding(binding: SourceBinding): string {
+  // A value binding is tree-only (schema 1.3): nothing reads JavaScript modules
+  // any more, and teaching this emitter values would be a second interpreter of
+  // them to keep in step. `undefined` leaves the static prop standing.
+  if (isValueBinding(binding)) return "undefined";
   if (!isCaseBinding(binding)) {
     return `${emitCondition(binding.when)} ? ${lit(binding.whenTrue)} : ${lit(binding.whenFalse)}`;
   }

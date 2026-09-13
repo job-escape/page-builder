@@ -18,13 +18,21 @@
  */
 
 export type {
+  DataObject,
   VariableDecl,
   VariableTable,
   VariableType,
   VariableValue,
 } from "./runtime/types";
 
-export { isListType } from "./runtime/types";
+export { isDataType, isListType } from "./runtime/types";
+
+/**
+ * Reading into what a request returned — `plans[0].price_amount` — and the
+ * names a renderer answers itself (`$item`, `$event`). See `runtime/data`.
+ */
+export type { Scope } from "./runtime/data";
+export { SCOPE_NAMES, isScopeName, pathGet, pathSteps } from "./runtime/data";
 
 export {
   atMax,
@@ -93,9 +101,11 @@ export type {
   ScreenTransition,
   SourceScreen,
   SourceScreenPresentation,
+  SlotTrigger,
   SourceValue,
   ValueFunction,
 } from "./runtime/compiler/source";
+export { isCaseBinding, isValueBinding } from "./runtime/compiler/source";
 
 /** The functions a condition may call — one definition for both renderers. */
 export { call, check, compare } from "./runtime/functions";

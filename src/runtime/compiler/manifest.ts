@@ -17,6 +17,7 @@ import type { ResolvedTokens } from "../style/tokens";
 import type { VariableDecl } from "../types";
 import {
   isCaseBinding,
+  isValueBinding,
   type SourceAction,
   type SourceCondition,
   type SourceValue,
@@ -201,7 +202,9 @@ function enterOf(screen: SourceScreen): { enter?: SourceAction[] } {
 /** The variables and visitor facts a function's value reads. */
 function namesInValue(value: SourceValue, variables: Set<string>, facts: Set<string>): void {
   if ("var" in value) {
-    if (value.var) variables.add(value.var);
+    // `$item`, `$event` and their kin are the renderer's scope, not variables
+    // — declaring one would be a name no store can answer.
+    if (value.var && !value.var.startsWith("$")) variables.add(value.var);
     return;
   }
   if ("visitor" in value) {
@@ -288,6 +291,10 @@ const propertyValues = (action: Extract<SourceAction, { type: "analytics" }>): S
 
 function variablesInActions(actions: SourceAction[], into: Set<string>): void {
   actions.forEach((action) => {
+    if (action.type === "set" && action.from) namesInValue(action.from, into, new Set());
+    if (action.type === "submit") {
+      Object.values(action.values ?? {}).forEach((value) => namesInValue(value, into, new Set()));
+    }
     if (action.type === "analytics") {
       // What it sends is read from the store as it runs, like a payload.
       propertyValues(action).forEach((value) => namesInValue(value, into, new Set()));
@@ -312,12 +319,19 @@ export function readsOf(screen: SourceScreen): string[] {
 
   screen.frames.forEach((frame) => {
     Object.values(frame.bindings ?? {}).forEach((binding) => {
+      if (isValueBinding(binding)) {
+        namesInValue(binding.value, reads, new Set());
+        return;
+      }
       if (isCaseBinding(binding)) {
         binding.cases.forEach((entry) => variablesInCondition(entry.when, reads));
         return;
       }
       variablesInCondition(binding.when, reads);
     });
+    // A repeated frame reads its list, and a text frame its params.
+    if (frame.repeat) namesInValue(frame.repeat.list, reads, new Set());
+    Object.values(frame.params ?? {}).forEach((value) => namesInValue(value, reads, new Set()));
     // Presence reads too. A screen whose only mention of `$platform` is the
     // frame it hides still has to declare it, or the variable is undefined at
     // render and the frame appears everywhere.
@@ -346,12 +360,17 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
       if (frame.when) visitorFactsInCondition(frame.when, facts);
 
       Object.values(frame.bindings ?? {}).forEach((binding) => {
+        if (isValueBinding(binding)) {
+          namesInValue(binding.value, new Set(), facts);
+          return;
+        }
         if (isCaseBinding(binding)) {
           binding.cases.forEach((entry) => visitorFactsInCondition(entry.when, facts));
           return;
         }
         visitorFactsInCondition(binding.when, facts);
       });
+      Object.values(frame.params ?? {}).forEach((value) => namesInValue(value, new Set(), facts));
 
       frame.interactions?.forEach((interaction) => {
         const walk = (actions: SourceAction[]): void => {
