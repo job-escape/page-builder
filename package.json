@@ -1,6 +1,6 @@
 {
   "name": "@job-escape/page-builder",
-  "version": "0.3.0-beta.31",
+  "version": "0.3.0-beta.32",
   "description": "Generic page-builder engine: Effector-backed state, MDX → React parser, logic-action executor, navigation & dialogs. Extracted from the Job Escape funnel.",
   "license": "UNLICENSED",
   "private": false,
@@ -32,6 +32,11 @@
       "types": "./dist/runtime-client.d.ts",
       "import": "./dist/runtime-client.mjs",
       "require": "./dist/runtime-client.js"
+    },
+    "./requests": {
+      "types": "./dist/requests.d.ts",
+      "import": "./dist/requests.mjs",
+      "require": "./dist/requests.js"
     }
   },
   "files": [

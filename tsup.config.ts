@@ -80,6 +80,18 @@ export default defineConfig([
     external,
     banner: { js: `"use client";` },
   },
+  // Beta server entry — the named requests a design makes, answered by a host's
+  // route. Server-only (fetch, crypto.randomUUID); shares nothing with the runtime.
+  {
+    entry: { requests: "src/requests.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+  },
   // Beta native entry — the React Native half. Its own build for the same reason
   // the others have theirs: nothing resolving `.` or `./client` may pull
   // `react-native` in, and nothing here may drag the DOM bricks onto a phone.
