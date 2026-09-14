@@ -21,7 +21,7 @@
 import type { ReactNode } from "react";
 
 import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
-import { isCaseBinding, isValueBinding } from "../compiler/source";
+import { isCaseBinding, isValueBinding, type SourceAction } from "../compiler/source";
 import { isScopeName, type Scope } from "../data";
 import { evaluate, run, valueOf } from "../interpret";
 import type { CopyParams } from "../rich-text";
@@ -65,7 +65,12 @@ function within(props: ScreenProps, scope: Scope | undefined): ScreenProps {
  * matters is `fill` on a selected option — it is why a tap changes the look
  * without anything re-fetching.
  */
-function propsOf(node: TreeNode, props: ScreenProps): Record<string, unknown> {
+function propsOf(
+  node: TreeNode,
+  props: ScreenProps,
+  /** What the group above this node says a selection does — see `renderNode`. */
+  select?: SourceAction[],
+): Record<string, unknown> {
   const resolved: Record<string, unknown> = { ...node.props };
 
   Object.entries(node.bindings ?? {}).forEach(([key, binding]) => {
@@ -88,12 +93,38 @@ function propsOf(node: TreeNode, props: ScreenProps): Record<string, unknown> {
     resolved[key] = hit ? hit.value : binding.default;
   });
 
-  if (node.on?.length) {
-    const actions = node.on;
+  /**
+   * The tap, and the selection it reports.
+   *
+   * A group states once what answering its question does (`onSelect`); the
+   * option that was tapped writes the answer and then carries that out. The
+   * two are composed here rather than left to the platform, because the web
+   * used to get it from a click bubbling up to the group and React Native has
+   * no bubbling at all — the same artifact navigated in a browser and did
+   * nothing on a phone.
+   *
+   * **A node declaring `onSelect` does not take its own `on` as a tap.** Both
+   * hold the same actions; `on` is there so a 1.3 reader still finds them by
+   * bubbling, and ignoring it here is what stops them running twice.
+   *
+   * The group's actions run only if the option's own did not end the chain —
+   * `run` resolves `false` when a `wait` found its screen gone, and everything
+   * after it is meant to be left undone.
+   */
+  const own = node.onSelect?.length ? undefined : node.on;
+  const reports = node.onSelect?.length ? undefined : select;
+
+  if (own?.length) {
+    const actions = own;
+    const after = reports;
+    const context = { state: props.state, nav: props.nav, req: props.req };
     // Fire-and-forget on purpose: React does not await a handler, and the
     // actions write through the store, which is what re-renders.
     resolved.onClick = (): void => {
-      void run(actions, { state: props.state, nav: props.nav, req: props.req });
+      void (async () => {
+        const carried = await run(actions, context);
+        if (carried && after?.length) await run(after, context);
+      })();
     };
   }
 
@@ -122,8 +153,22 @@ function paramsOf(
 
 type SlotFactory = (component: unknown, props: Record<string, unknown>) => ReactNode;
 
-function renderNode(node: TreeNode, screen: ScreenProps, scope?: Scope): ReactNode {
+function renderNode(
+  node: TreeNode,
+  screen: ScreenProps,
+  scope?: Scope,
+  /**
+   * What the nearest group above says a selection does.
+   *
+   * Handed down as data rather than as a closure so it runs in the scope of
+   * the option that was tapped: inside a repeat, the group's steps read the
+   * entry the visitor chose (`$item`), not the one the group was drawn with.
+   */
+  select?: SourceAction[],
+): ReactNode {
   const props = within(screen, scope);
+  /** Nearest group wins: a group inside a group answers its own question. */
+  const below = node.onSelect?.length ? node.onSelect : select;
 
   /**
    * Presence, before anything else.
@@ -136,7 +181,7 @@ function renderNode(node: TreeNode, screen: ScreenProps, scope?: Scope): ReactNo
    */
   if (node.when && !evaluate(node.when, props.state)) return null;
 
-  const resolved = propsOf(node, props);
+  const resolved = propsOf(node, props, select);
 
   if (node.kind === "text") {
     const params = paramsOf(node, props);
@@ -207,14 +252,16 @@ function renderNode(node: TreeNode, screen: ScreenProps, scope?: Scope): ReactNo
     return props.ui.Frame(
       resolved,
       entries.flatMap((item, index) =>
-        node.children.map((child) => renderNode(child, screen, { ...scope, $item: item, $index: index })),
+        node.children.map((child) =>
+          renderNode(child, screen, { ...scope, $item: item, $index: index }, below),
+        ),
       ),
     );
   }
 
   return props.ui.Frame(
     resolved,
-    node.children.map((child) => renderNode(child, screen, scope)),
+    node.children.map((child) => renderNode(child, screen, scope, below)),
   );
 }
 

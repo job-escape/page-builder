@@ -233,8 +233,15 @@ export type SourceAction =
  * `load` belongs to a screen's own frame: the moment the screen opens, every
  * time it does. It travels in the manifest rather than in the screen — see
  * `ScreenIndex.enter` — because opening is the funnel's moment, not a node's.
+ *
+ * `select` belongs to a group of options: what happens once an answer has been
+ * given, stated on the frame that owns the question rather than repeated on
+ * every option under it. The option writes the answer; the group says what
+ * follows. Authored on the group, run by the option — which is the whole
+ * reason it is its own event rather than a tap on the group: a tap reaches a
+ * group by bubbling, and one of the two renderers has no such thing.
  */
-export type SourceEvent = "click" | "change" | "leave" | "load";
+export type SourceEvent = "click" | "change" | "leave" | "load" | "select";
 
 /**
  * A slot's own triggers — whatever the component in it reports.

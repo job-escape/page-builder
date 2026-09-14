@@ -52,8 +52,15 @@ import type {
   `slot` nodes and their `triggers`, `set` from a value, a `submit`'s `values`,
   path `into` and `id`. All additive: a 1.2 reader ignores the keys and draws a
   repeated frame's template once, a slot as nothing.
+
+  1.4 — `onSelect` on a group of options: what runs once an answer is given,
+  carried out by the option that was tapped. Additive, and deliberately
+  redundant: the same actions still travel in the group's own `on`, so a 1.3
+  reader keeps reaching them the way it always did — by a click bubbling up to
+  the group. A 1.4 reader takes `onSelect` and ignores that node's `on`, which
+  is what keeps the actions from running twice in a browser.
 */
-export const TREE_SCHEMA = "1.3";
+export const TREE_SCHEMA = "1.4";
 
 type TreeNodeBase = {
   id: string;
@@ -87,6 +94,19 @@ type TreeNodeBase = {
    */
   onChange?: SourceAction[];
   onLeave?: SourceAction[];
+  /**
+   * What answering this group's question does, carried out by the option that
+   * was tapped rather than by this node.
+   *
+   * On a group of options and nowhere else. The option writes the answer and
+   * then runs this, so a condition here reads the answer just given. It exists
+   * because the alternative — a tap on the option reaching the group — is a
+   * browser's bubbling, which React Native does not have.
+   *
+   * The same actions also stay in this node's `on` for a 1.3 reader; see the
+   * schema note above for why that is not a double run.
+   */
+  onSelect?: SourceAction[];
 };
 
 export type TreeNode =
@@ -144,6 +164,7 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
   const actions = actionsFor(frame, "click");
   const change = actionsFor(frame, "change");
   const leave = actionsFor(frame, "leave");
+  const select = actionsFor(frame, "select");
 
   return {
     id: frame.id,
@@ -153,6 +174,7 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
     ...(actions.length ? { on: actions } : {}),
     ...(change.length ? { onChange: change } : {}),
     ...(leave.length ? { onLeave: leave } : {}),
+    ...(select.length ? { onSelect: select } : {}),
   };
 }
 
