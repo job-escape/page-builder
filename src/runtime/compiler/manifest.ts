@@ -169,6 +169,8 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
       if (action.type === "conditional") {
         action.branches.forEach((branch) => walk(branch.do));
       }
+      // Where a countdown sends somebody when it ends is somewhere they can go.
+      if (action.type === "timer") walk(action.onEnd ?? []);
     });
   };
 
@@ -212,6 +214,7 @@ function namesInValue(value: SourceValue, variables: Set<string>, facts: Set<str
     return;
   }
   if ("fn" in value) value.args.forEach((arg) => namesInValue(arg, variables, facts));
+  // `{ timer }` reads neither: a timer is the funnel's clock, not an answer.
 }
 
 /** Every value a function or comparison leaf reads. */
@@ -292,6 +295,13 @@ const propertyValues = (action: Extract<SourceAction, { type: "analytics" }>): S
 function variablesInActions(actions: SourceAction[], into: Set<string>): void {
   actions.forEach((action) => {
     if (action.type === "set" && action.from) namesInValue(action.from, into, new Set());
+    if (action.type === "animate") {
+      // It writes the variable every frame, and reads where it goes from.
+      into.add(action.variable);
+      namesInValue(action.to, into, new Set());
+      if (action.from) namesInValue(action.from, into, new Set());
+    }
+    if (action.type === "timer") variablesInActions(action.onEnd ?? [], into);
     if (action.type === "submit") {
       Object.values(action.values ?? {}).forEach((value) => namesInValue(value, into, new Set()));
     }
@@ -386,6 +396,7 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
               walk(action.onSuccess ?? []);
               walk(action.onError ?? []);
             }
+            if (action.type === "timer") walk(action.onEnd ?? []);
             if (action.type !== "conditional") return;
             action.branches.forEach((branch) => {
               if (branch.when) visitorFactsInCondition(branch.when, facts);

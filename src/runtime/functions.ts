@@ -160,8 +160,69 @@ export function call(fn: ValueFunction | string, args: readonly unknown[]): unkn
       return Array.isArray(first) ? (first[0] ?? null) : null;
     case "find":
       return findBy(first, args[1], args[2]);
+    case "add":
+    case "subtract": {
+      const a = asNumber(first);
+      const b = asNumber(args[1]);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+      return fn === "add" ? a + b : a - b;
+    }
+    case "min":
+    case "max": {
+      const numbers = args.map(asNumber).filter(Number.isFinite);
+      if (numbers.length === 0) return null;
+      return fn === "min" ? Math.min(...numbers) : Math.max(...numbers);
+    }
+    case "clamp": {
+      const a = asNumber(first);
+      const low = asNumber(args[1]);
+      const high = asNumber(args[2]);
+      if (!Number.isFinite(a)) return null;
+      const floor = Number.isFinite(low) ? low : -Infinity;
+      const ceiling = Number.isFinite(high) ? high : Infinity;
+      return Math.min(ceiling, Math.max(floor, a));
+    }
+    case "format":
+      return format(first, args[1]);
     default:
       return null;
+  }
+}
+
+/**
+ * A number as a visitor reads it on a loader or a timer.
+ *
+ * - `int` — `42`, rounded to the nearest whole number.
+ * - `percent` — `42%`, the value taken as already out of a hundred: a loader's
+ *   variable runs 0 → 100, and a fraction is `multiply(x, 100)` first.
+ * - `pad2` — `07`, for a digit that must not jump in width.
+ * - `mm:ss` — `09:59`, seconds as minutes and seconds; minutes grow past 59.
+ * - `hh:mm:ss` — `01:09:59`.
+ *
+ * Seconds are floored before they are split, so a countdown reads `00:00` only
+ * once it has actually ended rather than for its whole last second.
+ */
+function format(value: unknown, pattern: unknown): string | null {
+  const number = asNumber(value);
+  if (!Number.isFinite(number)) return null;
+  const two = (n: number) => String(Math.max(0, n)).padStart(2, "0");
+  switch (asText(pattern)) {
+    case "int":
+      return String(Math.round(number));
+    case "percent":
+      return `${Math.round(number)}%`;
+    case "pad2":
+      return two(Math.round(number));
+    case "mm:ss": {
+      const total = Math.max(0, Math.floor(number));
+      return `${two(Math.floor(total / 60))}:${two(total % 60)}`;
+    }
+    case "hh:mm:ss": {
+      const total = Math.max(0, Math.floor(number));
+      return `${two(Math.floor(total / 3600))}:${two(Math.floor((total % 3600) / 60))}:${two(total % 60)}`;
+    }
+    default:
+      return String(number);
   }
 }
 

@@ -24,6 +24,7 @@ import type {
   Size,
   Stroke,
 } from "./values";
+import { isPercent } from "./values";
 
 // ─── Colour ───────────────────────────────────────────────────────────────────
 
@@ -275,6 +276,7 @@ export function radiusFrom(value: unknown): Radius | undefined {
 export function sizeFrom(value: unknown): Size | undefined {
   if (typeof value === "number") return value;
   if (value === "fill" || value === "hug") return value;
+  if (isPercent(value)) return value.trim() as Size;
   return undefined;
 }
 

@@ -20,6 +20,7 @@ import { DEVICE_VARIABLE, type Device } from "./device";
 import { call, check, compare } from "./functions";
 import * as persistence from "./persistence";
 import type { PersistenceOptions } from "./persistence";
+import type { TimerBook } from "./timers";
 import type { VariableDecl, VariableTable, VariableValue } from "./types";
 import {
   atMax as atMaxOf,
@@ -92,6 +93,12 @@ export type FunnelStoreOptions = {
    * back sees what was stored.
    */
   onChange?: (name: string, value: VariableValue) => void;
+  /**
+   * The funnel's timers — see `runtime/timers`. Optional, so a host built
+   * before timers existed still makes a store; without it a timer reads as
+   * nothing and a `timer` step starts nothing.
+   */
+  timers?: TimerBook;
 };
 
 export type FunnelStore = ReturnType<typeof createFunnelStore>;
@@ -197,6 +204,33 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   }
 
   /** Assign or toggle, per the declared type. The single/multi difference. */
+  /**
+   * A value on its way somewhere — one frame of an `animate`.
+   *
+   * Redrawn, and nothing else: not written to the answers cookie and not
+   * reported to the host, sixty times a second. The step that started it ends
+   * with an ordinary `set` of where it arrived, which does both once.
+   */
+  function setTransient(name: string, value: VariableValue): void {
+    const decl = declOf(name);
+    if (!decl) return;
+    if (same(values[name], value)) return;
+    values = { ...values, [name]: value };
+    notify();
+  }
+
+  /** A timer's whole seconds, or `null` — see `TimerBook.read`. */
+  const timer = (id: string): number | null => options.timers?.read(id) ?? null;
+
+  /**
+   * A timer's reading moved on. Nothing in `values` changed, so the snapshot is
+   * renewed by hand — the same move `setDevice` makes — or nothing would redraw.
+   */
+  function tick(): void {
+    values = { ...values };
+    notify();
+  }
+
   function select(name: string, value: string): void {
     const decl = declOf(name);
     if (!decl) return;
@@ -310,6 +344,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     values = initialState(table);
     requests.clear();
     if (persist) persistence.clear(persist);
+    options.timers?.clear();
     notify();
   }
 
@@ -336,6 +371,10 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     call,
     compare,
     forgetScreen,
+    setTransient,
+    timer,
+    tick,
+    timers: options.timers,
     status,
     setStatus,
     device: deviceOf,

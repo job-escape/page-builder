@@ -124,7 +124,17 @@ export type Radius = Px | [Px, Px, Px, Px];
  * `fill` takes the space the parent offers; `hug` is as big as the content.
  * Both are Yoga concepts, which is why they survive the platform change intact.
  */
-export type Size = Px | "fill" | "hug";
+export type Size = Px | "fill" | "hug" | Percent;
+
+/**
+ * A share of the parent, `"42%"` — a progress bar's fill. Both platforms have
+ * it (Yoga takes percent strings), so it travels as written. Schema 1.5.
+ */
+export type Percent = `${number}%`;
+
+/** `"42%"`, or not a percent. */
+export const isPercent = (value: unknown): value is Percent =>
+  typeof value === "string" && /^-?\d+(\.\d+)?%$/.test(value.trim());
 
 /**
  * Line height, with its unit named.

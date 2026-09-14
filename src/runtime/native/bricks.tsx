@@ -22,6 +22,7 @@
 import { createContext, createElement, useContext, useState, type ReactNode } from "react";
 import {
   I18nManager,
+  Animated,
   Image as RNImage,
   Pressable,
   ScrollView,
@@ -38,6 +39,7 @@ import {
 import { boxFromProps, paddingFrom } from "../style/adapt-legacy";
 import { flexForSize } from "../style/emit-css";
 import { useFollowLink, type FollowLink } from "../link-context";
+import { useNativeMotion } from "./motion";
 
 /**
  * A designer's left, as this device would draw it.
@@ -247,6 +249,9 @@ function StrokeLayer({ stroke }: { stroke: NativeOverlayStroke }) {
 /** The press every tappable brick answers with — see the web brick's `pressScale`. */
 const PRESSED = { transform: [{ scale: 0.97 }] };
 
+/** A pressable that can wear animated values — see `useNativeMotion`. */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 export function Frame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
   // The frame this one sits in — what its own `fill` is measured along.
   const flow = useContext(FlowContext);
@@ -292,6 +297,19 @@ export function Frame({ children, onClick, disabled, scroll, states, ...props }:
       })()
     : null;
 
+  /*
+    Motion, when the design gave the frame any: a transition gliding a bound
+    width, a preset playing on its own. Hooks called on every render; the
+    `Animated` views below are used only when there is something to animate.
+  */
+  const motion = useNativeMotion({
+    style: view,
+    transition: (props as FrameProps).transition,
+    motion: (props as FrameProps).motion,
+    motionKey: (props as FrameProps).motionKey,
+  });
+  const [pressing, setPressing] = useState(false);
+
   const inner = (
     <>
       {box.gradient ? <GradientLayer gradient={box.gradient} /> : null}
@@ -301,6 +319,45 @@ export function Frame({ children, onClick, disabled, scroll, states, ...props }:
       {box.overlayStroke ? <StrokeLayer stroke={box.overlayStroke} /> : null}
     </>
   );
+
+  if (motion.animated) {
+    const moving = [view, motion.style] as unknown as ViewStyle;
+    if (scroll) {
+      return (
+        <Animated.ScrollView
+          style={moving}
+          contentContainerStyle={content as ViewStyle}
+          testID={props.testId}
+        >
+          {onClick ? <Pressable onPress={onClick}>{inner}</Pressable> : inner}
+        </Animated.ScrollView>
+      );
+    }
+    if (onClick) {
+      const transform = [
+        ...((motion.style.transform as unknown[]) ?? ((view as ViewStyle).transform as unknown[]) ?? []),
+        ...(pressing ? PRESSED.transform : []),
+      ];
+      return (
+        <AnimatedPressable
+          style={[view, pressing ? pressedStyle : null, motion.style, { transform }] as never}
+          onPress={onClick}
+          onPressIn={() => setPressing(true)}
+          onPressOut={() => setPressing(false)}
+          disabled={disabled}
+          {...a11y({ ...props, disabled })}
+          testID={props.testId}
+        >
+          {inner}
+        </AnimatedPressable>
+      );
+    }
+    return (
+      <Animated.View style={moving} testID={props.testId}>
+        {inner}
+      </Animated.View>
+    );
+  }
 
   if (scroll) {
     return (
@@ -464,10 +521,23 @@ export function Text({
   };
 
   const spans = runs ? runsOf(runs) : null;
+  const motion = useNativeMotion({
+    style: style as Record<string, unknown>,
+    transition: (props as { transition?: unknown }).transition,
+    motion: (props as { motion?: unknown }).motion,
+    motionKey: undefined,
+  });
+  const TextView = (motion.animated ? Animated.Text : RNText) as typeof RNText;
 
   return (
-    <RNText
-      style={onClick && pressed ? [style, PRESSED] : style}
+    <TextView
+      style={
+        (motion.animated
+          ? [style, motion.style, onClick && pressed ? PRESSED : null]
+          : onClick && pressed
+            ? [style, PRESSED]
+            : style) as TextStyle
+      }
       onPress={onClick}
       onPressIn={onClick ? () => setPressed(true) : undefined}
       onPressOut={onClick ? () => setPressed(false) : undefined}
@@ -478,7 +548,7 @@ export function Text({
       testID={props.testId}
     >
       {spans ? spans.map((run, at) => runText(run, at, follow)) : children}
-    </RNText>
+    </TextView>
   );
 }
 

@@ -59,8 +59,15 @@ import type {
   reader keeps reaching them the way it always did — by a click bubbling up to
   the group. A 1.4 reader takes `onSelect` and ignores that node's `on`, which
   is what keeps the actions from running twice in a browser.
+
+  1.5 — time: `animate`, `timer` and `waitFor` steps, `wait: false` on a
+  `submit`, `{ timer }` values, the `add` / `subtract` / `min` / `max` /
+  `clamp` / `format` functions, and a frame's `transition`, `motion` and
+  `motionKey` props with sizes in percent. All additive: a 1.4 reader skips a
+  step it does not know, reads an unknown value as nothing and ignores the props
+  — so an older app draws the funnel still, only without its motion.
 */
-export const TREE_SCHEMA = "1.4";
+export const TREE_SCHEMA = "1.5";
 
 type TreeNodeBase = {
   id: string;

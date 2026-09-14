@@ -118,6 +118,7 @@ export function cssRadius(radius: Radius): string {
 export function cssSize(size: Size): string {
   if (size === "fill") return "100%";
   if (size === "hug") return "auto";
+  if (typeof size === "string") return size;
   return `${size}px`;
 }
 
@@ -162,6 +163,8 @@ export function cssBox(box: BoxValues, lookup: TokenLookup = {}): CssDeclaration
 export function flexForSize(size: Size | undefined): { grow: boolean; basis: Px | undefined } {
   if (size === "fill") return { grow: true, basis: undefined };
   if (size === "hug" || size === undefined) return { grow: false, basis: undefined };
+  // A percent is a size, not a basis — it is honoured by `width` itself.
+  if (typeof size === "string") return { grow: false, basis: undefined };
   return { grow: false, basis: size };
 }
 

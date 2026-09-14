@@ -35,7 +35,16 @@ export type SourceValue =
   | { var: string; path?: string }
   | { lit: string | number | boolean | null }
   | { visitor: string }
-  | { fn: ValueFunction; args: SourceValue[] };
+  | { fn: ValueFunction; args: SourceValue[] }
+  /**
+   * A timer's seconds — left on a countdown, gone by on an elapsed one; `null`
+   * before a `timer` step has started it. See `SourceAction`'s `timer`.
+   *
+   * Its own shape rather than a variable, because it is not an answer: nothing
+   * sets it, it moves on its own, and it survives a republish that resets every
+   * answer. Schema 1.5 — a 1.4 reader reads it as nothing.
+   */
+  | { timer: string };
 
 /**
  * Functions that answer a value — `length(name)`, `money(amount, currency)`.
@@ -56,7 +65,14 @@ export type ValueFunction =
   | "multiply"
   | "round"
   | "first"
-  | "find";
+  | "find"
+  /** Schema 1.5 — a loader's and a timer's arithmetic, and how its number reads. */
+  | "add"
+  | "subtract"
+  | "min"
+  | "max"
+  | "clamp"
+  | "format";
 
 /** Functions that answer yes or no — `validEmail(email)`. */
 export type CheckFunction =
@@ -70,6 +86,13 @@ export type CheckFunction =
   | "startsWith"
   | "endsWith"
   | "matches";
+
+/**
+ * How a value moves between two points in time — an animation's pace, and a
+ * frame's `transition`. The CSS names, because both renderers can say them:
+ * the browser natively, React Native through the same cubic curves.
+ */
+export type MotionEasing = "linear" | "ease" | "ease-in" | "ease-out" | "ease-in-out";
 
 /** How two values are compared. Ordering reads numbers, numeric text included. */
 export type Comparison = "eq" | "neq" | "lt" | "lte" | "gt" | "gte";
@@ -192,7 +215,63 @@ export type SourceAction =
        * Tree only: the JS emitter drops it.
        */
       errorFields?: Record<string, string>;
+      /**
+       * `false` starts the request and goes straight on to the next step — a
+       * loader that counts while the plan is being built. The request still
+       * belongs to the screen: `onSuccess` and `onError` do not run for a
+       * visitor who has left it. `waitFor` joins it again later. Schema 1.5.
+       */
+      wait?: boolean;
     }
+  /**
+   * Move a number variable to a value over time — a loader's 0 → 100, a bar
+   * filling, a price counting up.
+   *
+   * Every frame in between is drawn, and the variable ends on exactly `to`.
+   * `from` defaults to what the variable holds now. It belongs to the screen it
+   * started on, like `wait`: leaving the screen stops it where it is and runs
+   * nothing after it. `wait: false` starts it and goes on at once, so two bars
+   * can fill together or a request can be sent alongside. Schema 1.5.
+   */
+  | {
+      type: "animate";
+      variable: string;
+      to: SourceValue;
+      from?: SourceValue;
+      /** Milliseconds, 0 – 600 000. */
+      ms: number;
+      easing?: MotionEasing;
+      wait?: boolean;
+    }
+  /**
+   * Start a timer — a countdown that ends, or a clock counting up.
+   *
+   * Read with `{ timer: id }`. **It remembers its deadline**: a timer that is
+   * started again — the screen reopened, the page reloaded, the funnel
+   * republished — carries on from where it was rather than starting over, so an
+   * offer that expires in ten minutes expires in ten minutes. `restart` is the
+   * exception for a timer that is meant to begin again each time.
+   *
+   * Never blocks. `onEnd` runs when a countdown reaches zero while the visitor
+   * is still on the screen that started it — at once, for one that had already
+   * ended. Schema 1.5.
+   */
+  | {
+      type: "timer";
+      id: string;
+      /** A countdown's length. Ignored by `elapsed`. */
+      seconds?: number;
+      mode?: "countdown" | "elapsed";
+      restart?: boolean;
+      onEnd?: SourceAction[];
+    }
+  /**
+   * Hold the rest of this list until a request sent with `wait: false` has
+   * answered — `success` or `error` — or until `seconds` have passed. Leaving
+   * the screen ends it like `wait`. A request that is not running goes straight
+   * on. Schema 1.5.
+   */
+  | { type: "waitFor"; request: string; seconds?: number }
   /**
    * Hold the rest of this list for a number of seconds.
    *

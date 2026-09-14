@@ -33,6 +33,7 @@ import {
   type FunnelNav,
   type FunnelServices,
 } from "../funnel-core";
+import { webTimerStorage, type TimerStorage } from "../timers";
 import { configureRequests, request } from "../request";
 import { showPresentation } from "../interpret";
 import { TextLinkProvider } from "../link-context";
@@ -80,6 +81,12 @@ export type FunnelProps = {
   fallbackLocale?: Record<string, RichText>;
   /** Absent disables persistence — preview must not leave answers behind. */
   persist?: { funnelId: string | number; version: string };
+  /**
+   * Where timers keep their deadlines — see `runtime/timers`. Absent, a funnel
+   * that persists keeps them in `localStorage` under its id; `null` keeps them
+   * nowhere, which is what a preview wants.
+   */
+  timerStorage?: TimerStorage | null;
   /**
    * Which of the artifact's token modes to paint. Defaults to the manifest's
    * own `defaultMode`, then to the visitor's system preference when the
@@ -197,6 +204,7 @@ export function Funnel({
   locale = {},
   fallbackLocale,
   persist,
+  timerStorage,
   onUnknown,
   onAnswer,
   visitor,
@@ -215,6 +223,8 @@ export function Funnel({
     locale,
     fallbackLocale,
     persist,
+    timerStorage:
+      timerStorage !== undefined ? timerStorage : persist ? webTimerStorage(persist.funnelId) : null,
     onUnknown,
     onAnswer,
     visitor,

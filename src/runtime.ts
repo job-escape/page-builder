@@ -91,6 +91,7 @@ export { createNavigator } from "./runtime/navigation";
 export type {
   CheckFunction,
   Comparison,
+  MotionEasing,
   SourceAction,
   SourceBinding,
   SourceCondition,
@@ -109,6 +110,15 @@ export { isCaseBinding, isValueBinding } from "./runtime/compiler/source";
 
 /** The functions a condition may call — one definition for both renderers. */
 export { call, check, compare } from "./runtime/functions";
+
+/**
+ * Time — schema 1.5. The clock an `animate` plays on and the timers a countdown
+ * reads, exported so a host can hand an app's storage in and a test can drive a
+ * timer without waiting for one.
+ */
+export type { TimerBook, TimerMode, TimerRecord, TimerStorage } from "./runtime/timers";
+export { createTimerBook, timerStorageKey, webTimerStorage } from "./runtime/timers";
+export { durationOf, ease, playFrames } from "./runtime/motion";
 
 export type { CompiledFunnel } from "./runtime/compiler/emit";
 export { compile, emitCondition, emitScreen } from "./runtime/compiler/emit";

@@ -24,6 +24,7 @@ import {
   type FunnelManifest,
   type FunnelServices,
 } from "../funnel-core";
+import type { TimerStorage } from "../timers";
 import { chooseMode, tokensForVariant } from "../style/tokens";
 import { chooseVariant } from "../variant";
 import { showPresentation } from "../interpret";
@@ -72,6 +73,12 @@ export type NativeFunnelProps = {
   fallbackLocale?: Record<string, RichText>;
   /** Absent disables persistence — preview must not leave answers behind. */
   persist?: { funnelId: string | number; version: string };
+  /**
+   * Where timers keep their deadlines — see `runtime/timers`. An app has no
+   * `localStorage`, so it hands in its own (`AsyncStorage` fits the shape);
+   * absent, a countdown starts over each time the funnel is mounted.
+   */
+  timerStorage?: TimerStorage | null;
   /** Platform mechanics. App-wide, never per design. */
   host?: Partial<HostConfig>;
   /**
@@ -106,6 +113,7 @@ export function Funnel({
   locale = {},
   fallbackLocale,
   persist,
+  timerStorage,
   host,
   onUnknown,
   visitor,
@@ -121,6 +129,7 @@ export function Funnel({
     locale,
     fallbackLocale,
     persist,
+    timerStorage,
     onUnknown,
     visitor,
   });

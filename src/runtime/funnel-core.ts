@@ -24,6 +24,8 @@ import type { SourceAction } from "./compiler/source";
 import { run } from "./interpret";
 import type { ResolvedTokens } from "./style/tokens";
 import { interpolate, type CopyParams, type RichText } from "./rich-text";
+import { playFrames } from "./motion";
+import { createTimerBook, type TimerStorage } from "./timers";
 
 export type FunnelNav = {
   show: (target: string, presentation?: Presentation) => void;
@@ -37,6 +39,17 @@ export type FunnelNav = {
    * waiting does not go on. The whole meaning of a `wait` step.
    */
   wait: (seconds: number) => Promise<boolean>;
+  /**
+   * Call `onFrame(progress)` every frame for `ms` — `true` when it ran to the
+   * end, `false` the moment the visitor leaves the screen it was asked from.
+   * What an `animate` step plays through; owned exactly as `wait` is.
+   */
+  frames: (ms: number, onFrame: (progress: number) => void) => Promise<boolean>;
+  /**
+   * A question to ask later: is the visitor still on the screen they are on
+   * now? What a request sent without waiting asks before its `onSuccess` runs.
+   */
+  alive: () => () => boolean;
 };
 
 export type FunnelManifest = {
@@ -133,6 +146,12 @@ export type FunnelCoreOptions<Ui, Component> = {
    */
   fallbackLocale?: Record<string, RichText>;
   persist?: { funnelId: string | number; version: string };
+  /**
+   * Where timers keep their deadlines — see `runtime/timers`. The web host
+   * passes `localStorage`, an app its own storage. Absent, a timer still runs
+   * but starts over when the funnel is mounted again.
+   */
+  timerStorage?: TimerStorage | null;
   onUnknown?: (kind: "variable" | "target" | "key" | "param", name: string) => void;
   /**
    * An answer changed. Handed straight to the store — see `onChange` there for
@@ -186,6 +205,7 @@ export function useFunnelRuntime<Ui, Component>({
   onAnswer,
   visitor,
   device,
+  timerStorage,
 }: FunnelCoreOptions<Ui, Component>) {
   const table: VariableTable = useMemo(
     () => Object.fromEntries(manifest.variables.map((decl) => [decl.name, decl])),
@@ -211,6 +231,18 @@ export function useFunnelRuntime<Ui, Component>({
   */
   const currentDevice = useRef(device);
   currentDevice.current = device;
+  /*
+    The timers, made once per funnel identity like the store — and read through a
+    ref for the storage, which hosts write as a fresh object on every render.
+  */
+  const storageRef = useRef(timerStorage);
+  storageRef.current = timerStorage;
+  const timers = useMemo(
+    () => createTimerBook({ storage: storageRef.current ?? null }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [persist?.funnelId],
+  );
+
   const store = useMemo(
     () =>
       createFunnelStore({
@@ -220,10 +252,33 @@ export function useFunnelRuntime<Ui, Component>({
         device: currentDevice.current,
         onUnknown: (name) => onUnknown?.("variable", name),
         onChange: onAnswer,
+        timers,
       }),
     // A new store per funnel identity, not per render.
-    [table, persistKey, visitor, onUnknown, onAnswer],
+    [table, persistKey, visitor, onUnknown, onAnswer, timers],
   );
+
+  /*
+    A running timer redraws what reads it — once per displayed second, never per
+    frame. Checked four times a second so a reading turns over within a quarter
+    of a second of the real one, and skipped entirely while nothing is running.
+    Timers restored from storage start this the moment they are ready.
+  */
+  useEffect(() => {
+    let last = timers.signature();
+    const interval = setInterval(() => {
+      if (!timers.running() && timers.signature() === last) return;
+      const next = timers.signature();
+      if (next === last) return;
+      last = next;
+      store.tick();
+    }, 250);
+    void timers.ready.then(() => {
+      last = timers.signature();
+      store.tick();
+    });
+    return () => clearInterval(interval);
+  }, [timers, store]);
 
   useBeforePaint(() => {
     store.setDevice(device ?? "mobile");
@@ -284,6 +339,26 @@ export function useFunnelRuntime<Ui, Component>({
     [locale, fallbackLocale, onUnknown],
   );
 
+  /** Register a canceller against the screen the visitor is on now. */
+  const ownedByScreen = useCallback(
+    (cancel: () => void): { screen: string; release: () => void } => {
+      const screen = navigatorRef.current?.state().screen ?? "";
+      const cancellers = owned.current.get(screen) ?? [];
+      owned.current.set(screen, cancellers);
+      cancellers.push(cancel);
+      return {
+        screen,
+        release: () => {
+          const at = cancellers.indexOf(cancel);
+          if (at >= 0) cancellers.splice(at, 1);
+        },
+      };
+    },
+    [],
+  );
+  const navigatorRef = useRef<typeof navigator | null>(null);
+  navigatorRef.current = navigator;
+
   const nav: FunnelNav = useMemo(
     () => ({
       show: navigator.show,
@@ -317,8 +392,23 @@ export function useFunnelRuntime<Ui, Component>({
             Math.max(0, seconds) * 1000,
           );
         }),
+      frames: (ms: number, onFrame: (progress: number) => void) => {
+        const playing = playFrames(ms, onFrame);
+        const { release } = ownedByScreen(playing.stop);
+        void playing.done.then(release);
+        return playing.done;
+      },
+      alive: () => {
+        let gone = false;
+        // Stays registered until the screen goes: a flag costs nothing, and the
+        // list is emptied when the screen is left either way.
+        ownedByScreen(() => {
+          gone = true;
+        });
+        return () => !gone;
+      },
     }),
-    [navigator],
+    [navigator, ownedByScreen],
   );
 
   const services = useMemo<FunnelServices<Ui, Component>>(

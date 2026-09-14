@@ -21,7 +21,9 @@ import {
 } from "react";
 
 import { useFollowLink, type FollowLink } from "../link-context";
+import type { FrameMotion, FrameTransition } from "../motion";
 import { isRuns, runsOf, type RichText, type TextRun } from "../rich-text";
+import { motionCss, transitionCss, useWebMotion } from "./motion-css";
 
 export type FrameLayout = "none" | "row" | "column";
 
@@ -174,8 +176,9 @@ export type FrameLook = {
   layout?: FrameLayout;
   gap?: number;
   padding?: number | [number, number] | [number, number, number, number];
-  width?: number | "fill" | "hug";
-  height?: number | "fill" | "hug";
+  /** A number of pixels, `fill`, `hug`, or a percent of the parent — `"42%"`. */
+  width?: number | "fill" | "hug" | `${number}%`;
+  height?: number | "fill" | "hug" | `${number}%`;
   align?: Align;
   justify?: Justify;
   fill?: string;
@@ -189,6 +192,12 @@ export type FrameLook = {
 };
 
 export type FrameProps = FrameLook & {
+  /** How a changed width, height, opacity or fill glides — see `FrameTransition`. */
+  transition?: FrameTransition;
+  /** A motion it plays on its own — see `FrameMotion`. */
+  motion?: FrameMotion;
+  /** "The same frame" across screens, for a transition to carry — see `carriedLooks`. */
+  motionKey?: string;
   onClick?: () => void;
   disabled?: boolean;
   /** Set by the compiler from the declared semantics — drives role and keyboard. */
@@ -209,7 +218,7 @@ export type FrameProps = FrameLook & {
   children?: ReactNode;
 };
 
-const size = (value: FrameProps["width"]): string | number | undefined => {
+const size = (value: FrameProps["width"] | TextProps["width"]): string | number | undefined => {
   if (value === undefined) return undefined;
   if (value === "fill") return "100%";
   if (value === "hug") return "auto";
@@ -384,19 +393,32 @@ export function Frame(props: FrameProps) {
     style,
   } = withState(props as FrameLook, states, at);
 
+  const glide = transitionCss(props.transition);
+  const shown = useWebMotion({
+    motion: props.motion,
+    transition: props.transition,
+    motionKey: props.motionKey,
+    look: { width, height, opacity },
+  });
+  const moving = motionCss(props.motion);
+  const withGlide: CSSProperties | undefined =
+    glide || style?.transition
+      ? { ...style, transition: [glide, style?.transition].filter(Boolean).join(", ") }
+      : style;
+
   const css: CSSProperties = {
     display: layout === "none" ? "block" : "flex",
     flexDirection: layout === "row" ? "row" : layout === "column" ? "column" : undefined,
     gap,
     padding: pad(padding),
-    width: size(width),
-    height: size(height),
+    width: size(shown.width as FrameProps["width"]),
+    height: size(shown.height as FrameProps["height"]),
     alignItems: align ? ALIGN[align] : undefined,
     justifyContent: justify ? JUSTIFY[justify] : undefined,
     background: fill,
     border,
     borderRadius: radius,
-    opacity,
+    opacity: shown.opacity as number | undefined,
     boxShadow: shadow,
     flexGrow: grow ? 1 : undefined,
     overflowY: scroll ? "auto" : undefined,
@@ -404,8 +426,9 @@ export function Frame(props: FrameProps) {
     cursor: interactive ? "pointer" : undefined,
     // A frame that takes clicks must also take keys; see the handler below.
     userSelect: interactive ? "none" : undefined,
-    ...style,
-    ...pressScale(interactive, own.press, style),
+    ...moving,
+    ...withGlide,
+    ...pressScale(interactive, own.press, withGlide),
   };
 
   /**
@@ -436,7 +459,13 @@ export function Frame(props: FrameProps) {
       : (group.onKeyDown ?? interaction.onKeyDown);
 
   const drawn = (
-    <div style={css} {...handlers} {...interaction} onKeyDown={onKeyDown}>
+    <div
+      style={css}
+      data-pb-motion={moving.animation ? "" : undefined}
+      {...handlers}
+      {...interaction}
+      onKeyDown={onKeyDown}
+    >
       {children}
     </div>
   );
@@ -479,6 +508,10 @@ export type TextLook = {
 };
 
 export type TextProps = {
+  /** A motion the words play on their own — an entrance, a pulse. See `FrameMotion`. */
+  motion?: FrameMotion;
+  /** How a changed colour or opacity glides. See `FrameTransition`. */
+  transition?: FrameTransition;
   size?: number;
   weight?: number;
   color?: string;
@@ -615,6 +648,13 @@ export function Text(props: TextProps) {
   // branch below.
   const follow = useFollowLink();
   const spans = runs ? runsOf(runs) : null;
+  useWebMotion({ motion: props.motion, transition: undefined, motionKey: undefined, look: {} });
+  const textMotion = motionCss(props.motion);
+  const textGlide = transitionCss(props.transition);
+  const textStyle: CSSProperties | undefined =
+    textGlide || style?.transition
+      ? { ...style, transition: [textGlide, style?.transition].filter(Boolean).join(", ") }
+      : style;
 
   return (
     <span
@@ -649,9 +689,11 @@ export function Text(props: TextProps) {
         display: "block",
         cursor: interactive ? "pointer" : undefined,
         userSelect: interactive ? "none" : undefined,
-        ...style,
-        ...pressScale(interactive, own.press, style),
+        ...textMotion,
+        ...textStyle,
+        ...pressScale(interactive, own.press, textStyle),
       }}
+      data-pb-motion={textMotion.animation ? "" : undefined}
       {...handlers}
       {...interactionProps({ onClick, disabled, role, ariaLabel, ariaChecked, tabStop, testId })}
     >

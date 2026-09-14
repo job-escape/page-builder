@@ -16,6 +16,8 @@
 import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
 import { pathGet } from "./data";
 import { call, check, compare } from "./functions";
+import { durationOf, ease, playFrames } from "./motion";
+import type { TimerBook } from "./timers";
 import type { VariableValue } from "./types";
 import type { request } from "./request";
 import { analytics, track, type AnalyticsProperties } from "./track";
@@ -69,6 +71,14 @@ export type ConditionState = {
    * simply stays `idle`.
    */
   setStatus?: (id: string, status: "idle" | "pending" | "success" | "error", error?: string) => void;
+  /** A request's progress, for `waitFor`. Optional like `setStatus`. */
+  status?: (id: string) => "idle" | "pending" | "success" | "error";
+  /**
+   * A timer's whole seconds — `{ timer: id }`. Optional, so a host state
+   * written before timers existed still type-checks; without it a timer reads
+   * as nothing.
+   */
+  timer?: (id: string) => number | null;
 };
 
 /** A value a function or a comparison reads, resolved against the state. */
@@ -77,6 +87,7 @@ export function valueOf(value: SourceValue, state: ConditionState): unknown {
   if ("lit" in value) return value.lit;
   if ("visitor" in value) return state.visitorValue?.(value.visitor) ?? null;
   if ("fn" in value) return call(value.fn, value.args.map((arg) => valueOf(arg, state)));
+  if ("timer" in value) return state.timer?.(value.timer) ?? null;
   return null;
 }
 
@@ -101,12 +112,22 @@ export type ActionContext = {
   state: ConditionState & {
     set: (name: string, value: VariableValue) => void;
     select: (name: string, value: string) => void;
+    /** One frame of an `animate` — see `FunnelStore.setTransient`. Falls back to `set`. */
+    setTransient?: (name: string, value: VariableValue) => void;
+    /** The funnel's timers. Without them a `timer` step starts nothing. */
+    timers?: TimerBook;
+    /** A timer started or ended — redraw what reads it. */
+    tick?: () => void;
   };
   nav: {
     show: (target: string, presentation?: Record<string, unknown>) => void;
     close: () => void;
     /** See `FunnelNav.wait`. Optional, so a host that has none still runs. */
     wait?: (seconds: number) => Promise<boolean>;
+    /** See `FunnelNav.frames`. Optional: without it an `animate` still arrives, on a plain clock. */
+    frames?: (ms: number, onFrame: (progress: number) => void) => Promise<boolean>;
+    /** See `FunnelNav.alive`. Optional: without it anything started detached is assumed still wanted. */
+    alive?: () => () => boolean;
   };
   req: typeof request;
   /**
@@ -271,46 +292,40 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
       }
 
       case "submit": {
-        const requestId = action.id ?? action.action;
-        try {
-          const payload: Record<string, unknown> = {};
-          Object.entries(action.fields ?? {}).forEach(([key, variable]) => {
-            // Read at click time, so no answer is baked into the artifact.
-            payload[key] = ctx.state.get(variable);
-          });
-          Object.entries(action.values ?? {}).forEach(([key, value]) => {
-            payload[key] = valueOf(value, ctx.state);
-          });
-
-          ctx.state.setStatus?.(requestId, "pending");
-          // eslint-disable-next-line no-await-in-loop
-          const response = await ctx.req(action.action, payload);
-
-          Object.entries(action.into ?? {}).forEach(([variable, field]) => {
-            // A path into the response; an empty one is the response itself.
-            ctx.state.set(variable, pathGet(response, field) as VariableValue);
-          });
-          ctx.state.setStatus?.(requestId, "success");
-          // eslint-disable-next-line no-await-in-loop
-          if (!(await run(action.onSuccess ?? [], ctx))) return false;
-        } catch (failure) {
-          const message = failure instanceof Error ? failure.message : String(failure);
-          ctx.state.setStatus?.(requestId, "error", message);
-          if (action.errorInto) {
-            ctx.state.set(action.errorInto, message);
-          }
-          if (action.errorFields) {
-            const refused = failure as { body?: unknown; status?: unknown };
-            const body =
-              refused.body !== null && typeof refused.body === "object" ? (refused.body as Record<string, unknown>) : {};
-            const answer = { ...body, status: typeof refused.status === "number" ? refused.status : 0, message };
-            Object.entries(action.errorFields).forEach(([variable, field]) => {
-              ctx.state.set(variable, (pathGet(answer, field) ?? null) as VariableValue);
-            });
-          }
-          // eslint-disable-next-line no-await-in-loop
-          if (!(await run(action.onError ?? [], ctx))) return false;
+        if (action.wait === false) {
+          /*
+            Sent, and not waited on. What follows it runs now; what hangs off it
+            runs when it answers — but only for a visitor still on this screen,
+            the same promise a `wait` makes about what comes after it.
+          */
+          const alive = ctx.nav.alive?.() ?? (() => true);
+          void send(action, ctx, alive);
+          break;
         }
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await send(action, ctx, () => true))) return false;
+        break;
+      }
+
+      case "animate": {
+        const moving = animateValue(action, ctx);
+        if (action.wait === false) {
+          void moving;
+          break;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await moving)) return false;
+        break;
+      }
+
+      case "timer":
+        // Never blocks — see `SourceAction`'s `timer`.
+        void startTimer(action, ctx);
+        break;
+
+      case "waitFor": {
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await waitForRequest(action, ctx))) return false;
         break;
       }
 
@@ -335,6 +350,123 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         // renderer understands.
         break;
     }
+  }
+  return true;
+}
+
+/**
+ * A `submit`, sent — resolves `false` when a step it ran found its screen gone.
+ *
+ * `alive` is asked before anything that hangs off the answer runs: always yes
+ * for a request that was waited on (the screen cannot have changed under a
+ * handler that is still awaiting it), and the screen's own answer for one sent
+ * with `wait: false`.
+ */
+async function send(
+  action: Extract<SourceAction, { type: "submit" }>,
+  ctx: ActionContext,
+  alive: () => boolean,
+): Promise<boolean> {
+  const requestId = action.id ?? action.action;
+  try {
+    const payload: Record<string, unknown> = {};
+    Object.entries(action.fields ?? {}).forEach(([key, variable]) => {
+      // Read at click time, so no answer is baked into the artifact.
+      payload[key] = ctx.state.get(variable);
+    });
+    Object.entries(action.values ?? {}).forEach(([key, value]) => {
+      payload[key] = valueOf(value, ctx.state);
+    });
+
+    ctx.state.setStatus?.(requestId, "pending");
+    const response = await ctx.req(action.action, payload);
+
+    Object.entries(action.into ?? {}).forEach(([variable, field]) => {
+      // A path into the response; an empty one is the response itself.
+      ctx.state.set(variable, pathGet(response, field) as VariableValue);
+    });
+    ctx.state.setStatus?.(requestId, "success");
+    if (!alive()) return false;
+    return await run(action.onSuccess ?? [], ctx);
+  } catch (failure) {
+    const message = failure instanceof Error ? failure.message : String(failure);
+    ctx.state.setStatus?.(requestId, "error", message);
+    if (action.errorInto) {
+      ctx.state.set(action.errorInto, message);
+    }
+    if (action.errorFields) {
+      const refused = failure as { body?: unknown; status?: unknown };
+      const body =
+        refused.body !== null && typeof refused.body === "object" ? (refused.body as Record<string, unknown>) : {};
+      const answer = { ...body, status: typeof refused.status === "number" ? refused.status : 0, message };
+      Object.entries(action.errorFields).forEach(([variable, field]) => {
+        ctx.state.set(variable, (pathGet(answer, field) ?? null) as VariableValue);
+      });
+    }
+    if (!alive()) return false;
+    return run(action.onError ?? [], ctx);
+  }
+}
+
+/** A value read as a number, or `fallback`. */
+const numberOf = (value: unknown, fallback: number): number => {
+  const read = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(read) ? read : fallback;
+};
+
+/**
+ * An `animate`, played — `true` when it arrived, `false` when its screen went.
+ *
+ * Every frame goes through `setTransient` and the arrival through `set`, so the
+ * answers cookie and the host hear about one value rather than sixty a second.
+ */
+async function animateValue(action: Extract<SourceAction, { type: "animate" }>, ctx: ActionContext): Promise<boolean> {
+  const { variable } = action;
+  const from = numberOf(action.from ? valueOf(action.from, ctx.state) : ctx.state.get(variable), 0);
+  const to = numberOf(valueOf(action.to, ctx.state), from);
+  const ms = durationOf(action.ms);
+  const frame = (progress: number): void => {
+    const value = from + (to - from) * ease(action.easing, progress);
+    if (progress >= 1) return;
+    (ctx.state.setTransient ?? ctx.state.set)(variable, value);
+  };
+  const arrived = ctx.nav.frames ? await ctx.nav.frames(ms, frame) : await playFrames(ms, frame).done;
+  if (!arrived) return false;
+  ctx.state.set(variable, to);
+  return true;
+}
+
+/**
+ * A `timer`, started — or found already running and left to it.
+ *
+ * The book decides whether it exists (see `TimerBook.start`); this schedules
+ * `onEnd` against the screen that asked, through `nav.wait`, so a countdown that
+ * ends after the visitor has moved on runs nothing.
+ */
+async function startTimer(action: Extract<SourceAction, { type: "timer" }>, ctx: ActionContext): Promise<void> {
+  const book = ctx.state.timers;
+  if (!book || !action.id) return;
+  const alive = ctx.nav.alive?.() ?? (() => true);
+  await book.ready;
+  if (!alive()) return;
+  book.start(action.id, { mode: action.mode, seconds: action.seconds, restart: action.restart });
+  ctx.state.tick?.();
+  if (action.mode === "elapsed" || !action.onEnd?.length) return;
+  const left = book.remainingMs(action.id) ?? 0;
+  if (left > 0 && !(await pause(ctx, left / 1000))) return;
+  ctx.state.tick?.();
+  await run(action.onEnd, ctx);
+}
+
+/** A `waitFor` — `false` if the screen went while it was waiting. */
+async function waitForRequest(action: Extract<SourceAction, { type: "waitFor" }>, ctx: ActionContext): Promise<boolean> {
+  const limit = action.seconds === undefined ? Infinity : Math.max(0, Number(action.seconds) || 0) * 1000;
+  let waited = 0;
+  const step = 0.05;
+  while (ctx.state.status?.(action.request) === "pending" && waited < limit) {
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await pause(ctx, step))) return false;
+    waited += step * 1000;
   }
   return true;
 }
