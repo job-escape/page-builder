@@ -462,6 +462,19 @@ export type TextLook = {
   width?: number | "fill" | "hug";
   height?: number | "fill" | "hug";
   grow?: boolean;
+  /**
+   * The box the words sit in — a highlighted paragraph is a text frame with a
+   * fill, a padding and a radius, and a designer draws one by giving those to
+   * the words rather than by wrapping them in a frame nobody can see.
+   *
+   * They reached here already: the compiler emits them and the artifact carries
+   * them. Both renderers dropped them on the floor, so a sentence a designer
+   * had tinted pale blue shipped as plain copy on the phone *and* in the
+   * browser, while the canvas drew it as authored.
+   */
+  fill?: string;
+  padding?: number | [number, number] | [number, number, number, number];
+  radius?: number | string;
   style?: CSSProperties;
 };
 
@@ -491,6 +504,10 @@ export type TextProps = {
   height?: number | "fill" | "hug";
   /** Takes the spare room on the parent's main axis. `Frame`'s prop, verbatim. */
   grow?: boolean;
+  /** The box the words sit in — `Frame`'s props, verbatim. See `TextLook`. */
+  fill?: string;
+  padding?: number | [number, number] | [number, number, number, number];
+  radius?: number | string;
   /**
    * Text takes clicks, because designers attach navigation to words.
    *
@@ -587,6 +604,9 @@ export function Text(props: TextProps) {
     width,
     height,
     grow,
+    fill,
+    padding,
+    radius,
     style,
   } = withState(props as TextLook, states, at);
   const interactive = Boolean(onClick) && !disabled;
@@ -621,6 +641,11 @@ export function Text(props: TextProps) {
         width: size(width),
         height: size(height),
         flexGrow: grow ? 1 : undefined,
+        // The words' own box — spelled exactly as `Frame` spells it.
+        background: fill,
+        padding: pad(padding),
+        borderRadius: radius,
+        boxSizing: "border-box",
         display: "block",
         cursor: interactive ? "pointer" : undefined,
         userSelect: interactive ? "none" : undefined,

@@ -411,7 +411,18 @@ export function Text({
   // A tappable line of copy shrinks under a finger like a frame does.
   const [pressed, setPressed] = useState(false);
   const fontSize = size ?? 16;
+  /**
+   * The box the words sit in — a fill, a padding, a radius.
+   *
+   * Read through the same `boxFromProps`/`nativeBox` pair `Frame` uses, from
+   * the props left over after the typographic ones: a highlighted paragraph is
+   * a text frame wearing a tint, and dropping those left it plain copy here
+   * while the canvas drew it as authored. Width and height are not among them
+   * — they are destructured out above and resolved on their own below.
+   */
+  const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup, flow, definite);
   const style: TextStyle = {
+    ...(box.style as TextStyle),
     fontSize,
     /**
      * The box the words are aligned in — see `TextProps.width`.
