@@ -110,6 +110,12 @@ export function nativeSize(
   size: Size | undefined,
   axis: "width" | "height",
   flow?: Flow,
+  /**
+   * Whether the height this size is measured against is a definite one — see
+   * the `fill` height rule below. True by default, which is what every caller
+   * meant before a screen's content could be the thing deciding the height.
+   */
+  definite = true,
 ): NativeStyle {
   if (size === undefined || size === "hug") return {};
   if (size !== "fill") return { [axis]: size };
@@ -128,6 +134,21 @@ export function nativeSize(
       ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto" }
       : { width: "100%" };
   }
+  /**
+   * A `fill` height inside a parent whose own height is not definite hugs.
+   *
+   * The same rule CSS applies to `height: 100%`: a percentage against a parent
+   * with no definite height resolves to `auto`, so the child takes its content
+   * and nothing more. Everything inside a scrolling screen is in exactly that
+   * position — the host's content is measured from what is in it.
+   *
+   * Without this the two renderers disagreed twice over on one screen. Native
+   * grew a `fill` child to the space left in the viewport, which invented a gap
+   * the browser never draws, and made the scroll content exactly its own
+   * viewport — so a list that ran past the bottom had nothing to scroll to,
+   * while the browser laid the same screen out compactly and showed all of it.
+   */
+  if (axis === "height" && !definite) return {};
   if (flow === "none") return { [axis]: "100%" };
   const along = (flow === "column") === (axis === "height");
   return along ? { flexGrow: 1, flexShrink: 1, flexBasis: 0 } : { alignSelf: "stretch" };
@@ -200,6 +221,8 @@ export function nativeBox(
   lookup: TokenLookup = {},
   /** The parent's flow, which decides what `fill` means — see `nativeSize`. */
   flow?: Flow,
+  /** Whether the parent's height is definite — the other half of that answer. */
+  definite = true,
 ): NativeBox {
   const unsupported: string[] = [];
   let gradient: NativeGradient | undefined;
@@ -248,7 +271,7 @@ export function nativeBox(
   Object.assign(
     style,
     nativeSize(box.width, "width", flow),
-    nativeSize(box.height, "height", flow),
+    nativeSize(box.height, "height", flow, definite),
   );
 
   return {

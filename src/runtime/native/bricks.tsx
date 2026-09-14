@@ -77,6 +77,22 @@ import type { FrameProps, ImageProps, InputProps, TextProps } from "../client/br
 const FlowContext = createContext<Flow | undefined>(undefined);
 
 /**
+ * Whether the height this brick is measured against is a definite one.
+ *
+ * A frame states a definite height by being given a number, or by filling a
+ * parent that has one. A frame that hugs its content does not, and neither
+ * does a scrolling screen, whose height is whatever its content comes to.
+ *
+ * It travels as context because CSS resolves the same question by walking up
+ * the tree, and this is that walk: `nativeSize` needs the answer for `fill`,
+ * and the answer belongs to the parent rather than to the brick asking.
+ *
+ * `true` by default, for the screen that does not scroll: there the surface is
+ * the viewport and a height measured against it is as definite as a number.
+ */
+export const HeightContext = createContext<boolean>(true);
+
+/**
  * Drawn by the host app, not imported here.
  *
  * `expo-linear-gradient` is a native module, and a package that must not force a
@@ -234,11 +250,24 @@ const PRESSED = { transform: [{ scale: 0.97 }] };
 export function Frame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
   // The frame this one sits in — what its own `fill` is measured along.
   const flow = useContext(FlowContext);
-  const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup, flow);
+  // And whether that frame's height is a definite one — what `fill` means here.
+  const definite = useContext(HeightContext);
+  const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup, flow, definite);
   const style = { ...box.style, ...layoutOf(props as FrameProps, flow) };
   const { view, content } = splitForScroll(style, scroll);
   /** The way this frame lays out its own children, handed down to them. */
   const own: Flow = props.layout === "column" || props.layout === "row" ? props.layout : "none";
+  /**
+   * And whether *this* frame is a definite height for what it holds.
+   *
+   * A number is one. A `fill` is one only if what it fills has one. A hug is
+   * not — its height is whatever its content comes to, so a child filling it
+   * would be measuring against itself. A scrolling frame is not either, for
+   * the same reason a scrolling screen is not.
+   */
+  const ownDefinite = scroll
+    ? false
+    : typeof props.height === "number" || (props.height === "fill" && definite);
 
   /**
    * The pressed look, resolved once rather than while a finger is down.
@@ -266,7 +295,9 @@ export function Frame({ children, onClick, disabled, scroll, states, ...props }:
   const inner = (
     <>
       {box.gradient ? <GradientLayer gradient={box.gradient} /> : null}
-      <FlowContext.Provider value={own}>{children}</FlowContext.Provider>
+      <FlowContext.Provider value={own}>
+        <HeightContext.Provider value={ownDefinite}>{children}</HeightContext.Provider>
+      </FlowContext.Provider>
       {box.overlayStroke ? <StrokeLayer stroke={box.overlayStroke} /> : null}
     </>
   );
@@ -375,6 +406,8 @@ export function Text({
   const follow = useFollowLink();
   // The frame this line sits in — what its `fill` is measured along.
   const flow = useContext(FlowContext);
+  // And whether that frame's height is definite — see `HeightContext`.
+  const definite = useContext(HeightContext);
   // A tappable line of copy shrinks under a finger like a frame does.
   const [pressed, setPressed] = useState(false);
   const fontSize = size ?? 16;
@@ -389,7 +422,7 @@ export function Text({
      * designer picked.
      */
     ...(nativeSize(width, "width", flow) as TextStyle),
-    ...(nativeSize(height, "height", flow) as TextStyle),
+    ...(nativeSize(height, "height", flow, definite) as TextStyle),
     ...(grow || (flow === undefined && flexForSize(width).grow) ? { flexGrow: 1 } : {}),
     ...(weight === undefined ? {} : { fontWeight: String(weight) as TextStyle["fontWeight"] }),
     ...(color ? { color: nativeColor(color, lookup) } : {}),
@@ -447,6 +480,8 @@ export function Image({ src, alt, width, height, radius, fit }: ImageProps) {
     zero wide — the hero of a quiz, missing, with an empty band where it was.
   */
   const flow = useContext(FlowContext);
+  // And whether that frame's height is definite — see `HeightContext`.
+  const definite = useContext(HeightContext);
   const style: ImageStyle = {
     ...(nativeSize(width, "width", flow) as ImageStyle),
     /*
@@ -457,7 +492,7 @@ export function Image({ src, alt, width, height, radius, fit }: ImageProps) {
       ignores the same invalid value and draws the picture from its width, which
       is why this was wrong only on a phone.
     */
-    ...(nativeSize(height, "height", flow) as ImageStyle),
+    ...(nativeSize(height, "height", flow, definite) as ImageStyle),
     ...(radius === undefined ? {} : (nativeRadius(radius) as ImageStyle)),
     resizeMode: fit ?? "cover",
   };
@@ -493,7 +528,9 @@ export function Input({
 }: InputProps) {
   // The frame this field sits in — what its `fill` is measured along.
   const flow = useContext(FlowContext);
-  const box = nativeBox(boxFromProps(rest as Record<string, unknown>), lookup, flow);
+  // And whether that frame's height is definite — see `HeightContext`.
+  const definite = useContext(HeightContext);
+  const box = nativeBox(boxFromProps(rest as Record<string, unknown>), lookup, flow, definite);
 
   return (
     <TextInput
@@ -517,7 +554,7 @@ export function Input({
           ...(paddingFrom(padding) ? nativePadding(paddingFrom(padding)!) : {}),
           ...(nativeSize(width, "width", flow) as TextStyle),
           // Resolved for the same reason the picture's is — see `Image`.
-          ...(nativeSize(height, "height", flow) as TextStyle),
+          ...(nativeSize(height, "height", flow, definite) as TextStyle),
           // Invalid overrides the designed border rather than sitting beside it:
           // two borders on one field is a field with a mystery second outline.
           ...(invalid ? { borderWidth: 1, borderColor: "#dc2626" } : {}),

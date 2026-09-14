@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ScreenPresentation } from "../compiler/manifest";
 import type { ScreenTransition } from "../compiler/source";
+import { HeightContext } from "./bricks";
 import { resolveHost, type HostConfig } from "./host-config";
 
 export const DEFAULT_PRESENTATION: ScreenPresentation = {
@@ -139,7 +140,9 @@ export function ScreenHost({
 
   const surface = (
     <View style={[{ flex: 1 }, padding]} testID="funnel-screen-fixed">
-      {children}
+      {/* A screen that does not scroll is the viewport, and the viewport is a
+          definite height — a `fill` inside it measures against something real. */}
+      <HeightContext.Provider value>{children}</HeightContext.Provider>
     </View>
   );
 
@@ -153,7 +156,10 @@ export function ScreenHost({
       keyboardShouldPersistTaps={config.keyboardTaps}
       testID="funnel-screen-scroll"
     >
-      {children}
+      {/* A scrolling screen's height is whatever its content comes to, so it is
+          not a height anything can be measured against — the same position a
+          browser's document puts its children in. `fill` inside it hugs. */}
+      <HeightContext.Provider value={false}>{children}</HeightContext.Provider>
     </ScrollView>
   );
 
