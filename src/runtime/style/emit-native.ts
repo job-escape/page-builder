@@ -113,7 +113,21 @@ export function nativeSize(
 ): NativeStyle {
   if (size === undefined || size === "hug") return {};
   if (size !== "fill") return { [axis]: size };
-  if (flow === undefined) return { flexGrow: 1, flexShrink: 1, flexBasis: 0 };
+  /**
+   * Nothing above it — a screen's root, and on this platform what is above it
+   * is a `ScrollView`'s content.
+   *
+   * There `fill` means **at least** the viewport, never exactly it. A basis of
+   * zero made the root contribute no height of its own and then grow to the
+   * visible height exactly, so a screen taller than the phone had its overflow
+   * cut off with nothing to scroll to — while the browser, where the same root
+   * is `height: 100%` inside a document that scrolls, showed all of it.
+   */
+  if (flow === undefined) {
+    return axis === "height"
+      ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto" }
+      : { width: "100%" };
+  }
   if (flow === "none") return { [axis]: "100%" };
   const along = (flow === "column") === (axis === "height");
   return along ? { flexGrow: 1, flexShrink: 1, flexBasis: 0 } : { alignSelf: "stretch" };
