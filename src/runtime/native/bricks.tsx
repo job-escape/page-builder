@@ -449,7 +449,15 @@ export function Image({ src, alt, width, height, radius, fit }: ImageProps) {
   const flow = useContext(FlowContext);
   const style: ImageStyle = {
     ...(nativeSize(width, "width", flow) as ImageStyle),
-    ...(height === undefined ? {} : { height }),
+    /*
+      Resolved rather than passed through. `fill` and `hug` are the contract's
+      words, and React Native does not know either as a style value — so an icon
+      authored `height: fill` inside a 24-square frame got no height at all, and
+      every row of a quiz showed a gap where its picture belonged. A browser
+      ignores the same invalid value and draws the picture from its width, which
+      is why this was wrong only on a phone.
+    */
+    ...(nativeSize(height, "height", flow) as ImageStyle),
     ...(radius === undefined ? {} : (nativeRadius(radius) as ImageStyle)),
     resizeMode: fit ?? "cover",
   };
@@ -508,7 +516,8 @@ export function Input({
           // for two renderers to expand it differently.
           ...(paddingFrom(padding) ? nativePadding(paddingFrom(padding)!) : {}),
           ...(nativeSize(width, "width", flow) as TextStyle),
-          ...(height === undefined ? {} : { height }),
+          // Resolved for the same reason the picture's is — see `Image`.
+          ...(nativeSize(height, "height", flow) as TextStyle),
           // Invalid overrides the designed border rather than sitting beside it:
           // two borders on one field is a field with a mystery second outline.
           ...(invalid ? { borderWidth: 1, borderColor: "#dc2626" } : {}),
