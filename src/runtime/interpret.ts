@@ -122,6 +122,8 @@ export type ActionContext = {
   nav: {
     show: (target: string, presentation?: Record<string, unknown>) => void;
     close: () => void;
+    /** See `FunnelNav.back`. Optional: a host without it closes the top overlay instead. */
+    back?: () => boolean;
     /** See `FunnelNav.wait`. Optional, so a host that has none still runs. */
     wait?: (seconds: number) => Promise<boolean>;
     /** See `FunnelNav.frames`. Optional: without it an `animate` still arrives, on a plain clock. */
@@ -273,6 +275,11 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
 
       case "close":
         ctx.nav.close();
+        break;
+
+      case "back":
+        if (ctx.nav.back) ctx.nav.back();
+        else ctx.nav.close();
         break;
 
       case "show": {

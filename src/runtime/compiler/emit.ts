@@ -118,6 +118,8 @@ function emitAction(action: SourceAction, indent: string): string {
       return `${indent}state.set(${lit(action.variable)}, ${lit(action.value ?? null)});`;
     case "close":
       return `${indent}nav.close();`;
+    case "back":
+      return `${indent}nav.back();`;
     case "show": {
       const presentation: Record<string, unknown> = {};
       if (action.as) presentation.as = action.as;

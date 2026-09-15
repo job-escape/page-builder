@@ -167,6 +167,12 @@ export type SourceAction =
       closeOnOutside?: boolean;
     }
   | { type: "close" }
+  /**
+   * The back gesture, as a step: closes the top overlay if one is open, else
+   * returns to the screen the visitor came from (entrance played in reverse).
+   * On the first screen, with nothing open, it does nothing. Schema 1.6.
+   */
+  | { type: "back" }
   | { type: "conditional"; branches: Array<{ when?: SourceCondition; do: SourceAction[] }> }
   /**
    * Call a named backend action with the visitor's answers.
