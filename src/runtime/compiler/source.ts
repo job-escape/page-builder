@@ -37,6 +37,14 @@ export type SourceValue =
   | { visitor: string }
   | { fn: ValueFunction; args: SourceValue[] }
   /**
+   * The clock: milliseconds since the epoch, read when the value is. Schema 1.6.
+   *
+   * A countdown is arithmetic on it — `max(0, endsAt - now)` — rather than a
+   * timer of its own: the deadline is an ordinary variable (kept, set from a
+   * request, extended by a step) and what shows is a calculated one.
+   */
+  | { now: true }
+  /**
    * A timer's seconds — left on a countdown, gone by on an elapsed one; `null`
    * before a `timer` step has started it. See `SourceAction`'s `timer`.
    *
@@ -72,7 +80,12 @@ export type ValueFunction =
   | "min"
   | "max"
   | "clamp"
-  | "format";
+  | "format"
+  /** Schema 1.6 — whole units out of a duration, and a date read as milliseconds. */
+  | "floor"
+  | "ceil"
+  | "mod"
+  | "toTime";
 
 /** Functions that answer yes or no — `validEmail(email)`. */
 export type CheckFunction =
@@ -278,6 +291,13 @@ export type SourceAction =
    * on. Schema 1.5.
    */
   | { type: "waitFor"; request: string; seconds?: number }
+  /**
+   * Hold the rest of this list until a condition holds — `offerLeft <= 0` — or
+   * `seconds` have passed. Checked as the funnel's values change and as the
+   * clock moves; leaving the screen ends it like `wait`. A condition already
+   * true goes straight on. Schema 1.6.
+   */
+  | { type: "waitUntil"; when: SourceCondition; seconds?: number }
   /**
    * Hold the rest of this list for a number of seconds.
    *

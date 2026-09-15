@@ -53,6 +53,7 @@ function emitValue(value: SourceValue): string {
   if ("lit" in value) return lit(value.lit);
   if ("visitor" in value) return `state.visitorValue(${lit(value.visitor)})`;
   if ("fn" in value) return `state.call(${lit(value.fn)}, [${value.args.map(emitValue).join(", ")}])`;
+  if ("now" in value) return "Date.now()";
   return "null";
 }
 
@@ -341,7 +342,10 @@ function emitDrawnFrame(frame: SourceFrame, all: SourceFrame[], depth: number): 
   }
 
   if (frame.kind === "image") {
-    return `${indent}ui.Image({\n${emitProps(frame, indent)}\n${indent}  src: ${lit(frame.src)},\n${indent}})`;
+    // The active language's variant of the picture when it has one — see
+    // `localizedImage`. Guarded, so a host whose `t` has no `image` draws `src`.
+    const src = lit(frame.src);
+    return `${indent}ui.Image({\n${emitProps(frame, indent)}\n${indent}  src: t.image ? t.image(${src}) : ${src},\n${indent}})`;
   }
 
   const inner = children.map((child) => emitFrame(child, all, depth + 1)).join(",\n");

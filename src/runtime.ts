@@ -170,7 +170,9 @@ export {
   DEFAULT_LOCALE,
   defaultLocaleOf,
   directionOf,
+  IMAGE_KEY_PREFIX,
   loadLocale,
+  localizedImage,
   resolveLocale,
 } from "./runtime/locale";
 

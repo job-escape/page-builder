@@ -79,6 +79,8 @@ export type ConditionState = {
    * as nothing.
    */
   timer?: (id: string) => number | null;
+  /** The clock, for `{ now }`. Optional: without it the device's own is read. */
+  now?: () => number;
 };
 
 /** A value a function or a comparison reads, resolved against the state. */
@@ -88,6 +90,7 @@ export function valueOf(value: SourceValue, state: ConditionState): unknown {
   if ("visitor" in value) return state.visitorValue?.(value.visitor) ?? null;
   if ("fn" in value) return call(value.fn, value.args.map((arg) => valueOf(arg, state)));
   if ("timer" in value) return state.timer?.(value.timer) ?? null;
+  if ("now" in value) return state.now?.() ?? Date.now();
   return null;
 }
 
@@ -336,6 +339,12 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         break;
       }
 
+      case "waitUntil": {
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await waitUntilTrue(action, ctx))) return false;
+        break;
+      }
+
       case "wait":
         // eslint-disable-next-line no-await-in-loop
         if (!(await pause(ctx, secondsOf(action.seconds)))) return false;
@@ -463,6 +472,25 @@ async function startTimer(action: Extract<SourceAction, { type: "timer" }>, ctx:
   if (left > 0 && !(await pause(ctx, left / 1000))) return;
   ctx.state.tick?.();
   await run(action.onEnd, ctx);
+}
+
+/**
+ * A `waitUntil` — `false` if the screen went while it was waiting.
+ *
+ * Polled rather than subscribed: what it asks may read the clock, which changes
+ * without anything being written, and a tenth of a second is finer than any
+ * countdown a visitor can read.
+ */
+async function waitUntilTrue(action: Extract<SourceAction, { type: "waitUntil" }>, ctx: ActionContext): Promise<boolean> {
+  const limit = action.seconds === undefined ? Infinity : Math.max(0, Number(action.seconds) || 0) * 1000;
+  let waited = 0;
+  const step = 0.1;
+  while (!evaluate(action.when, ctx.state) && waited < limit) {
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await pause(ctx, step))) return false;
+    waited += step * 1000;
+  }
+  return true;
 }
 
 /** A `waitFor` — `false` if the screen went while it was waiting. */

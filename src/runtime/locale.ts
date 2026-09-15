@@ -27,6 +27,33 @@ import type { RichText } from "./rich-text";
 export const DEFAULT_LOCALE = "en";
 
 /**
+ * The prefix a translated image is keyed under in a locale's words.
+ *
+ * A picture with words in it — a certificate, a chart — is translated by
+ * generating a variant per language, and the variant's address travels in that
+ * language's words as `image:<the source url>` → `<the variant url>`. Keyed by
+ * the source rather than by a frame, so a logo on nine screens is one entry;
+ * carried in the words rather than beside them, so an inline locale and a
+ * bundle both bring it with no new manifest field, and an artifact without
+ * one reads exactly as before. Mirrored by the backend's
+ * `constructor/design/image_translate.py` and the editor canvas.
+ */
+export const IMAGE_KEY_PREFIX = "image:";
+
+/**
+ * The picture to draw for `src` in `locale` — its translated variant, or `src`.
+ *
+ * Only the active locale is asked: the default locale's picture *is* `src`, so
+ * a language with no variant falls back to the original rather than to
+ * another language's.
+ */
+export function localizedImage(locale: Readonly<Record<string, unknown>>, src: string): string {
+  if (!src) return src;
+  const value = locale[`${IMAGE_KEY_PREFIX}${src}`];
+  return typeof value === "string" && value ? value : src;
+}
+
+/**
  * Base languages whose script runs right to left.
  *
  * Kept here rather than only in the manifest because an artifact published

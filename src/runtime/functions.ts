@@ -184,6 +184,25 @@ export function call(fn: ValueFunction | string, args: readonly unknown[]): unkn
     }
     case "format":
       return format(first, args[1]);
+    case "floor":
+    case "ceil": {
+      const a = asNumber(first);
+      if (!Number.isFinite(a)) return null;
+      return fn === "floor" ? Math.floor(a) : Math.ceil(a);
+    }
+    case "mod": {
+      // Never negative, so a countdown's seconds read 0–59 whatever went in.
+      const a = asNumber(first);
+      const b = asNumber(args[1]);
+      if (!Number.isFinite(a) || !Number.isFinite(b) || b === 0) return null;
+      return ((a % b) + b) % b;
+    }
+    case "toTime": {
+      // A date a request sent, as milliseconds — a number is taken as already one.
+      if (typeof first === "number") return Number.isFinite(first) ? first : null;
+      const parsed = Date.parse(asText(first));
+      return Number.isFinite(parsed) ? parsed : null;
+    }
     default:
       return null;
   }
@@ -216,6 +235,10 @@ function format(value: unknown, pattern: unknown): string | null {
     case "mm:ss": {
       const total = Math.max(0, Math.floor(number));
       return `${two(Math.floor(total / 60))}:${two(total % 60)}`;
+    }
+    case "dd:hh:mm:ss": {
+      const total = Math.max(0, Math.floor(number));
+      return `${two(Math.floor(total / 86400))}:${two(Math.floor((total % 86400) / 3600))}:${two(Math.floor((total % 3600) / 60))}:${two(total % 60)}`;
     }
     case "hh:mm:ss": {
       const total = Math.max(0, Math.floor(number));

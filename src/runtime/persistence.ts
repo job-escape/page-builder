@@ -68,7 +68,7 @@ export const cookieName = (funnelId: string | number): string => `jb_funnel_${fu
 /** Does a stored value still match what the manifest declares? */
 /** Whether a variable is saved at all — see `VariableDecl.sensitive`, `screen` and `isDataType`. */
 const isSaved = (decl: VariableDecl): boolean =>
-  !decl.sensitive && !decl.screen && !isDataType(decl);
+  !decl.sensitive && !decl.screen && !decl.formula && !isDataType(decl);
 
 const keptAlways = (decl: VariableDecl): boolean => decl.keep === "always";
 

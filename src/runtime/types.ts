@@ -100,6 +100,13 @@ export type VariableDecl = {
    * the artifact's default. The first declaration of each kind wins.
    */
   palette?: "mode" | "brand";
+  /**
+   * A calculated variable: its value is this, read whenever it is read —
+   * `max(0, ceil((offerEndsAt - now) / 1000))`. Nothing sets it, it is never
+   * saved or reported, and a formula that reads itself reads as nothing.
+   * Schema 1.6.
+   */
+  formula?: import("./compiler/source").SourceValue;
 };
 
 /** Declarations by name, as the runtime holds them after reading the manifest. */

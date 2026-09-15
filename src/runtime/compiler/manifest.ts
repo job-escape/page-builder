@@ -302,6 +302,7 @@ function variablesInActions(actions: SourceAction[], into: Set<string>): void {
       if (action.from) namesInValue(action.from, into, new Set());
     }
     if (action.type === "timer") variablesInActions(action.onEnd ?? [], into);
+    if (action.type === "waitUntil") variablesInCondition(action.when, into);
     if (action.type === "submit") {
       Object.values(action.values ?? {}).forEach((value) => namesInValue(value, into, new Set()));
     }

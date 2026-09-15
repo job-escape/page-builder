@@ -17,6 +17,8 @@
  * that a debounce introduces when someone navigates during the window.
  */
 import { DEVICE_VARIABLE, type Device } from "./device";
+import type { SourceValue } from "./compiler/source";
+import { pathGet } from "./data";
 import { call, check, compare } from "./functions";
 import * as persistence from "./persistence";
 import type { PersistenceOptions } from "./persistence";
@@ -148,7 +150,37 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     if (name === DEVICE_VARIABLE) return device;
     const decl = declOf(name);
     if (!decl) return null;
+    if (decl.formula) return computed(decl);
     return values[name] ?? null;
+  }
+
+  /**
+   * A calculated variable, worked out now — `VariableDecl.formula`.
+   *
+   * A formula that reaches itself, however many variables away, reads as
+   * nothing instead of recursing: a loop in a design is a mistake to survive,
+   * not a stack to overflow.
+   */
+  const computing = new Set<string>();
+  function computed(decl: VariableDecl): VariableValue {
+    if (computing.has(decl.name)) return null;
+    computing.add(decl.name);
+    try {
+      const value = readValue(decl.formula as SourceValue);
+      return (value === undefined ? null : value) as VariableValue;
+    } finally {
+      computing.delete(decl.name);
+    }
+  }
+
+  function readValue(value: SourceValue): unknown {
+    if ("var" in value) return pathGet(get(value.var), value.path);
+    if ("lit" in value) return value.lit;
+    if ("visitor" in value) return visitorValue(value.visitor);
+    if ("fn" in value) return call(value.fn, value.args.map(readValue));
+    if ("timer" in value) return options.timers?.read(value.timer) ?? null;
+    if ("now" in value) return Date.now();
+    return null;
   }
 
   /** `$req.<id>.status` and `$req.<id>.error`, so conditions read them as names. */
@@ -196,6 +228,8 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   function set(name: string, value: VariableValue): void {
     const decl = declOf(name);
     if (!decl) return;
+    // A calculated variable is what its formula says; nothing writes it.
+    if (decl.formula) return;
     if (same(values[name], value)) return;
     values = { ...values, [name]: value };
     flush();
@@ -370,6 +404,8 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     check,
     call,
     compare,
+    /** The clock, for `{ now }`. */
+    now: (): number => Date.now(),
     forgetScreen,
     setTransient,
     timer,

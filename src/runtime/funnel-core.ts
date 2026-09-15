@@ -24,6 +24,7 @@ import type { SourceAction } from "./compiler/source";
 import { run } from "./interpret";
 import type { ResolvedTokens } from "./style/tokens";
 import { interpolate, type CopyParams, type RichText } from "./rich-text";
+import { localizedImage } from "./locale";
 import { playFrames } from "./motion";
 import { createTimerBook, type TimerStorage } from "./timers";
 
@@ -96,6 +97,18 @@ export type FunnelManifest = {
   defaultVariant?: string;
 };
 
+/**
+ * Locale lookup, and the one lookup that is not words.
+ *
+ * `image` answers the picture to draw for a source in the active language —
+ * see `localizedImage`. Optional, and a property of `t` rather than a service
+ * of its own, so a compiled screen's signature is unchanged and a host that
+ * hands a screen a plain function still renders every image as drawn.
+ */
+export type CopyLookup = ((key: string, params?: CopyParams) => RichText) & {
+  image?: (src: string) => string;
+};
+
 export type FunnelServices<Ui, Component> = {
   ui: Ui;
   /** Design components — compositions the designer saved. */
@@ -108,7 +121,7 @@ export type FunnelServices<Ui, Component> = {
    * `ui.Text` is unchanged, and so is every artifact that has ever been
    * published. See `runtime/rich-text`.
    */
-  t: (key: string, params?: CopyParams) => RichText;
+  t: CopyLookup;
   state: FunnelStore;
   nav: FunnelNav;
   /** The one call a compiled screen makes to a backend. A name, never a URL. */
@@ -280,6 +293,21 @@ export function useFunnelRuntime<Ui, Component>({
     return () => clearInterval(interval);
   }, [timers, store]);
 
+  /*
+    The clock, for calculated variables that read it: a countdown's seconds are
+    `endsAt - now`, which changes with nothing written. Redrawn once a second,
+    and only for a funnel that has such a formula.
+  */
+  const clocked = useMemo(
+    () => manifest.variables.some((decl) => decl.formula && JSON.stringify(decl.formula).includes('"now"')),
+    [manifest.variables],
+  );
+  useEffect(() => {
+    if (!clocked) return undefined;
+    const interval = setInterval(() => store.tick(), 1000);
+    return () => clearInterval(interval);
+  }, [clocked, store]);
+
   useBeforePaint(() => {
     store.setDevice(device ?? "mobile");
   }, [store, device]);
@@ -337,6 +365,13 @@ export function useFunnelRuntime<Ui, Component>({
       return "";
     },
     [locale, fallbackLocale, onUnknown],
+  );
+  const copy = useMemo<CopyLookup>(
+    () =>
+      Object.assign((key: string, params?: CopyParams) => t(key, params), {
+        image: (src: string) => localizedImage(locale, src),
+      }),
+    [t, locale],
   );
 
   /** Register a canceller against the screen the visitor is on now. */
@@ -412,8 +447,8 @@ export function useFunnelRuntime<Ui, Component>({
   );
 
   const services = useMemo<FunnelServices<Ui, Component>>(
-    () => ({ ui, c: components, t, state: store, nav, req: request, track, analytics }),
-    [ui, components, t, store, nav],
+    () => ({ ui, c: components, t: copy, state: store, nav, req: request, track, analytics }),
+    [ui, components, copy, store, nav],
   );
 
   /*
