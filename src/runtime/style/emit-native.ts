@@ -17,8 +17,21 @@
  * Typed structurally, with no `react-native` import — this package stays
  * installable anywhere, and a plain object is what the RN style prop takes.
  */
-import type { Fill, LineHeight, Padding, Px, Radius, Shadow, Size, Stroke, Color } from "./values";
+import type {
+  Fill,
+  LineHeight,
+  Padding,
+  Px,
+  Radius,
+  Shadow,
+  Size,
+  Stroke,
+  Color,
+} from "./values";
+import { colorFromCss } from "./adapt-legacy";
+import { cssVarFromTokenPath } from "./emit-css";
 import { resolveColor, type TokenLookup } from "./tokens";
+import { isTokenRef } from "./values";
 
 export type NativeStyle = Record<string, string | number>;
 
@@ -52,9 +65,40 @@ export type NativeBox = {
   unsupported?: string[];
 };
 
-export function nativeColor(color: Color, lookup: TokenLookup = {}): string | undefined {
+export function nativeColor(
+  color: Color,
+  lookup: TokenLookup = {},
+): string | undefined {
+  /**
+   * A design's text colour can still arrive as CSS — `var(--text-primary)`.
+   *
+   * The web cascade resolves that; React Native cannot parse it and draws the
+   * text black, which on a dark palette is invisible. So it is read the way
+   * `boxFromProps` reads a fill: as a token reference, or a literal.
+   */
+  const contract =
+    typeof color === "string" ? (colorFromCss(color) ?? color) : color;
   // RN accepts #rrggbb and #rrggbbaa, which is exactly the contract's spelling.
-  return resolveColor(color, lookup) ?? undefined;
+  const resolved = resolveColor(contract, { ...lookup, onMissing: undefined });
+  if (resolved) return resolved;
+  /**
+   * `--fg-on-brand` reads back as `fg.on.brand`, but the palette says
+   * `fg.on-brand` — a hyphen inside a segment cannot be told from a separator.
+   * Matched against the table by the CSS name instead, which is exact.
+   */
+  if (isTokenRef(contract) && lookup.tokens) {
+    const cssVar = cssVarFromTokenPath(contract.$token);
+    const table = Object.values(lookup.tokens);
+    const path = table.length
+      ? Object.keys(
+          lookup.mode && lookup.tokens[lookup.mode]
+            ? lookup.tokens[lookup.mode]
+            : table[0]!,
+        ).find((key) => cssVarFromTokenPath(key) === cssVar)
+      : undefined;
+    if (path) return resolveColor({ $token: path }, lookup) ?? undefined;
+  }
+  return resolveColor(contract, lookup) ?? undefined;
 }
 
 /**
@@ -151,7 +195,9 @@ export function nativeSize(
   if (axis === "height" && !definite) return {};
   if (flow === "none") return { [axis]: "100%" };
   const along = (flow === "column") === (axis === "height");
-  return along ? { flexGrow: 1, flexShrink: 1, flexBasis: 0 } : { alignSelf: "stretch" };
+  return along
+    ? { flexGrow: 1, flexShrink: 1, flexBasis: 0 }
+    : { alignSelf: "stretch" };
 }
 
 /**
@@ -162,7 +208,9 @@ export function nativeSize(
  * resolved against the font size, which is why `LineHeight` carries its unit.
  */
 export function nativeLineHeight(lineHeight: LineHeight, fontSize: Px): number {
-  return lineHeight.kind === "px" ? lineHeight.value : lineHeight.value * fontSize;
+  return lineHeight.kind === "px"
+    ? lineHeight.value
+    : lineHeight.value * fontSize;
 }
 
 /**
@@ -255,7 +303,10 @@ export function nativeBox(
       overlayStroke = {
         color,
         width: box.stroke.width,
-        inset: box.stroke.align === "outside" ? box.stroke.width : box.stroke.width / 2,
+        inset:
+          box.stroke.align === "outside"
+            ? box.stroke.width
+            : box.stroke.width / 2,
         ...(box.radius === undefined ? {} : { radius: box.radius }),
       };
     }
