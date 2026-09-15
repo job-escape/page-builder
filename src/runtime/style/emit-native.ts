@@ -162,7 +162,19 @@ export function nativeSize(
   definite = true,
 ): NativeStyle {
   if (size === undefined || size === "hug") return {};
-  if (size !== "fill") return { [axis]: size };
+  /**
+   * A fixed width along a row gives way when the row is too narrow, as it does
+   * on the web.
+   *
+   * CSS flex items shrink by default and Yoga's do not, so two 260-point
+   * buttons in a 361-point row sat side by side on the canvas and in a browser
+   * and ran off the edge of a phone. Rows only: that is where the overflow was,
+   * and a column inside a scrolling screen has no height to shrink against.
+   */
+  if (size !== "fill")
+    return flow === "row" && axis === "width"
+      ? { [axis]: size, flexShrink: 1 }
+      : { [axis]: size };
   /**
    * Nothing above it — a screen's root, and on this platform what is above it
    * is a `ScrollView`'s content.

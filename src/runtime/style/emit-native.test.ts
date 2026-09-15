@@ -193,3 +193,17 @@ describe("nativeColor from CSS", () => {
     );
   });
 });
+
+describe("nativeSize, a fixed width in a row", () => {
+  it("shrinks to fit the row the way a CSS flex item does", () => {
+    expect(nativeSize(260, "width", "row")).toEqual({
+      width: 260,
+      flexShrink: 1,
+    });
+  });
+
+  it("stays rigid across a column and on the vertical axis", () => {
+    expect(nativeSize(260, "width", "column")).toEqual({ width: 260 });
+    expect(nativeSize(56, "height", "row")).toEqual({ height: 56 });
+  });
+});
