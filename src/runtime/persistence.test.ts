@@ -107,3 +107,53 @@ describe("size", () => {
     expect(MAX_BYTES).toBeLessThan(4096);
   });
 });
+
+describe('keep: "always" survives a republish', () => {
+  const kept: VariableTable = {
+    ...table,
+    offerEndsAt: { name: "offerEndsAt", type: "number", keep: "always" },
+    welcomeSeen: { name: "welcomeSeen", type: "boolean", keep: "always" },
+  };
+  const withKept = { ...state, offerEndsAt: 1_760_000_000_000, welcomeSeen: true };
+
+  it("restores kept values under a different version, and nothing else", () => {
+    const restored = deserialize(kept, serialize(kept, withKept, "v6"), "v7");
+    expect(restored).toEqual({ offerEndsAt: 1_760_000_000_000, welcomeSeen: true });
+  });
+
+  it("restores kept and ordinary values together under the same version", () => {
+    const restored = deserialize(kept, serialize(kept, withKept, "v7"), "v7");
+    expect(restored).toEqual({
+      goal: "build_muscle",
+      equipment: ["bands", "mat"],
+      age: 34,
+      optin: true,
+      offerEndsAt: 1_760_000_000_000,
+      welcomeSeen: true,
+    });
+  });
+
+  it("writes no `k` for a funnel that keeps nothing", () => {
+    expect(JSON.parse(serialize(table, state, "v7"))).not.toHaveProperty("k");
+  });
+
+  it("does not restore a kept value whose declaration stopped keeping it", () => {
+    const stale = JSON.stringify({ v: "v6", a: {}, k: { goal: "x" } });
+    expect(deserialize(table, stale, "v7")).toBeNull();
+  });
+
+  it("drops a kept value whose type changed", () => {
+    const stale = JSON.stringify({ v: "v6", a: {}, k: { offerEndsAt: "soon", welcomeSeen: true } });
+    expect(deserialize(kept, stale, "v7")).toEqual({ welcomeSeen: true });
+  });
+
+  it("never keeps a sensitive or screen variable, whatever it says", () => {
+    const odd: VariableTable = {
+      email: { name: "email", type: "string", sensitive: true, keep: "always" },
+      step: { name: "step", type: "number", screen: "s1", keep: "always" },
+    };
+    expect(serialize(odd, { email: "ana@example.com", step: 2 }, "v7")).toBe('{"v":"v7","a":{}}');
+    const smuggled = JSON.stringify({ v: "v6", a: {}, k: { email: "ana@example.com", step: 2 } });
+    expect(deserialize(odd, smuggled, "v7")).toBeNull();
+  });
+});

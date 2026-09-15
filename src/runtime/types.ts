@@ -68,6 +68,23 @@ export type VariableDecl = {
    * never reported, because it is not something the visitor said.
    */
   screen?: string;
+  /**
+   * How long a funnel variable is kept on the visitor's device.
+   *
+   * Absent is what every variable did before this existed: saved across a
+   * refresh and a return visit, and discarded when the funnel is republished —
+   * the answers blob is keyed by version (see `persistence`), because a value
+   * saved under a shape that has since changed must not be restored into it.
+   *
+   * `"always"` survives a republish too: a deadline an offer was given, a
+   * discount already earned, a popup already seen. It is still checked against
+   * the declaration when it is read back, so a variable that changed type
+   * starts at its default rather than restoring nonsense.
+   *
+   * Ignored for a `screen` variable, a `sensitive` one and a request's answer,
+   * none of which is ever saved. Web only, like the rest of `persistence`.
+   */
+  keep?: "always";
 };
 
 /** Declarations by name, as the runtime holds them after reading the manifest. */

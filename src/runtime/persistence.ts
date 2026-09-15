@@ -21,6 +21,11 @@
  * longer exists — a variable that changed from `string` to `list`, a screen that
  * was deleted. A version mismatch simply starts clean, which removes that whole
  * class of bug for one line of comparison.
+ *
+ * **Except what is declared `keep: "always"`.** Those ride in the same cookie
+ * under their own key, `k`, which is read whatever the version says — each value
+ * still validated against its current declaration, so the shape guarantee holds
+ * one variable at a time instead of for the blob as a whole.
  */
 import Cookies from "js-cookie";
 
@@ -46,6 +51,8 @@ export type StoredAnswers = {
   /** Funnel version this was captured under. A mismatch discards it. */
   v: string;
   a: Record<string, VariableValue>;
+  /** `keep: "always"` variables — restored across versions. Absent before they existed. */
+  k?: Record<string, VariableValue>;
 };
 
 export type PersistenceOptions = {
@@ -59,6 +66,12 @@ export type PersistenceOptions = {
 export const cookieName = (funnelId: string | number): string => `jb_funnel_${funnelId}`;
 
 /** Does a stored value still match what the manifest declares? */
+/** Whether a variable is saved at all — see `VariableDecl.sensitive`, `screen` and `isDataType`. */
+const isSaved = (decl: VariableDecl): boolean =>
+  !decl.sensitive && !decl.screen && !isDataType(decl);
+
+const keptAlways = (decl: VariableDecl): boolean => decl.keep === "always";
+
 function matchesDecl(decl: VariableDecl, value: unknown): boolean {
   if (value === null) return true;
   if (isListType(decl)) {
@@ -82,17 +95,22 @@ export function serialize(
   version: string,
 ): string {
   const answers: Record<string, VariableValue> = {};
+  const kept: Record<string, VariableValue> = {};
 
   Object.values(table).forEach((decl) => {
     // A screen's own state is not an answer — see `VariableDecl.screen`. Nor is
     // what a request returned: it is loaded again, never restored stale.
-    if (decl.sensitive || decl.screen || isDataType(decl)) return;
+    if (!isSaved(decl)) return;
     const value = state[decl.name];
     if (value === undefined) return;
-    answers[decl.name] = value;
+    (keptAlways(decl) ? kept : answers)[decl.name] = value;
   });
 
-  return JSON.stringify({ v: version, a: answers } satisfies StoredAnswers);
+  const payload: StoredAnswers = { v: version, a: answers };
+  // Left out when empty, so a funnel that keeps nothing writes the cookie it
+  // always wrote.
+  if (Object.keys(kept).length > 0) payload.k = kept;
+  return JSON.stringify(payload);
 }
 
 /**
@@ -120,17 +138,28 @@ export function deserialize(
 
   if (typeof parsed !== "object" || parsed === null) return null;
   const stored = parsed as Partial<StoredAnswers>;
-  if (stored.v !== version) return null;
-  if (typeof stored.a !== "object" || stored.a === null) return null;
 
   const restored: Record<string, VariableValue> = {};
-  Object.entries(stored.a).forEach(([name, value]) => {
-    const decl = table[name];
-    if (!decl || decl.sensitive || decl.screen || isDataType(decl)) return;
-    if (!matchesDecl(decl, value)) return;
-    restored[name] = value as VariableValue;
-  });
+  const take = (source: unknown, admit: (decl: VariableDecl) => boolean): void => {
+    if (typeof source !== "object" || source === null || Array.isArray(source)) return;
+    Object.entries(source).forEach(([name, value]) => {
+      const decl = table[name];
+      if (!decl || !isSaved(decl) || !admit(decl)) return;
+      if (!matchesDecl(decl, value)) return;
+      restored[name] = value as VariableValue;
+    });
+  };
 
+  const current = stored.v === version && typeof stored.a === "object" && stored.a !== null;
+  // Any saved variable from this version, wherever it was filed — one switched
+  // to "always" since the last write is still in `a` and still this version's.
+  if (current) take(stored.a, () => true);
+  // Across versions, only what is still declared to be kept that long. A
+  // variable no longer marked "always" does not get its old value back.
+  take(stored.k, keptAlways);
+
+  // Nothing usable is `null`, as it always was, so the caller seeds defaults.
+  if (!current && Object.keys(restored).length === 0) return null;
   return restored;
 }
 
