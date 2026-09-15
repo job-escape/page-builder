@@ -2,6 +2,7 @@ import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 
 import { Frame, Input, Text, configureTokens } from "./bricks";
+import { DirectionContext } from "./direction";
 
 /**
  * The native bricks, rendered through `react-native-web`.
@@ -97,5 +98,26 @@ describe("tokens", () => {
 
     expect(style(screen.getByTestId("tokened")).backgroundColor).toBe("rgb(96, 165, 250)");
     configureTokens({});
+  });
+});
+
+describe("a funnel that declares its direction lays text out in it", () => {
+  it("aligns a designer's left to the right, and reads the paragraph right to left", () => {
+    render(
+      <DirectionContext.Provider value="rtl">
+        <Text align="left">‹</Text>
+      </DirectionContext.Provider>,
+    );
+    const node = screen.getByText("‹");
+    expect(style(node).textAlign).toBe("right");
+    // What makes iOS draw a lone chevron as its mirrored pair, as `dir` does on the web.
+    expect(node.getAttribute("style")).toContain("direction: rtl");
+  });
+
+  it("leaves a host that declared nothing exactly as it was", () => {
+    render(<Text align="left">plain</Text>);
+    const node = screen.getByText("plain");
+    expect(style(node).textAlign).toBe("left");
+    expect(node.getAttribute("style") ?? "").not.toContain("direction");
   });
 });

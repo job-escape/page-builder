@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ScreenPresentation } from "../compiler/manifest";
 import type { ScreenTransition } from "../compiler/source";
 import { HeightContext } from "./bricks";
+import { useDeclaredDirection } from "./direction";
 import { resolveHost, type HostConfig } from "./host-config";
 
 export const DEFAULT_PRESENTATION: ScreenPresentation = {
@@ -56,6 +57,9 @@ function useEntrance(
   const moving = transition === "fade" || transition === "slide" || transition === "push";
   const progress = useRef(new Animated.Value(moving ? 0 : 1)).current;
   const { width } = useWindowDimensions();
+  // A forward push arrives from the side the line ends on — the left, in Arabic.
+  // Only for a declared direction, so a host that passes none moves as before.
+  const rightToLeft = useDeclaredDirection() === "rtl";
 
   useEffect(() => {
     if (!moving) return;
@@ -70,7 +74,7 @@ function useEntrance(
   }, []);
 
   if (!moving) return null;
-  const sign = direction === "back" ? -1 : 1;
+  const sign = (direction === "back" ? -1 : 1) * (rightToLeft ? -1 : 1);
   if (transition === "fade") return { opacity: progress };
   const distance = transition === "push" ? width : 24;
   const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [sign * distance, 0] });

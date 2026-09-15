@@ -16,6 +16,7 @@ import { Modal, Pressable, View, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { Presentation } from "../navigation";
+import { useDeclaredDirection } from "./direction";
 
 const PLACEMENT: Record<string, ViewStyle> = {
   center: { justifyContent: "center", alignItems: "center" },
@@ -40,6 +41,7 @@ export function Overlay({
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const declared = useDeclaredDirection();
   const position = presentation.position ?? "center";
   const dim = presentation.dim ?? true;
   const closeOnOutside = presentation.closeOnOutside ?? true;
@@ -54,7 +56,16 @@ export function Overlay({
       animationType={position === "center" ? "fade" : "slide"}
       accessibilityViewIsModal
     >
-      <View style={[{ flex: 1 }, PLACEMENT[position], dim ? { backgroundColor: "#00000080" } : null]}>
+      <View
+        style={[
+          { flex: 1 },
+          // A `Modal` is a new native root and inherits no layout direction, so
+          // the funnel's is set again here — see `direction`.
+          declared ? { direction: declared } : null,
+          PLACEMENT[position],
+          dim ? { backgroundColor: "#00000080" } : null,
+        ]}
+      >
         {closeOnOutside ? (
           // A backdrop that takes the tap, behind the panel rather than around
           // it — wrapping the panel would swallow taps meant for its contents.

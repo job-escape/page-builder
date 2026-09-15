@@ -21,7 +21,6 @@
  */
 import { createContext, createElement, useContext, useState, type ReactNode } from "react";
 import {
-  I18nManager,
   Animated,
   Image as RNImage,
   Pressable,
@@ -39,6 +38,7 @@ import {
 import { boxFromProps, paddingFrom } from "../style/adapt-legacy";
 import { flexForSize } from "../style/emit-css";
 import { useFollowLink, type FollowLink } from "../link-context";
+import { useDeclaredDirection, useRightToLeft } from "./direction";
 import { useNativeMotion } from "./motion";
 
 /**
@@ -49,8 +49,11 @@ import { useNativeMotion } from "./motion";
  * which in an RTL layout is the other one — so the sides swap here rather than
  * anywhere upstream, and the authored vocabulary never has to change.
  */
-function mirrorAlign(align: "left" | "center" | "right"): "left" | "center" | "right" {
-  if (align === "center" || !I18nManager.isRTL) return align;
+function mirrorAlign(
+  align: "left" | "center" | "right",
+  rightToLeft: boolean,
+): "left" | "center" | "right" {
+  if (align === "center" || !rightToLeft) return align;
   return align === "left" ? "right" : "left";
 }
 import { isRuns, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
@@ -461,6 +464,9 @@ export function Text({
   ...props
 }: TextProps) {
   const follow = useFollowLink();
+  // Which way the funnel reads — see `direction`.
+  const rightToLeft = useRightToLeft();
+  const declared = useDeclaredDirection();
   // The frame this line sits in — what its `fill` is measured along.
   const flow = useContext(FlowContext);
   // And whether that frame's height is definite — see `HeightContext`.
@@ -501,14 +507,21 @@ export function Text({
      * There is no `start` here — RN's `textAlign` is physical, and its `auto`
      * follows the *text's own* script rather than the layout's, so a Latin
      * brand name inside an Arabic screen would align the wrong way. So the
-     * sides are swapped explicitly against `I18nManager`, which is the one
-     * thing on a phone that knows the layout direction.
-     *
-     * Read at draw time rather than captured: `I18nManager.isRTL` changes with
-     * an app restart, and a value closed over at module load would be the
-     * previous run's answer.
+     * sides are swapped explicitly against the funnel's direction — its
+     * language's, from `Funnel`'s `dir`, or `I18nManager` for a host that has
+     * not passed one (see `direction`).
      */
-    ...(align ? { textAlign: mirrorAlign(align) } : {}),
+    ...(align ? { textAlign: mirrorAlign(align, rightToLeft) } : {}),
+    /**
+     * And the paragraph's own direction, when the funnel declared one.
+     *
+     * What `dir` on the document does for a web paragraph: a line with no
+     * letter to say which way it reads — a lone `‹` back chevron — takes the
+     * layout's, so iOS draws it as `›`, its mirrored pair, the way a browser
+     * does. Left out when nobody declared a direction, so such a host's text
+     * is untouched. iOS reads it; Android ignores the key.
+     */
+    ...(declared ? { writingDirection: declared } : {}),
     /**
      * Absolute points, always. The web brick's unitless multiplier would be read
      * here as a line 1.4 points tall, stacking every row of text on the last —

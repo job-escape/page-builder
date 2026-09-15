@@ -76,6 +76,21 @@ describe("the screen host", () => {
     expect(host(container).style.overflow).toBe("");
   });
 
+  it("carries the mirrored entrance a right-to-left page swaps in", () => {
+    const { container } = mount({ [compiled.manifest.entry]: presentationFor({ transition: "push" }) });
+    const entrance = container.querySelector("[data-funnel-entrance]") as HTMLElement;
+    // The `[dir="rtl"]` rule reads this; in a left-to-right page it is inert.
+    expect(entrance).toHaveAttribute("data-funnel-mirror");
+    expect(entrance.style.getPropertyValue("--pb-mirrored-entrance")).toBe("pb-screen-push-back");
+    expect(entrance.style.animation).toContain("pb-screen-push-forward");
+  });
+
+  it("gives a fade no mirror, because it arrives from nowhere", () => {
+    const { container } = mount({ [compiled.manifest.entry]: presentationFor({ transition: "fade" }) });
+    const entrance = container.querySelector("[data-funnel-entrance]") as HTMLElement;
+    expect(entrance).not.toHaveAttribute("data-funnel-mirror");
+  });
+
   it("falls back to the compiler's own defaults for an older artifact", () => {
     // A manifest published before per-screen presentation existed carries none.
     const { container } = mount();

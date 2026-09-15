@@ -55,6 +55,7 @@ const KEYFRAMES = `
 @keyframes pb-screen-slide-back { from { opacity: 0; transform: translateX(-24px) } to { opacity: 1; transform: none } }
 @keyframes pb-screen-push-forward { from { transform: translateX(100%) } to { transform: none } }
 @keyframes pb-screen-push-back { from { transform: translateX(-100%) } to { transform: none } }
+[dir="rtl"] [data-funnel-entrance][data-funnel-mirror] { animation-name: var(--pb-mirrored-entrance) !important }
 @media (prefers-reduced-motion: reduce) { [data-funnel-entrance] { animation: none !important } }
 `;
 
@@ -71,6 +72,25 @@ function entranceOf(
   return undefined;
 }
 
+/**
+ * The same entrance from the other side, for a right-to-left funnel.
+ *
+ * A forward push in Arabic arrives from the left — the side the line ends on.
+ * Keyframes are physical, so the page carries the mirrored name beside the
+ * real one and a `[dir="rtl"]` rule swaps it in: the host's `dir` decides, as
+ * it decides every other logical property, and no direction is threaded here.
+ * Only sideways entrances have one; a fade is the same from either side.
+ */
+function mirroredOf(
+  transition: ScreenTransition | undefined,
+  direction: "forward" | "back",
+): string | undefined {
+  const other = direction === "forward" ? "back" : "forward";
+  if (transition === "slide") return `pb-screen-slide-${other}`;
+  if (transition === "push") return `pb-screen-push-${other}`;
+  return undefined;
+}
+
 export function ScreenHost({
   presentation,
   direction = "forward",
@@ -82,6 +102,7 @@ export function ScreenHost({
   children: ReactNode;
 }) {
   const animation = entranceOf(presentation.transition, direction);
+  const mirrored = mirroredOf(presentation.transition, direction);
 
   const host: CSSProperties = {
     minHeight: "100%",
@@ -104,11 +125,15 @@ export function ScreenHost({
           <style>{KEYFRAMES}</style>
           <div
             data-funnel-entrance=""
-            style={{
-              minHeight: "100%",
-              height: presentation.scroll ? undefined : "100%",
-              animation,
-            }}
+            data-funnel-mirror={mirrored ? "" : undefined}
+            style={
+              {
+                minHeight: "100%",
+                height: presentation.scroll ? undefined : "100%",
+                animation,
+                ...(mirrored ? { "--pb-mirrored-entrance": mirrored } : {}),
+              } as CSSProperties
+            }
           >
             {children}
           </div>

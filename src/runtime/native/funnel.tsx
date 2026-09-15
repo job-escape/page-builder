@@ -15,7 +15,7 @@
  * implemented once, in shared code.
  */
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
-import { BackHandler } from "react-native";
+import { BackHandler, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import {
@@ -29,8 +29,10 @@ import { chooseMode, paletteFromVariables, tokensForVariant } from "../style/tok
 import { chooseVariant } from "../variant";
 import { showPresentation } from "../interpret";
 import { TextLinkProvider } from "../link-context";
+import type { TextDirection } from "../locale";
 import type { RichText, TextLink } from "../rich-text";
 import { configureTokens, ui } from "./bricks";
+import { DirectionContext } from "./direction";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
 import type { HostConfig } from "./host-config";
@@ -102,6 +104,15 @@ export type NativeFunnelProps = {
    * branch that catches everybody is the one they get.
    */
   visitor?: Readonly<Record<string, string | number | boolean | null>>;
+  /**
+   * Which way the funnel's language reads — `loadLocale`'s `dir`.
+   *
+   * Set, the funnel lays itself out in it whatever language the app is in: an
+   * Arabic funnel mirrors inside an English app, and an English one does not
+   * inside an Arabic app. Absent, it follows `I18nManager` as it always did —
+   * see `direction`.
+   */
+  dir?: TextDirection;
 };
 
 export function Funnel({
@@ -117,6 +128,7 @@ export function Funnel({
   host,
   onUnknown,
   visitor,
+  dir,
 }: NativeFunnelProps) {
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
   // No `device`: the app runs on phones only, so `$device` is always `mobile`
@@ -203,7 +215,7 @@ export function Funnel({
   );
 
 
-  return (
+  const content = (
     // Provided here rather than expected from the app: a funnel that renders
     // without insets because someone forgot a provider is a funnel with its
     // first line of text under the notch.
@@ -235,5 +247,15 @@ export function Funnel({
       </TextLinkProvider>
       </FunnelContext.Provider>
     </SafeAreaProvider>
+  );
+
+  // No wrapper without a declared direction, so a host that passes none renders
+  // the tree it always rendered.
+  if (!dir) return content;
+  return (
+    <DirectionContext.Provider value={dir}>
+      {/* Yoga's direction: rows, start/end padding and flex-start all follow it. */}
+      <View style={{ flex: 1, direction: dir }}>{content}</View>
+    </DirectionContext.Provider>
   );
 }
