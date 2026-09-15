@@ -45,4 +45,15 @@ describe("a translated image", () => {
     expect(drawn({ ui, t } as never)).toEqual([AR]);
     expect(drawn({ ui, t: () => "" } as never)).toEqual([SRC]);
   });
+
+  it("swaps a published tree's picture, whose source is props.src", () => {
+    const ui = { Image: (props: { src: string }) => props.src };
+    const t = Object.assign(() => "", { image: (src: string) => localizedImage({ [`image:${src}`]: AR }, src) });
+
+    const drawn = screenFromTree({
+      id: "s1",
+      roots: [{ id: "i", kind: "image", props: { src: SRC, fit: "cover" } }],
+    } as never);
+    expect(drawn({ ui, t } as never)).toEqual([AR]);
+  });
 });

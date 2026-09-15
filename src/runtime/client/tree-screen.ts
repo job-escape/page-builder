@@ -191,11 +191,19 @@ function renderNode(
   if (node.kind === "image") {
     // A bound source — a card's picture from `$item` — wins; the drawn one is
     // what shows while the value is not there yet.
-    const bound = typeof resolved.src === "string" && resolved.src ? resolved.src : null;
+    //
+    // The design's own picture is `props.src` in a published tree (`node.src` in
+    // an older one). Resolved props carry it too, so a source only counts as
+    // bound when it differs from that — otherwise every picture read as data
+    // and none was ever swapped for its translation.
+    const authored = (node.props as { src?: unknown } | undefined)?.src;
+    const own = typeof authored === "string" && authored ? authored : node.src;
+    const bound =
+      typeof resolved.src === "string" && resolved.src && resolved.src !== own ? resolved.src : null;
     // The drawn picture in the active language — its translated variant when
     // the locale carries one (see `localizedImage`). A bound value is data, not
     // a design asset, and is drawn as it came.
-    const drawn = props.t.image ? props.t.image(node.src) : node.src;
+    const drawn = props.t.image && own ? props.t.image(own) : own;
     return props.ui.Image({ ...resolved, src: bound ?? drawn } as never);
   }
 
