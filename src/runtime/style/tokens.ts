@@ -23,6 +23,8 @@
  */
 export type ResolvedTokens = Record<string, Record<string, string>>;
 
+import type { VariableDecl, VariableValue } from "../types";
+
 import { isTokenRef, type Color, type ColorLiteral } from "./values";
 
 export type TokenLookup = {
@@ -84,4 +86,27 @@ export function tokensForVariant(
 ): ResolvedTokens | undefined {
   if (variant && themes && themes[variant]) return themes[variant];
   return tokens;
+}
+
+
+/**
+ * The mode and brand the funnel's own variables ask for — see
+ * `VariableDecl.palette`.
+ *
+ * Only a non-empty string is an answer. Whether the artifact actually has that
+ * mode or brand is the caller's question, asked against the table it is about
+ * to paint with, so a variable naming something that does not exist falls
+ * through instead of blanking every colour.
+ */
+export function paletteFromVariables(
+  variables: readonly VariableDecl[] | undefined,
+  values: Readonly<Record<string, VariableValue>>,
+): { mode?: string; brand?: string } {
+  const choice: { mode?: string; brand?: string } = {};
+  (variables ?? []).forEach((decl) => {
+    if (!decl.palette || choice[decl.palette] !== undefined) return;
+    const value = values[decl.name];
+    if (typeof value === "string" && value.trim()) choice[decl.palette] = value.trim();
+  });
+  return choice;
 }

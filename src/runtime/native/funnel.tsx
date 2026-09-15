@@ -25,7 +25,7 @@ import {
   type FunnelServices,
 } from "../funnel-core";
 import type { TimerStorage } from "../timers";
-import { chooseMode, tokensForVariant } from "../style/tokens";
+import { chooseMode, paletteFromVariables, tokensForVariant } from "../style/tokens";
 import { chooseVariant } from "../variant";
 import { showPresentation } from "../interpret";
 import { TextLinkProvider } from "../link-context";
@@ -155,22 +155,37 @@ export function Funnel({
    * effect because the bricks read it while rendering — an effect would leave
    * the first paint of every screen with no colours.
    */
+  const values = services.state.snapshot();
   useMemo(() => {
+    const fromVariables = paletteFromVariables(manifest.variables, values);
     // No cookie here: a native app owns its own storage, so the host decides
-    // the assignment and passes it in. The order it falls through is the same.
+    // the assignment and passes it in. The order it falls through is the same,
+    // with the funnel's own `palette` variables after the host's request.
     const active = manifest.themes
       ? chooseVariant({
           available: Object.keys(manifest.themes),
-          requested: variant,
+          requested:
+            variant ??
+            (fromVariables.brand && manifest.themes[fromVariables.brand] ? fromVariables.brand : null),
           fallback: manifest.defaultVariant,
         })
       : undefined;
     const table = tokensForVariant(manifest.tokens, manifest.themes, active);
+    const designed = fromVariables.mode && table?.[fromVariables.mode] ? fromVariables.mode : undefined;
     configureTokens({
       tokens: table,
-      mode: chooseMode(table, mode, manifest.defaultMode),
+      mode: chooseMode(table, mode ?? designed, manifest.defaultMode),
     });
-  }, [manifest.tokens, manifest.themes, manifest.defaultMode, manifest.defaultVariant, mode, variant]);
+  }, [
+    manifest.tokens,
+    manifest.themes,
+    manifest.defaultMode,
+    manifest.defaultVariant,
+    manifest.variables,
+    mode,
+    variant,
+    values,
+  ]);
 
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 

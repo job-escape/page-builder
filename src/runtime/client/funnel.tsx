@@ -39,7 +39,7 @@ import { showPresentation } from "../interpret";
 import { TextLinkProvider } from "../link-context";
 import type { RichText, TextLink } from "../rich-text";
 import { tokenCustomProperties } from "../style/emit-css";
-import { tokensForVariant } from "../style/tokens";
+import { paletteFromVariables, tokensForVariant } from "../style/tokens";
 import { chooseVariant, readVariant, writeVariant } from "../variant";
 import { ui, type Ui } from "./bricks";
 import { Overlay } from "./overlay";
@@ -265,16 +265,29 @@ export function Funnel({
    * between the brands.
    */
   const funnelId = persist?.funnelId;
+  /*
+    What the funnel's own variables ask of the palette. Read from the store's
+    snapshot, whose identity changes on every write, so a Set step that flips
+    `theme` repaints on the render it causes.
+  */
+  const values = services.state.snapshot();
+  const fromVariables = useMemo(
+    () => paletteFromVariables(manifest.variables, values),
+    [manifest.variables, values],
+  );
   const activeVariant = useMemo(() => {
     const themes = manifest.themes;
     if (!themes) return undefined;
+    // A `?v=` a person typed beats the design; the design beats an assignment
+    // made before it said anything.
+    const asked = variant ?? (fromVariables.brand && themes[fromVariables.brand] ? fromVariables.brand : null);
     return chooseVariant({
       available: Object.keys(themes),
-      requested: variant,
+      requested: asked,
       stored: funnelId == null ? null : readVariant(funnelId),
       fallback: manifest.defaultVariant,
     });
-  }, [manifest.themes, manifest.defaultVariant, variant, funnelId]);
+  }, [manifest.themes, manifest.defaultVariant, variant, funnelId, fromVariables.brand]);
 
   useEffect(() => {
     // Written after the choice rather than as part of it: an assignment is a
@@ -302,9 +315,12 @@ export function Funnel({
     // The host's choice, then the artifact's default, then the visitor's own
     // system preference — and only when the artifact actually declares a mode
     // by that name, because most modes are called things like "Mode 1".
-    const preferred = mode ?? (systemMode && table?.[systemMode] ? systemMode : undefined);
+    // The funnel's own `palette: "mode"` variable sits between the two: a host
+    // that forces a mode still wins, and a visitor who picked one beats the OS.
+    const designed = fromVariables.mode && table?.[fromVariables.mode] ? fromVariables.mode : undefined;
+    const preferred = mode ?? designed ?? (systemMode && table?.[systemMode] ? systemMode : undefined);
     return tokenCustomProperties(table, preferred, manifest.defaultMode);
-  }, [manifest.tokens, manifest.themes, manifest.defaultMode, activeVariant, mode, systemMode]);
+  }, [manifest.tokens, manifest.themes, manifest.defaultMode, activeVariant, mode, systemMode, fromVariables.mode]);
   const hasPalette = Object.keys(paletteStyle).length > 0;
 
   // `request` is re-exported through the services by the core; naming it here

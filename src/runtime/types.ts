@@ -85,6 +85,21 @@ export type VariableDecl = {
    * none of which is ever saved. Web only, like the rest of `persistence`.
    */
   keep?: "always";
+  /**
+   * What this variable's value chooses about the palette, for a `string`.
+   *
+   * - `"mode"` — which of the artifact's token modes paints the funnel:
+   *   `theme = "dark"` repaints every colour that names a token. A toggle is a
+   *   Set step; remembering the choice is `keep`.
+   * - `"brand"` — which of the artifact's `themes` (a palette's variants) the
+   *   visitor sees.
+   *
+   * A value the artifact has no mode or brand for is ignored, so an empty or
+   * mistyped one falls through to what the funnel would have shown anyway: the
+   * host's request, then the visitor's system preference or assignment, then
+   * the artifact's default. The first declaration of each kind wins.
+   */
+  palette?: "mode" | "brand";
 };
 
 /** Declarations by name, as the runtime holds them after reading the manifest. */
