@@ -102,6 +102,21 @@ type TreeNodeBase = {
   onChange?: SourceAction[];
   onLeave?: SourceAction[];
   /**
+   * What this node does when it *appears* — a `load` on something nested.
+   *
+   * A screen's `load` is the funnel's moment and stays where it was, in
+   * `ScreenIndex.enter`: opening a screen is not a node rendering. A frame
+   * inside one is the other question that name asks, and it now has an answer —
+   * a loader that starts its own animation, a card that reports itself seen.
+   *
+   * Run by the walk when the node mounts, which is exactly when it becomes
+   * visible: a node behind a `when` is not rendered at all until the condition
+   * holds, so its steps wait for that, and run again if it comes back. Beside
+   * `on` rather than folded into it, so a reader that does not know this key
+   * ignores it and draws the node as it always did.
+   */
+  onLoad?: SourceAction[];
+  /**
    * What answering this group's question does, carried out by the option that
    * was tapped rather than by this node.
    *
@@ -172,6 +187,12 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
   const change = actionsFor(frame, "change");
   const leave = actionsFor(frame, "leave");
   const select = actionsFor(frame, "select");
+  /*
+    Only what is nested. A top-level frame's `load` is the screen's own, read
+    into `ScreenIndex.enter` by the manifest — carrying it here as well would
+    run a screen's opening steps twice, once by each route.
+  */
+  const load = frame.parent === null ? [] : actionsFor(frame, "load");
 
   return {
     id: frame.id,
@@ -181,6 +202,7 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
     ...(actions.length ? { on: actions } : {}),
     ...(change.length ? { onChange: change } : {}),
     ...(leave.length ? { onLeave: leave } : {}),
+    ...(load.length ? { onLoad: load } : {}),
     ...(select.length ? { onSelect: select } : {}),
   };
 }

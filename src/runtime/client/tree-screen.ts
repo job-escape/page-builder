@@ -13,12 +13,14 @@
  *
  * **The walk itself is platform-free.** It only ever calls `props.ui.*`, and the
  * catalogue arrives as an argument — so React Native reuses this file verbatim
- * with a native `ui`. React appears here as a type and nowhere else.
+ * with a native `ui`. The one thing it reaches for beyond that is React itself
+ * — `Appeared` below — which both platforms already are; no DOM, no native
+ * element, nothing a renderer has to answer differently.
  *
  * **Schema 1.3 is tree-only.** Repeats, text params, value bindings and slots
  * are drawn here and not by the JavaScript emitter, which no host reads.
  */
-import type { ReactNode } from "react";
+import { createElement, useEffect, useRef, type ReactNode } from "react";
 
 import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
 import { isCaseBinding, isValueBinding, type SourceAction } from "../compiler/source";
@@ -153,7 +155,70 @@ function paramsOf(
 
 type SlotFactory = (component: unknown, props: Record<string, unknown>) => ReactNode;
 
+/** Everything a step needs to run — the same three `propsOf` hands a tap. */
+type Doing = Parameters<typeof run>[1];
+
+/**
+ * A node's `load` steps, carried out when it appears.
+ *
+ * A component rather than a call inside the walk, because "when it appears" is
+ * a mount and only React can say when one happened. It draws nothing of its own
+ * — its children are the node — so a renderer sees the same tree it always did
+ * with one more component in it.
+ *
+ * Once per appearance, not once per render: the steps write through the store,
+ * which re-renders, and a re-run on every render would be a loader that
+ * restarts its own animation forever. A node behind a `when` is not rendered
+ * until the condition holds (see `renderNode`), so this mounts exactly when it
+ * becomes visible — and again if it goes away and comes back, which is what a
+ * card returning to a screen means by appearing.
+ */
+function Appeared({
+  actions,
+  doing,
+  children,
+}: {
+  actions: SourceAction[];
+  doing: Doing;
+  children: ReactNode;
+}): ReactNode {
+  // Through a ref: the store is a new object on every render, and holding it in
+  // the dependencies would run the steps again each time they changed it.
+  const latest = useRef(doing);
+  latest.current = doing;
+  useEffect(() => {
+    // Fire-and-forget, as a tap is: React does not await a handler.
+    void run(actions, latest.current);
+  }, [actions]);
+  return children;
+}
+
+/**
+ * One node — drawn, and told when it appeared.
+ *
+ * Presence is decided here rather than inside the drawing, so a node that is
+ * not rendered mounts nothing: no `load` runs for a frame nobody can see, and
+ * the moment its condition turns true is the moment its steps run.
+ */
 function renderNode(
+  node: TreeNode,
+  screen: ScreenProps,
+  scope?: Scope,
+  select?: SourceAction[],
+): ReactNode {
+  const props = within(screen, scope);
+  if (node.when && !evaluate(node.when, props.state)) return null;
+
+  const drawn = drawNode(node, screen, scope, select);
+  if (!node.onLoad?.length) return drawn;
+  return createElement(Appeared, {
+    actions: node.onLoad,
+    doing: { state: props.state, nav: props.nav, req: props.req },
+    children: drawn,
+  });
+}
+
+function drawNode(
   node: TreeNode,
   screen: ScreenProps,
   scope?: Scope,
@@ -170,17 +235,13 @@ function renderNode(
   /** Nearest group wins: a group inside a group answers its own question. */
   const below = node.onSelect?.length ? node.onSelect : select;
 
-  /**
-   * Presence, before anything else.
-   *
-   * `null` rather than an invisible frame, and returned before the children are
-   * walked: a node that is not drawn does not draw what is inside it, and a
-   * frame rendered at `opacity: 0` would still take its space and still take
-   * taps. The emitter reaches the same answer with a ternary around the same
-   * expression.
-   */
-  if (node.when && !evaluate(node.when, props.state)) return null;
-
+  /*
+    Presence is `renderNode`'s, answered before this is called: `null` rather
+    than an invisible frame, and before the children are walked — a node that is
+    not drawn does not draw what is inside it, and a frame rendered at
+    `opacity: 0` would still take its space and still take taps. The emitter
+    reaches the same answer with a ternary around the same expression.
+  */
   const resolved = propsOf(node, props, select);
 
   if (node.kind === "text") {
