@@ -75,6 +75,36 @@ const JUSTIFY: Record<Justify, string> & Record<string, string> = {
  * those already arrive as `bindings`, evaluated per render against the store.
  * Adding them here would be a second answer to a question that has one.
  */
+/**
+ * Where a brick sits inside a parent that places its children itself.
+ *
+ * A frame with no auto layout positions what is in it by hand — a label at the
+ * top of an artboard, a button two thirds of the way down — and that is what
+ * the canvas draws. The published funnel drew something else: the runtime had
+ * no vocabulary for a position at all, so the parent laid its children out as
+ * ordinary block flow and every one of them stacked against the top left
+ * corner. Nothing failed anywhere; the numbers simply never crossed.
+ *
+ * They are points from the parent's content box — its padding box, since the
+ * canvas measures a child from inside its parent's padding, which is what
+ * `box-sizing: border-box` and an absolutely positioned child agree on.
+ *
+ * Only meaningful under a parent that says `places`. A child carrying one
+ * without such a parent would anchor to whatever ancestor happened to be
+ * positioned, which is a worse answer than the flow it replaced — so the two
+ * props are emitted together, by the one thing that can see both.
+ */
+export type Placement = {
+  x?: number;
+  y?: number;
+};
+
+/** A placement as the two properties that make it — nothing, when there is none. */
+export function placedCss(placement: Placement): CSSProperties | undefined {
+  if (placement.x === undefined && placement.y === undefined) return undefined;
+  return { position: "absolute", left: placement.x ?? 0, top: placement.y ?? 0 };
+}
+
 export type BrickState = { hover: boolean; press: boolean };
 
 /**
@@ -172,8 +202,17 @@ function withState<Look extends object>(
  * a brick nobody could reason about, and none of it is a thing a designer can
  * draw.
  */
-export type FrameLook = {
+export type FrameLook = Placement & {
   layout?: FrameLayout;
+  /**
+   * This frame places its children itself, from their own `x` / `y`.
+   *
+   * Written beside `layout: "none"` rather than inferred from it, so a frame
+   * that has always laid its children out as block flow goes on doing exactly
+   * that: the positioning context appears only where something was actually
+   * drawn into one. See `Placement`.
+   */
+  places?: boolean;
   gap?: number;
   padding?: number | [number, number] | [number, number, number, number];
   /** A number of pixels, `fill`, `hug`, or a percent of the parent — `"42%"`. */
@@ -390,6 +429,7 @@ export function Frame(props: FrameProps) {
     shadow,
     grow,
     scroll,
+    places,
     style,
   } = withState(props as FrameLook, states, at);
 
@@ -423,6 +463,10 @@ export function Frame(props: FrameProps) {
     flexGrow: grow ? 1 : undefined,
     overflowY: scroll ? "auto" : undefined,
     boxSizing: "border-box",
+    // What its children are placed against, and where it is placed itself —
+    // in that order, because a frame that does both is absolute, not relative.
+    position: places ? "relative" : undefined,
+    ...placedCss(props),
     cursor: interactive ? "pointer" : undefined,
     // A frame that takes clicks must also take keys; see the handler below.
     userSelect: interactive ? "none" : undefined,
@@ -507,7 +551,7 @@ export type TextLook = {
   style?: CSSProperties;
 };
 
-export type TextProps = {
+export type TextProps = Placement & {
   /** A motion the words play on their own — an entrance, a pulse. See `FrameMotion`. */
   motion?: FrameMotion;
   /** How a changed colour or opacity glides. See `FrameTransition`. */
@@ -677,6 +721,7 @@ export function Text(props: TextProps) {
          * carries. This is the translation, at the one place it is drawn.
          */
         textAlign: align === "left" ? "start" : align === "right" ? "end" : align,
+        ...placedCss(props),
         lineHeight: lineHeight ? `${lineHeight}px` : undefined,
         width: size(width),
         height: size(height),
@@ -702,7 +747,7 @@ export function Text(props: TextProps) {
   );
 }
 
-export type InputProps = {
+export type InputProps = Placement & {
   /** The declared variable this field reads from and writes to. */
   value?: string;
   onValue?: (next: string) => void;
@@ -754,6 +799,7 @@ export function Input({
   ariaLabel,
   testId,
   style,
+  ...placement
 }: InputProps) {
   return (
     <input
@@ -779,13 +825,14 @@ export function Input({
         height,
         boxSizing: "border-box",
         outline: "none",
+        ...placedCss(placement),
         ...style,
       }}
     />
   );
 }
 
-export type ImageProps = {
+export type ImageProps = Placement & {
   src: string;
   alt?: string;
   width?: number | "fill";
@@ -795,7 +842,16 @@ export type ImageProps = {
   style?: CSSProperties;
 };
 
-export function Image({ src, alt = "", width, height, radius, fit = "cover", style }: ImageProps) {
+export function Image({
+  src,
+  alt = "",
+  width,
+  height,
+  radius,
+  fit = "cover",
+  style,
+  ...placement
+}: ImageProps) {
   return (
     <img
       src={src}
@@ -806,6 +862,7 @@ export function Image({ src, alt = "", width, height, radius, fit = "cover", sty
         borderRadius: radius,
         objectFit: fit,
         display: "block",
+        ...placedCss(placement),
         ...style,
       }}
     />

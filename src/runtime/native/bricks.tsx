@@ -70,7 +70,7 @@ import {
   type NativeStyle,
 } from "../style/emit-native";
 import type { TokenLookup } from "../style/tokens";
-import type { FrameProps, ImageProps, InputProps, TextProps } from "../client/bricks";
+import type { FrameProps, ImageProps, InputProps, Placement, TextProps } from "../client/bricks";
 
 /**
  * Which way the frame a brick sits in lays its children out.
@@ -182,6 +182,19 @@ const BETWEEN: Record<string, string> = {
   "flex-end": "flex-end",
 };
 
+/**
+ * Where a brick sits, for a parent that places its children itself.
+ *
+ * The web half needs its parent told to be a positioning context; this one does
+ * not, because every React Native view already is one — `position: "relative"`
+ * is the default there, so `places` has nothing to add and is correctly
+ * ignored. See `Placement` in the client bricks for what the two points mean.
+ */
+function placedNative(placement: Placement): NativeStyle {
+  if (placement.x === undefined && placement.y === undefined) return {};
+  return { position: "absolute", left: placement.x ?? 0, top: placement.y ?? 0 };
+}
+
 function layoutOf(props: FrameProps, flow?: Flow): NativeStyle {
   const style: NativeStyle = {};
   if (props.layout && props.layout !== "none") style.flexDirection = props.layout;
@@ -195,7 +208,7 @@ function layoutOf(props: FrameProps, flow?: Flow): NativeStyle {
     made a width-fill frame in a column take a third of the screen's height.
   */
   if (props.grow || (flow === undefined && flexForSize(props.width).grow)) style.flexGrow = 1;
-  return style;
+  return { ...style, ...placedNative(props) };
 }
 
 /**
@@ -486,6 +499,7 @@ export function Text({
   const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup, flow, definite);
   const style: TextStyle = {
     ...(box.style as TextStyle),
+    ...(placedNative(props) as TextStyle),
     fontSize,
     /**
      * The box the words are aligned in — see `TextProps.width`.
@@ -567,7 +581,7 @@ export function Text({
 
 // ─── Image ────────────────────────────────────────────────────────────────────
 
-export function Image({ src, alt, width, height, radius, fit }: ImageProps) {
+export function Image({ src, alt, width, height, radius, fit, ...placement }: ImageProps) {
   /*
     The parent's flow, because a remote image has no size of its own: a width
     set to fill that grew down a column instead of across it left the picture
@@ -577,6 +591,7 @@ export function Image({ src, alt, width, height, radius, fit }: ImageProps) {
   // And whether that frame's height is definite — see `HeightContext`.
   const definite = useContext(HeightContext);
   const style: ImageStyle = {
+    ...(placedNative(placement) as ImageStyle),
     ...(nativeSize(width, "width", flow) as ImageStyle),
     /*
       Resolved rather than passed through. `fill` and `hug` are the contract's
@@ -640,6 +655,7 @@ export function Input({
       style={[
         box.style as TextStyle,
         {
+          ...(placedNative(rest as Placement) as TextStyle),
           ...(size === undefined ? {} : { fontSize: size }),
           ...(color ? { color: nativeColor(color, lookup) } : {}),
           // Normalised first: the brick contract still accepts CSS shorthand
