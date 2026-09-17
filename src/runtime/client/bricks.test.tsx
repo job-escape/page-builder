@@ -209,3 +209,23 @@ describe("group keyboard navigation", () => {
     expect(screen.getByTestId("a")).toHaveFocus();
   });
 });
+
+describe("Text, sized to its words", () => {
+  it("does not wrap when its width hugs, and keeps the line breaks it was given", () => {
+    render(<>{ui.Text({ width: "hug", testId: "words" }, "Maybe later")}</>);
+
+    expect(screen.getByTestId("words")).toHaveStyle({ whiteSpace: "pre" });
+  });
+
+  it("wraps as before at a fixed or filling width", () => {
+    render(
+      <>
+        {ui.Text({ width: 88, testId: "fixed" }, "Maybe later")}
+        {ui.Text({ width: "fill", testId: "filling" }, "Maybe later")}
+      </>,
+    );
+
+    expect(screen.getByTestId("fixed").style.whiteSpace).toBe("");
+    expect(screen.getByTestId("filling").style.whiteSpace).toBe("");
+  });
+});

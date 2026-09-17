@@ -724,6 +724,19 @@ export function Text(props: TextProps) {
         ...placedCss(props),
         lineHeight: lineHeight ? `${lineHeight}px` : undefined,
         width: size(width),
+        /**
+         * A hugging width is the words' own width, so it never wraps.
+         *
+         * `auto` alone is a flex item that shrinks: "Maybe later" in a 120px
+         * button with 16px of padding a side is a pixel or two wider than the
+         * 88px left in a browser, so it broke onto two lines, 48px of text in a
+         * 40px button — and a parent that scrolls then scrolled by the overflow
+         * when somebody dragged across the words. The canvas draws it on one
+         * line, as Figma's auto width does, and so does native, where a Yoga
+         * item does not shrink. `pre` rather than `nowrap` so the line breaks a
+         * designer typed stay line breaks, as they are on both of those.
+         */
+        whiteSpace: width === "hug" ? "pre" : undefined,
         height: size(height),
         flexGrow: grow ? 1 : undefined,
         // The words' own box — spelled exactly as `Frame` spells it.
