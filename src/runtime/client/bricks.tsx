@@ -512,6 +512,37 @@ export function Frame(props: FrameProps) {
   const parentFlow = useContext(Parent);
   const root = parentFlow === null;
   const rootFill = root && (shown.height as FrameProps["height"]) === "fill";
+  /**
+   * A `fill` along the parent's flow grows into the parent's room, as well as
+   * claiming all of it.
+   *
+   * `100%` alone is only half the answer, and the half CSS refuses whenever the
+   * parent's `height` is `auto`: a percentage resolves against the *declared*
+   * height of the containing block, and a `min-height` is not one. Every page
+   * is `min-height: 100dvh` with `height: auto` (`PAGE_MIN_HEIGHT`), so on any
+   * window taller than the content the page stretched to the viewport and
+   * nothing inside it followed — a screen's own background stopping in mid-air
+   * with the document's white below it, which is the very thing that minimum
+   * was added to end. It only showed on a screen whose fill is on a child
+   * rather than on the screen, because there the stretched box paints nothing.
+   *
+   * `flexGrow` is answered by flex layout instead of by percentage resolution,
+   * and flex distributes the parent's *used* size — so this reaches the room a
+   * minimum made and the `100%` cannot. The two together are "at least my
+   * content, and all of the leftover": where the parent is definite the basis
+   * is already the whole of it and there is no leftover to grow into, so
+   * nothing about a screen that states a height changes.
+   *
+   * Along the flow only. `flexGrow` is a claim on the main axis, and a frame
+   * set to fill the *width* inside a column is asking about the cross one —
+   * growing it there is what made a width-fill frame take a third of the
+   * screen's height, which is the same mistake `nativeSize` records having
+   * made. The cross axis keeps `100%`, which is definite there because the
+   * parent's cross size is.
+   */
+  const fillsFlow =
+    (parentFlow === "column" && (shown.height as FrameProps["height"]) === "fill") ||
+    (parentFlow === "row" && (shown.width as FrameProps["width"]) === "fill");
   /** What this frame hands its own children — the same word native hands down. */
   const ownFlow: ParentFlow = layout === "column" || layout === "row" ? layout : "none";
   /*
@@ -537,7 +568,7 @@ export function Frame(props: FrameProps) {
     borderRadius: radius,
     opacity: shown.opacity as number | undefined,
     boxShadow: shadow,
-    flexGrow: grow ? 1 : undefined,
+    flexGrow: grow || fillsFlow ? 1 : undefined,
     overflowY: scroll ? "auto" : undefined,
     boxSizing: "border-box",
     // What its children are placed against, and where it is placed itself —
