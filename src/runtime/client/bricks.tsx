@@ -300,27 +300,32 @@ type ParentFlow = "none" | "row" | "column";
 const Parent = createContext<ParentFlow | null>(null);
 
 /**
- * A screen's root at `fill` height — the one size that is not a size.
+ * What every page is at least — the viewport, whatever it says about its height.
  *
- * It used to be `height: 100%`, which resolved to `auto` and made the root hug:
- * a percentage height against a parent with no definite height is `auto`, and
- * nothing above a screen has one — not the host, which only asks for a minimum,
- * and not `html` or `body`, which no host here sizes. So a screen drawn to fill
- * the page was as tall as whatever was on it, and the background stopped at the
- * content's edge.
+ * **A property of a page, not something a page declares.** It was read off
+ * `height: "fill"` at first, which made filling the viewport a thing a designer
+ * had to remember to ask for, and left every screen that had not asked drawn as
+ * tall as whatever happened to be on it — background stopping at the content's
+ * edge, a short screen floating above white. A page occupies the page. There is
+ * no second sensible answer to choose between, so there is nothing to declare.
  *
- * `100dvh` needs no ancestor, and `min-height` keeps the growth: the screen is
- * the viewport when its content is shorter and taller than the viewport when it
- * is not, and the document scrolls the difference — which is what a browser does
- * without being asked, and what `flexGrow: 1, flexBasis: "auto"` already means
- * on the native root. `dvh` rather than `vh` so it tracks a phone browser's
- * chrome as it collapses instead of hiding content behind it.
+ * `100dvh` needs no ancestor, which matters because no ancestor has a height to
+ * give: not the runtime's host, which asks for its own minimum, and not `html`
+ * or `body`, which no host here sizes. A percentage would resolve to `auto` and
+ * do nothing, which is exactly what `height: 100%` was doing before this.
  *
- * Only the root, and only `fill`. A nested `fill` is a share of its parent and
- * still says `100%`; a root with a number keeps that number.
+ * `min-height` keeps the growth: the viewport when the content is shorter,
+ * taller when it is not, and the document scrolls the difference — what a
+ * browser does unasked, and what `flexGrow: 1, flexBasis: "auto"` already means
+ * on the native root.
+ *
+ * `dvh` rather than `vh` so a phone browser's collapsing chrome moves it instead
+ * of hiding content behind it.
+ *
+ * The root only. A nested `fill` is a share of a parent that has a height and
+ * still says `100%`.
  */
-const rootFillHeight = (height: FrameProps["height"]): CSSProperties =>
-  height === "fill" ? { minHeight: "100dvh" } : {};
+const PAGE_MIN_HEIGHT: CSSProperties = { minHeight: "100dvh" };
 
 /**
  * What makes any brick clickable, in one place.
@@ -509,6 +514,13 @@ export function Frame(props: FrameProps) {
   const rootFill = root && (shown.height as FrameProps["height"]) === "fill";
   /** What this frame hands its own children — the same word native hands down. */
   const ownFlow: ParentFlow = layout === "column" || layout === "row" ? layout : "none";
+  /*
+    The minimum goes first so a page that states a height still keeps it, and
+    the two settle the way CSS settles them — the larger wins. A page saying
+    `fill` states nothing, so its `height` is dropped rather than written as the
+    `100%` that would resolve to `auto` anyway: a reader finding both would have
+    to work out which of them does nothing before trusting either.
+  */
 
   const css: CSSProperties = {
     display: layout === "none" ? "block" : "flex",
@@ -516,12 +528,8 @@ export function Frame(props: FrameProps) {
     gap,
     padding: pad(padding),
     width: size(shown.width as FrameProps["width"]),
-    // A root that fills asks for a minimum instead — see `rootFillHeight`. The
-    // fixed height is dropped rather than left beside it: `height: 100%` there
-    // resolves to `auto` and does nothing, and a reader finding both would have
-    // to work that out before trusting either.
+    ...(root ? PAGE_MIN_HEIGHT : {}),
     height: rootFill ? undefined : size(shown.height as FrameProps["height"]),
-    ...(rootFill ? rootFillHeight(shown.height as FrameProps["height"]) : {}),
     alignItems: align ? ALIGN[align] : undefined,
     justifyContent: justify ? JUSTIFY[justify] : undefined,
     background: fill,
