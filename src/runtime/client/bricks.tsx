@@ -100,8 +100,26 @@ export type Placement = {
 };
 
 /** A placement as the two properties that make it — nothing, when there is none. */
-export function placedCss(placement: Placement): CSSProperties | undefined {
+export function placedCss(placement: Placement, flow?: ParentFlow | null): CSSProperties | undefined {
   if (placement.x === undefined && placement.y === undefined) return undefined;
+  /*
+    A parent that lays its children out is the one that decides where they go.
+
+    Two points mean "my parent placed me here", and they mean nothing inside a
+    row or a column, where the parent's layout decides the order and the
+    spacing. Honouring them there takes the brick out of the flow and drops it
+    at the nearest positioned ancestor's corner — which is what a component
+    instance did after publish: an expanded button carried the coordinates its
+    variant had on the component's own canvas, so two buttons in a footer row
+    were absolutely positioned at the top of the page, over the heading, and the
+    row collapsed to nothing behind them.
+
+    The coordinates are not wrong to *carry*. The same frame is placed inside
+    its definition and in flow inside a row, and a copy of it cannot know which
+    of the two it landed in. Which of them applies is exactly what the parent
+    knows, so the parent is what answers.
+  */
+  if (flow === "row" || flow === "column") return undefined;
   return { position: "absolute", left: placement.x ?? 0, top: placement.y ?? 0 };
 }
 
@@ -265,19 +283,21 @@ const size = (value: FrameProps["width"] | TextProps["width"]): string | number 
 };
 
 /**
- * Whether anything above this brick is a frame — false only for a screen's root.
+ * How the frame above this one lays its children out — `null` for a screen's
+ * root, which has no frame above it at all.
  *
- * The web half of the test native makes with `FlowContext === undefined`:
- * "nothing above it". Both renderers need it for the same reason, because a
- * `fill` height means something different at the top of a screen than it does
- * anywhere else — inside a frame it is a share of a parent that has a height,
- * and at the top it is a claim on the viewport, which no ancestor here has a
- * height for.
+ * The web half of native's `FlowContext`, and it answers the same two questions
+ * that one does:
  *
- * A boolean rather than the flow itself: the web has no Yoga quirks to work
- * around and this is the only question it needs answered.
+ * - **Am I the root?** `null`. A `fill` height means something different at the
+ *   top of a screen than anywhere else: inside a frame it is a share of a parent
+ *   that has a height, and at the top it is a claim on the viewport, which no
+ *   ancestor here has a height for.
+ * - **Does my parent place me?** Only a parent with no auto-layout does. Two
+ *   points on a brick mean nothing inside a row or a column — see `placedCss`.
  */
-const InsideFrame = createContext(false);
+type ParentFlow = "none" | "row" | "column";
+const Parent = createContext<ParentFlow | null>(null);
 
 /**
  * A screen's root at `fill` height — the one size that is not a size.
@@ -484,8 +504,11 @@ export function Frame(props: FrameProps) {
       ? { ...style, transition: [glide, style?.transition].filter(Boolean).join(", ") }
       : style;
 
-  const root = !useContext(InsideFrame);
+  const parentFlow = useContext(Parent);
+  const root = parentFlow === null;
   const rootFill = root && (shown.height as FrameProps["height"]) === "fill";
+  /** What this frame hands its own children — the same word native hands down. */
+  const ownFlow: ParentFlow = layout === "column" || layout === "row" ? layout : "none";
 
   const css: CSSProperties = {
     display: layout === "none" ? "block" : "flex",
@@ -512,7 +535,7 @@ export function Frame(props: FrameProps) {
     // What its children are placed against, and where it is placed itself —
     // in that order, because a frame that does both is absolute, not relative.
     position: places ? "relative" : undefined,
-    ...placedCss(props),
+    ...placedCss(props, parentFlow),
     cursor: interactive ? "pointer" : undefined,
     // A frame that takes clicks must also take keys; see the handler below.
     userSelect: interactive ? "none" : undefined,
@@ -556,10 +579,11 @@ export function Frame(props: FrameProps) {
       {...interaction}
       onKeyDown={onKeyDown}
     >
-      {/* Everything below this is inside a frame, so no descendant reads itself
-          as the screen's root — the same thing native's `FlowContext` says by
-          carrying this frame's own flow down. */}
-      <InsideFrame.Provider value>{children}</InsideFrame.Provider>
+      {/* This frame's own flow, handed down — the same thing native's
+          `FlowContext` carries, and what tells a child whether it is placed by
+          this frame or laid out by it. It also means no descendant reads itself
+          as the screen's root. */}
+      <Parent.Provider value={ownFlow}>{children}</Parent.Provider>
     </div>
   );
 

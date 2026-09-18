@@ -190,8 +190,24 @@ const BETWEEN: Record<string, string> = {
  * is the default there, so `places` has nothing to add and is correctly
  * ignored. See `Placement` in the client bricks for what the two points mean.
  */
-function placedNative(placement: Placement): NativeStyle {
+function placedNative(placement: Placement, flow?: Flow): NativeStyle {
   if (placement.x === undefined && placement.y === undefined) return {};
+  /*
+    A parent that lays its children out is the one that decides where they go.
+
+    Two points on a brick mean "my parent placed me here", and they mean nothing
+    at all inside a row or a column, where the parent's own layout decides the
+    order and the spacing. Honouring them there takes the brick out of the flow
+    and drops it at the parent's corner — which is what a component instance did
+    after publish: an expanded button carried the coordinates its variant had on
+    the component's own canvas, so two buttons in a footer row were positioned
+    at the top of the page, over the heading, and the row collapsed behind them.
+
+    The coordinates are not wrong to *carry* — the same frame is placed inside
+    its definition and in flow inside a row, and a copy has no way to know which
+    one it landed in. Which of them applies is exactly what the parent knows.
+  */
+  if (flow === "row" || flow === "column") return {};
   return { position: "absolute", left: placement.x ?? 0, top: placement.y ?? 0 };
 }
 
@@ -208,7 +224,7 @@ function layoutOf(props: FrameProps, flow?: Flow): NativeStyle {
     made a width-fill frame in a column take a third of the screen's height.
   */
   if (props.grow || (flow === undefined && flexForSize(props.width).grow)) style.flexGrow = 1;
-  return { ...style, ...placedNative(props) };
+  return { ...style, ...placedNative(props, flow) };
 }
 
 /**
