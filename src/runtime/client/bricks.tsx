@@ -265,6 +265,44 @@ const size = (value: FrameProps["width"] | TextProps["width"]): string | number 
 };
 
 /**
+ * Whether anything above this brick is a frame — false only for a screen's root.
+ *
+ * The web half of the test native makes with `FlowContext === undefined`:
+ * "nothing above it". Both renderers need it for the same reason, because a
+ * `fill` height means something different at the top of a screen than it does
+ * anywhere else — inside a frame it is a share of a parent that has a height,
+ * and at the top it is a claim on the viewport, which no ancestor here has a
+ * height for.
+ *
+ * A boolean rather than the flow itself: the web has no Yoga quirks to work
+ * around and this is the only question it needs answered.
+ */
+const InsideFrame = createContext(false);
+
+/**
+ * A screen's root at `fill` height — the one size that is not a size.
+ *
+ * It used to be `height: 100%`, which resolved to `auto` and made the root hug:
+ * a percentage height against a parent with no definite height is `auto`, and
+ * nothing above a screen has one — not the host, which only asks for a minimum,
+ * and not `html` or `body`, which no host here sizes. So a screen drawn to fill
+ * the page was as tall as whatever was on it, and the background stopped at the
+ * content's edge.
+ *
+ * `100dvh` needs no ancestor, and `min-height` keeps the growth: the screen is
+ * the viewport when its content is shorter and taller than the viewport when it
+ * is not, and the document scrolls the difference — which is what a browser does
+ * without being asked, and what `flexGrow: 1, flexBasis: "auto"` already means
+ * on the native root. `dvh` rather than `vh` so it tracks a phone browser's
+ * chrome as it collapses instead of hiding content behind it.
+ *
+ * Only the root, and only `fill`. A nested `fill` is a share of its parent and
+ * still says `100%`; a root with a number keeps that number.
+ */
+const rootFillHeight = (height: FrameProps["height"]): CSSProperties =>
+  height === "fill" ? { minHeight: "100dvh" } : {};
+
+/**
  * What makes any brick clickable, in one place.
  *
  * Shared by `Frame` and `Text` rather than written twice: neither is a
@@ -446,13 +484,21 @@ export function Frame(props: FrameProps) {
       ? { ...style, transition: [glide, style?.transition].filter(Boolean).join(", ") }
       : style;
 
+  const root = !useContext(InsideFrame);
+  const rootFill = root && (shown.height as FrameProps["height"]) === "fill";
+
   const css: CSSProperties = {
     display: layout === "none" ? "block" : "flex",
     flexDirection: layout === "row" ? "row" : layout === "column" ? "column" : undefined,
     gap,
     padding: pad(padding),
     width: size(shown.width as FrameProps["width"]),
-    height: size(shown.height as FrameProps["height"]),
+    // A root that fills asks for a minimum instead — see `rootFillHeight`. The
+    // fixed height is dropped rather than left beside it: `height: 100%` there
+    // resolves to `auto` and does nothing, and a reader finding both would have
+    // to work that out before trusting either.
+    height: rootFill ? undefined : size(shown.height as FrameProps["height"]),
+    ...(rootFill ? rootFillHeight(shown.height as FrameProps["height"]) : {}),
     alignItems: align ? ALIGN[align] : undefined,
     justifyContent: justify ? JUSTIFY[justify] : undefined,
     background: fill,
@@ -510,7 +556,10 @@ export function Frame(props: FrameProps) {
       {...interaction}
       onKeyDown={onKeyDown}
     >
-      {children}
+      {/* Everything below this is inside a frame, so no descendant reads itself
+          as the screen's root — the same thing native's `FlowContext` says by
+          carrying this frame's own flow down. */}
+      <InsideFrame.Provider value>{children}</InsideFrame.Provider>
     </div>
   );
 
