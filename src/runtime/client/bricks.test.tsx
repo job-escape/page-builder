@@ -24,13 +24,23 @@ describe.each(["Frame", "Text"] as const)("%s, when the compiler gives it an onC
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("calls it on Enter and Space, since it is not a button", () => {
+  it("activates on Enter and Space", () => {
     const onClick = jest.fn();
     render(<>{clickable(brick, onClick)}</>);
+    const node = screen.getByTestId("target");
 
-    fireEvent.keyDown(screen.getByTestId("target"), { key: "Enter" });
-    fireEvent.keyDown(screen.getByTestId("target"), { key: " " });
+    if (brick === "Frame") {
+      // A real button: the browser turns Enter and Space into a click, so the
+      // brick must not do it a second time. jsdom does not run that default
+      // action, which is why this asserts the element rather than the calls.
+      expect(node.tagName).toBe("BUTTON");
+      fireEvent.keyDown(node, { key: "Enter" });
+      expect(onClick).not.toHaveBeenCalled();
+      return;
+    }
 
+    fireEvent.keyDown(node, { key: "Enter" });
+    fireEvent.keyDown(node, { key: " " });
     expect(onClick).toHaveBeenCalledTimes(2);
   });
 
@@ -39,8 +49,10 @@ describe.each(["Frame", "Text"] as const)("%s, when the compiler gives it an onC
     const node = screen.getByTestId("target");
 
     expect(node).toHaveAttribute("tabindex", "0");
-    expect(node).toHaveAttribute("role", "button");
-    expect(node).toHaveAccessibleName("Go");
+    // A `<button>` carries the role itself; a span has to say it.
+    expect(screen.getByRole("button", { name: "Go" })).toBe(node);
+    if (brick === "Text") expect(node).toHaveAttribute("role", "button");
+    else expect(node).not.toHaveAttribute("role");
   });
 
   it("takes no clicks and no focus when disabled", () => {
@@ -227,5 +239,82 @@ describe("Text, sized to its words", () => {
 
     expect(screen.getByTestId("fixed").style.whiteSpace).toBe("");
     expect(screen.getByTestId("filling").style.whiteSpace).toBe("");
+  });
+});
+
+describe("a Frame that is a button", () => {
+  it("is a real <button>, typed so it never submits a form", () => {
+    render(<>{ui.Frame({ onClick: jest.fn(), role: "button", testId: "b" }, "Go")}</>);
+    const node = screen.getByTestId("b");
+
+    expect(node.tagName).toBe("BUTTON");
+    expect(node).toHaveAttribute("type", "button");
+  });
+
+  it("paints nothing the design did not ask for", () => {
+    // A bare <button> has a grey face, a bevel and padding of its own.
+    render(<>{ui.Frame({ onClick: jest.fn(), role: "button", testId: "b" }, "Go")}</>);
+    const { style } = screen.getByTestId("b");
+
+    expect(style.background).toBe("transparent");
+    expect(style.padding).toBe("0px");
+    expect(style.margin).toBe("0px");
+    expect(style.appearance).toBe("none");
+    // `border: none`, `font: inherit` and `color: inherit` are written too, and
+    // jsdom's CSSOM drops all three as it drops `100dvh` (see screen-host's
+    // test) — they are checked in a browser, where they are ordinary CSS.
+  });
+
+  it("keeps the design's own fill, border and padding", () => {
+    render(
+      <>
+        {ui.Frame(
+          {
+            onClick: jest.fn(),
+            role: "button",
+            testId: "b",
+            fill: "rgb(235, 235, 236)",
+            padding: [8, 16, 8, 16],
+          },
+          "Maybe later",
+        )}
+      </>,
+    );
+    const { style } = screen.getByTestId("b");
+
+    expect(style.background).toBe("rgb(235, 235, 236)");
+    expect(style.padding).toBe("8px 16px 8px 16px");
+  });
+
+  it("does not nest: a clickable frame inside a button stays a div", () => {
+    render(
+      <>
+        {ui.Frame(
+          { onClick: jest.fn(), role: "button", testId: "outer" },
+          ui.Frame({ onClick: jest.fn(), role: "button", testId: "inner" }, "Learn more"),
+        )}
+      </>,
+    );
+
+    expect(screen.getByTestId("outer").tagName).toBe("BUTTON");
+    const inner = screen.getByTestId("inner");
+    expect(inner.tagName).toBe("DIV");
+    // Still announced and still operable, exactly as every frame was before.
+    expect(inner).toHaveAttribute("role", "button");
+    expect(inner).toHaveAttribute("tabindex", "0");
+  });
+
+  it("stays a div when it is not a button or does nothing", () => {
+    render(
+      <>
+        {ui.Frame({ onClick: jest.fn(), role: "radio", testId: "radio" }, "A")}
+        {ui.Frame({ role: "button", testId: "idle" }, "B")}
+        {ui.Frame({ onClick: jest.fn(), role: "button", disabled: true, testId: "off" }, "C")}
+      </>,
+    );
+
+    expect(screen.getByTestId("radio").tagName).toBe("DIV");
+    expect(screen.getByTestId("idle").tagName).toBe("DIV");
+    expect(screen.getByTestId("off").tagName).toBe("DIV");
   });
 });

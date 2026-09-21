@@ -300,6 +300,18 @@ type ParentFlow = "none" | "row" | "column";
 const Parent = createContext<ParentFlow | null>(null);
 
 /**
+ * Whether an ancestor is already a real `<button>`.
+ *
+ * HTML says a button may not contain one, and a designer's tree says nothing
+ * about that — a card that takes a tap with a "Learn more" inside it that takes
+ * its own is an ordinary thing to draw. So the outermost clickable frame
+ * becomes the button and anything clickable inside it stays a div with
+ * `role="button"`, which is what every frame was until now: no worse than
+ * before, and never invalid.
+ */
+const InsideButton = createContext(false);
+
+/**
  * What every page is at least — the viewport, whatever it says about its height.
  *
  * **A property of a page, not something a page declares.** It was read off
@@ -610,20 +622,83 @@ export function Frame(props: FrameProps) {
         }
       : (group.onKeyDown ?? interaction.onKeyDown);
 
-  const drawn = (
-    <div
-      style={css}
-      data-pb-motion={moving.animation ? "" : undefined}
-      {...handlers}
-      {...interaction}
-      onKeyDown={onKeyDown}
-    >
-      {/* This frame's own flow, handed down — the same thing native's
-          `FlowContext` carries, and what tells a child whether it is placed by
-          this frame or laid out by it. It also means no descendant reads itself
-          as the screen's root. */}
-      <Parent.Provider value={ownFlow}>{children}</Parent.Provider>
-    </div>
+  /**
+   * A button a designer drew is a `<button>`, not a div that says it is one.
+   *
+   * `role="button"` buys the announcement and nothing else. A real element is
+   * what the rest of the platform is built on: Enter and Space without a
+   * handler of our own, the focus ring the visitor's browser and OS agreed on,
+   * the form semantics, `:disabled`, and — the one that brought this up —
+   * every tool that goes looking for a button, from a test to an extension to
+   * an analytics script, finding it.
+   *
+   * Only where it is one: something this frame will actually do on a click,
+   * and the role to say so. A frame with a `dialog` or `radio` role keeps its
+   * div, because those are not buttons and the ARIA name is already the whole
+   * of what they claim.
+   *
+   * **Never inside another.** HTML forbids it and a designer's tree says
+   * nothing about that, so the outermost clickable frame takes the element and
+   * anything clickable within it stays exactly what it was. See `InsideButton`.
+   */
+  // Read unconditionally: `&&` would skip the hook on the renders where this
+  // frame is not clickable, and a hook that is sometimes called is the one
+  // rule React has no recovery from.
+  const insideButton = useContext(InsideButton);
+  const asButton = interactive && role === "button" && !insideButton;
+
+  /*
+    A button's user-agent styles are not nothing, and this brick's whole
+    premise is that what a designer drew is what ships. Four of them can show
+    through where the design says nothing: the grey face, the bevelled border,
+    the padding, and the browser's own font instead of the page's. They are
+    written here rather than folded into `css` so that a frame that stays a div
+    keeps byte for byte the styles it has always had.
+  */
+  const buttonReset: CSSProperties = asButton
+    ? {
+        appearance: "none",
+        background: fill ?? "transparent",
+        border: border ?? "none",
+        padding: pad(padding) ?? 0,
+        margin: 0,
+        font: "inherit",
+        color: "inherit",
+        textAlign: "inherit",
+      }
+    : {};
+
+  const body = (
+    /* This frame's own flow, handed down — the same thing native's
+       `FlowContext` carries, and what tells a child whether it is placed by
+       this frame or laid out by it. It also means no descendant reads itself
+       as the screen's root. */
+    <Parent.Provider value={ownFlow}>{children}</Parent.Provider>
+  );
+
+  const drawn = createElement(
+    asButton ? "button" : "div",
+    {
+      // `type`, always: a button inside a form submits it otherwise, and a
+      // checkout screen is a form.
+      type: asButton ? "button" : undefined,
+      // The reset last: `css` names `background`, `border` and `padding` even
+      // when the design leaves them empty, and an `undefined` spread over the
+      // reset would hand the element straight back to the browser's grey. The
+      // reset already carries the design's value wherever there is one.
+      style: asButton ? { ...css, ...buttonReset } : css,
+      "data-pb-motion": moving.animation ? "" : undefined,
+      ...handlers,
+      ...interaction,
+      // The element does this itself, and doing it twice fires the click twice
+      // — Enter on a real button is a click already. A group's arrow keys are
+      // not a button's and still belong here.
+      onKeyDown: asButton ? group.onKeyDown : onKeyDown,
+      // Implicit on the element, and a role repeating the tag is noise a
+      // screen reader reads out of two places.
+      role: asButton ? undefined : interaction.role,
+    },
+    asButton ? <InsideButton.Provider value>{body}</InsideButton.Provider> : body,
   );
 
   // Only the frames that listen publish. A funnel with no state layers anywhere
