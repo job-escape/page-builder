@@ -193,6 +193,10 @@ function emitAction(action: SourceAction, indent: string): string {
       const timer = `new Promise((go) => setTimeout(() => go(true), ${seconds} * 1000))`;
       return `${indent}if (!(await (nav.wait ? nav.wait(${seconds}) : ${timer}))) return;`;
     }
+    case "link":
+      // Opened from the tap and never waited on — see `runtime/link`. A host too
+      // old to hand the service over makes this nothing, like `track`.
+      return `${indent}if (link) link(${lit(action.url)}, ${lit(action.as ?? "tab")}, (name) => state.get(name));`;
     case "track":
       // A name for the host's pixels, fired and not awaited — see `runtime/track`.
       // `track` is a service like `req`; a host too old to hand it over makes
@@ -362,7 +366,7 @@ export function emitScreen(screen: SourceScreen): string {
 
   return [
     `// ${screen.id} — generated, do not edit`,
-    `export default function Screen({ ui, c, t, state, nav, req, track, analytics }) {`,
+    `export default function Screen({ ui, c, t, state, nav, req, track, analytics, link }) {`,
     `  return [`,
     body,
     `  ];`,

@@ -193,6 +193,8 @@ export type { AnalyticsProperties, TrackOptions } from "./runtime/track";
  * The steps name what happened; this decides where it goes. See `runtime/track`.
  */
 export { analytics, configureTracking, track } from "./runtime/track";
+export type { LinkOptions, LinkSession } from "./runtime/link";
+export { configureLinks, linkAddress, openLink } from "./runtime/link";
 
 /**
  * The palette an artifact carries, and the two ways a renderer spends it.

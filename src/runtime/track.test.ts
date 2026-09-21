@@ -102,7 +102,7 @@ describe("a track step", () => {
         },
       ],
     });
-    expect(code).toContain("function Screen({ ui, c, t, state, nav, req, track, analytics })");
+    expect(code).toContain("function Screen({ ui, c, t, state, nav, req, track, analytics, link })");
     expect(code).toContain('if (track) track("lead");');
     // Fired, not awaited: the handler stays synchronous.
     expect(code).toContain("onClick: () =>");

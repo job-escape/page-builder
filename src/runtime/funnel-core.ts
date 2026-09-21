@@ -15,6 +15,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExtern
 import type { Device } from "./device";
 import { createNavigator, type NavigationState, type Presentation } from "./navigation";
 import { request } from "./request";
+import { openLink } from "./link";
 import { analytics, track } from "./track";
 import type { VariableValue } from "./types";
 import { createFunnelStore, type FunnelStore } from "./store";
@@ -130,6 +131,8 @@ export type FunnelServices<Ui, Component> = {
   track: typeof track;
   /** Sends the host's analytics an event and its properties. Never a key. */
   analytics: typeof analytics;
+  /** Opens an Open link step's address — see `runtime/link`. */
+  link: typeof openLink;
 };
 
 export type FunnelCoreOptions<Ui, Component> = {
@@ -447,7 +450,17 @@ export function useFunnelRuntime<Ui, Component>({
   );
 
   const services = useMemo<FunnelServices<Ui, Component>>(
-    () => ({ ui, c: components, t: copy, state: store, nav, req: request, track, analytics }),
+    () => ({
+      ui,
+      c: components,
+      t: copy,
+      state: store,
+      nav,
+      req: request,
+      track,
+      analytics,
+      link: openLink,
+    }),
     [ui, components, copy, store, nav],
   );
 

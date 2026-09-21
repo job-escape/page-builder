@@ -181,6 +181,13 @@ export type SourceAction =
     }
   | { type: "close" }
   /**
+   * Send the visitor to an address — a new tab on the web, a sheet or the
+   * system browser in the app. `url` is a template: `{name}` reads a variable,
+   * `{accessToken}` and `{refreshToken}` read the host's session. Never waits
+   * and never interrupts: the funnel stays where it was. See `runtime/link`.
+   */
+  | { type: "link"; url: string; as?: "tab" | "sheet" }
+  /**
    * The back gesture, as a step: closes the top overlay if one is open, else
    * returns to the screen the visitor came from (entrance played in reverse).
    * On the first screen, with nothing open, it does nothing. Schema 1.6.

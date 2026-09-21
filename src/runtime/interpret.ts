@@ -16,6 +16,7 @@
 import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
 import { pathGet } from "./data";
 import { call, check, compare } from "./functions";
+import { openLink } from "./link";
 import { durationOf, ease, playFrames } from "./motion";
 import type { TimerBook } from "./timers";
 import type { VariableValue } from "./types";
@@ -278,6 +279,12 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
 
       case "close":
         ctx.nav.close();
+        break;
+
+      case "link":
+        // Opened now, from the tap, and never in the way of what follows —
+        // see `runtime/link`.
+        openLink(action.url, action.as, (name) => ctx.state.get(name));
         break;
 
       case "back":
