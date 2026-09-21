@@ -304,17 +304,31 @@ describe("a Frame that is a button", () => {
     expect(inner).toHaveAttribute("tabindex", "0");
   });
 
-  it("stays a div when it is not a button or does nothing", () => {
-    render(
-      <>
-        {ui.Frame({ onClick: jest.fn(), role: "radio", testId: "radio" }, "A")}
-        {ui.Frame({ role: "button", testId: "idle" }, "B")}
-        {ui.Frame({ onClick: jest.fn(), role: "button", disabled: true, testId: "off" }, "C")}
-      </>,
-    );
+  it("stays a div when the design does not call it a button", () => {
+    render(<>{ui.Frame({ onClick: jest.fn(), role: "radio", testId: "radio" }, "A")}</>);
 
     expect(screen.getByTestId("radio").tagName).toBe("DIV");
-    expect(screen.getByTestId("idle").tagName).toBe("DIV");
-    expect(screen.getByTestId("off").tagName).toBe("DIV");
+  });
+
+  it("is a button even with no click wired — the host decides what it does", () => {
+    // A dialog's buttons carry the role from their component and no click of
+    // their own; the page showing the dialog wires them, and has to find them.
+    render(<>{ui.Frame({ role: "button", testId: "idle" }, "Maybe later")}</>);
+    const node = screen.getByTestId("idle");
+
+    expect(node.tagName).toBe("BUTTON");
+    expect(node).toHaveAttribute("type", "button");
+    expect(node).not.toBeDisabled();
+  });
+
+  it("is a disabled button when disabled: out of the tab order and the click", () => {
+    const onClick = jest.fn();
+    render(<>{ui.Frame({ onClick, role: "button", disabled: true, testId: "off" }, "C")}</>);
+    const node = screen.getByTestId("off");
+
+    expect(node.tagName).toBe("BUTTON");
+    expect(node).toBeDisabled();
+    fireEvent.click(node);
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

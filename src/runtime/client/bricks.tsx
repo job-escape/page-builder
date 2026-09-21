@@ -632,10 +632,17 @@ export function Frame(props: FrameProps) {
    * every tool that goes looking for a button, from a test to an extension to
    * an analytics script, finding it.
    *
-   * Only where it is one: something this frame will actually do on a click,
-   * and the role to say so. A frame with a `dialog` or `radio` role keeps its
-   * div, because those are not buttons and the ARIA name is already the whole
-   * of what they claim.
+   * Wherever the design says it is one — `role: "button"` — whether or not
+   * this funnel wired a click to it. That condition was here at first and it
+   * excluded the very case that asked for this: a dialog's "Maybe later" and
+   * "Add to portfolio" carry the role from their component and no click of
+   * their own, because what they do is decided by the host showing the dialog,
+   * and a host looking for the dialog's buttons found two divs. A button with
+   * nothing wired is still a button; it is also what an unwired `<button>` is
+   * on any page. A disabled one gets the real `disabled`, which is what takes
+   * it out of the tab order and the click, exactly as the div's absent
+   * `tabindex` did. A `dialog` or `radio` role keeps its div: those are not
+   * buttons, and the ARIA name is the whole of what they claim.
    *
    * **Never inside another.** HTML forbids it and a designer's tree says
    * nothing about that, so the outermost clickable frame takes the element and
@@ -645,7 +652,7 @@ export function Frame(props: FrameProps) {
   // frame is not clickable, and a hook that is sometimes called is the one
   // rule React has no recovery from.
   const insideButton = useContext(InsideButton);
-  const asButton = interactive && role === "button" && !insideButton;
+  const asButton = role === "button" && !insideButton;
 
   /*
     A button's user-agent styles are not nothing, and this brick's whole
@@ -682,6 +689,7 @@ export function Frame(props: FrameProps) {
       // `type`, always: a button inside a form submits it otherwise, and a
       // checkout screen is a form.
       type: asButton ? "button" : undefined,
+      disabled: asButton && disabled ? true : undefined,
       // The reset last: `css` names `background`, `border` and `padding` even
       // when the design leaves them empty, and an `undefined` spread over the
       // reset would hand the element straight back to the browser's grey. The
