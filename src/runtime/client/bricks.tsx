@@ -245,6 +245,21 @@ export type FrameLook = Placement & {
   shadow?: string;
   grow?: boolean;
   scroll?: boolean;
+  /**
+   * Not drawn — and, because it is a look, not drawn *while* a state holds.
+   *
+   * What lets a component's variant change what it is made of, not only its
+   * colours. A Hover variant with an arrow the Default does not have is the
+   * same component drawn twice: the publish step ships both drawings under the
+   * instance, the hover one `hidden` at rest and shown in its hover layer, the
+   * rest one hidden in that same layer. The pointer state the instance
+   * publishes (`PointerState`) reaches both, so the swap is a pair of style
+   * changes and never a re-mount.
+   *
+   * Absent on everything published before it, which is every frame drawn the
+   * way it always was.
+   */
+  hidden?: boolean;
   style?: CSSProperties;
 };
 
@@ -505,6 +520,7 @@ export function Frame(props: FrameProps) {
     grow,
     scroll,
     places,
+    hidden,
     style,
   } = withState(props as FrameLook, states, at);
 
@@ -566,7 +582,7 @@ export function Frame(props: FrameProps) {
   */
 
   const css: CSSProperties = {
-    display: layout === "none" ? "block" : "flex",
+    display: hidden ? "none" : layout === "none" ? "block" : "flex",
     flexDirection: layout === "row" ? "row" : layout === "column" ? "column" : undefined,
     gap,
     padding: pad(padding),
@@ -743,6 +759,8 @@ export type TextLook = {
   fill?: string;
   padding?: number | [number, number] | [number, number, number, number];
   radius?: number | string;
+  /** Not drawn, at rest or while a state holds — see `FrameLook.hidden`. */
+  hidden?: boolean;
   style?: CSSProperties;
 };
 
@@ -780,6 +798,8 @@ export type TextProps = Placement & {
   fill?: string;
   padding?: number | [number, number] | [number, number, number, number];
   radius?: number | string;
+  /** Not drawn — see `FrameLook.hidden`. */
+  hidden?: boolean;
   /**
    * Text takes clicks, because designers attach navigation to words.
    *
@@ -879,6 +899,7 @@ export function Text(props: TextProps) {
     fill,
     padding,
     radius,
+    hidden,
     style,
   } = withState(props as TextLook, states, at);
   const interactive = Boolean(onClick) && !disabled;
@@ -939,7 +960,7 @@ export function Text(props: TextProps) {
         padding: pad(padding),
         borderRadius: radius,
         boxSizing: "border-box",
-        display: "block",
+        display: hidden ? "none" : "block",
         cursor: interactive ? "pointer" : undefined,
         userSelect: interactive ? "none" : undefined,
         ...textMotion,
@@ -1040,15 +1061,25 @@ export function Input({
   );
 }
 
-export type ImageProps = Placement & {
-  src: string;
-  alt?: string;
-  width?: number | "fill";
-  height?: number;
-  radius?: number;
-  fit?: "cover" | "contain";
-  style?: CSSProperties;
-};
+/** The half of a picture a state layer may change — whether it is drawn. */
+export type ImageLook = { hidden?: boolean };
+
+export type ImageProps = Placement &
+  ImageLook & {
+    src: string;
+    alt?: string;
+    width?: number | "fill";
+    height?: number;
+    radius?: number;
+    fit?: "cover" | "contain";
+    style?: CSSProperties;
+    /**
+     * Shown or not while the pointer is on the frame above it — see
+     * `FrameLook.hidden`. A picture never listens for itself; it answers the
+     * frame that does.
+     */
+    states?: BrickStates<ImageLook>;
+  };
 
 export function Image({
   src,
@@ -1058,8 +1089,12 @@ export function Image({
   radius,
   fit = "cover",
   style,
+  hidden: base,
+  states,
   ...placement
 }: ImageProps) {
+  const { at } = usePointerState(false);
+  const { hidden } = withState<ImageLook>({ hidden: base }, states, at);
   return (
     <img
       src={src}
@@ -1069,7 +1104,7 @@ export function Image({
         height,
         borderRadius: radius,
         objectFit: fit,
-        display: "block",
+        display: hidden ? "none" : "block",
         ...placedCss(placement),
         ...style,
       }}

@@ -284,7 +284,22 @@ const PRESSED = { transform: [{ scale: 0.97 }] };
 /** A pressable that can wear animated values — see `useNativeMotion`. */
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function Frame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
+/**
+ * A brick the design says is not drawn — `hidden`, which the publish step
+ * writes on the drawings of a component's hover and press variants.
+ *
+ * Their resting drawing ships beside them, and the web swaps the two under the
+ * pointer (see `FrameLook.hidden`). A phone has no hover, and a press here is
+ * resolved on the pressed view alone, so the alternate drawings stay hidden and
+ * the resting one is what a visitor sees — which is the component as designed.
+ * Answered before the brick itself so none of its hooks run for a view that is
+ * never drawn.
+ */
+export function Frame(props: FrameProps) {
+  return props.hidden ? null : <DrawnFrame {...props} />;
+}
+
+function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
   // The frame this one sits in — what its own `fill` is measured along.
   const flow = useContext(FlowContext);
   // And whether that frame's height is a definite one — what `fill` means here.
@@ -478,7 +493,12 @@ function runText(run: TextRun, at: number, follow: FollowLink | null): ReactNode
   );
 }
 
-export function Text({
+/** Not drawn — see `Frame`. */
+export function Text(props: TextProps) {
+  return props.hidden ? null : <DrawnText {...props} />;
+}
+
+function DrawnText({
   children,
   runs,
   onClick,
@@ -597,7 +617,22 @@ export function Text({
 
 // ─── Image ────────────────────────────────────────────────────────────────────
 
-export function Image({ src, alt, width, height, radius, fit, ...placement }: ImageProps) {
+/** Not drawn — see `Frame`. */
+export function Image(props: ImageProps) {
+  return props.hidden ? null : <DrawnImage {...props} />;
+}
+
+function DrawnImage({
+  src,
+  alt,
+  width,
+  height,
+  radius,
+  fit,
+  hidden: _hidden,
+  states: _states,
+  ...placement
+}: ImageProps) {
   /*
     The parent's flow, because a remote image has no size of its own: a width
     set to fill that grew down a column instead of across it left the picture

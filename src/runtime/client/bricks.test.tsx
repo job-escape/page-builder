@@ -151,6 +151,74 @@ describe("state layers", () => {
     expect(screen.getByTestId("label")).toHaveStyle({ color: "white" });
   });
 
+  it("swaps two drawings of a component under the pointer, without re-mounting either", () => {
+    // What publishing a variant's "While hovering → Hover" ships: the resting
+    // drawing, hidden in the hover layer, and the hover drawing, hidden at rest
+    // and shown in it — both under the instance, which is what listens.
+    render(
+      <>
+        {ui.Frame({ testId: "button", states: { hover: {} } }, [
+          ui.Frame({ testId: "rest", states: { hover: { hidden: true } } }, "Buy"),
+          ui.Frame(
+            { testId: "hovered", hidden: true, states: { hover: { hidden: false } } },
+            ui.Image({ src: "arrow.png", testId: "arrow" } as never),
+          ),
+        ])}
+      </>,
+    );
+    const rest = screen.getByTestId("rest");
+    const hovered = screen.getByTestId("hovered");
+
+    expect(rest).not.toHaveStyle({ display: "none" });
+    expect(hovered).toHaveStyle({ display: "none" });
+
+    fireEvent.pointerEnter(screen.getByTestId("button"));
+    expect(rest).toHaveStyle({ display: "none" });
+    expect(hovered).not.toHaveStyle({ display: "none" });
+    // The same elements, restyled — a swap that re-mounted would hand back new ones.
+    expect(screen.getByTestId("rest")).toBe(rest);
+
+    fireEvent.pointerLeave(screen.getByTestId("button"));
+    expect(rest).not.toHaveStyle({ display: "none" });
+    expect(hovered).toHaveStyle({ display: "none" });
+  });
+
+  it("puts the pressed drawing over the hovered one", () => {
+    render(
+      <>
+        {ui.Frame({ testId: "button", states: { hover: {}, press: {} } }, [
+          ui.Text(
+            { testId: "rest", states: { hover: { hidden: true }, press: { hidden: true } } },
+            "Buy",
+          ),
+          ui.Text(
+            {
+              testId: "hovered",
+              hidden: true,
+              states: { hover: { hidden: false }, press: { hidden: true } },
+            },
+            "Buy",
+          ),
+          ui.Text({ testId: "pressed", hidden: true, states: { press: { hidden: false } } }, "Buy"),
+        ])}
+      </>,
+    );
+    const button = screen.getByTestId("button");
+
+    fireEvent.pointerEnter(button);
+    fireEvent.pointerDown(button);
+
+    expect(screen.getByTestId("rest")).toHaveStyle({ display: "none" });
+    expect(screen.getByTestId("hovered")).toHaveStyle({ display: "none" });
+    expect(screen.getByTestId("pressed")).not.toHaveStyle({ display: "none" });
+  });
+
+  it("does not draw a picture the design hides", () => {
+    render(<>{ui.Image({ src: "a.png", hidden: true })}</>);
+
+    expect(screen.getByRole("presentation", { hidden: true })).toHaveStyle({ display: "none" });
+  });
+
   it("costs nothing when nothing declares a layer", () => {
     render(<>{ui.Frame({ testId: "target", fill: "white" }, "Plain")}</>);
     const node = screen.getByTestId("target");
