@@ -215,3 +215,32 @@ export function normalizeRuns(runs: readonly TextRun[]): TextRun[] {
   });
   return out;
 }
+
+/**
+ * Unicode's own line and paragraph separators — U+2028 and U+2029.
+ *
+ * Figma writes a soft break (⇧⏎) as U+2028, so copy brought in from a Figma
+ * file carries it wherever a designer broke a line. No renderer this package
+ * draws on reads it as a break: the browser treats it as a character, and
+ * Inter has no glyph for it, so a pasted sentence showed a tofu box where the
+ * line should have ended.
+ */
+const SEPARATORS = /[\u2028\u2029]/g;
+const HAS_SEPARATOR = /[\u2028\u2029]/;
+
+/**
+ * Copy with every Unicode line or paragraph separator written as `\n`.
+ *
+ * Called where a brick is handed its copy, not where copy is written: an
+ * artifact already published carries these characters, and it has to draw
+ * correctly without anybody re-pasting it. The check comes first so copy that
+ * has no separators — nearly all of it — keeps its identity and costs nothing
+ * more than one scan.
+ */
+export function withLineBreaks<T extends RichText>(value: T): T {
+  if (typeof value === "string") {
+    return (HAS_SEPARATOR.test(value) ? value.replace(SEPARATORS, "\n") : value) as T;
+  }
+  if (!value.some((run) => HAS_SEPARATOR.test(run.text))) return value;
+  return value.map((run) => ({ ...run, text: run.text.replace(SEPARATORS, "\n") })) as unknown as T;
+}

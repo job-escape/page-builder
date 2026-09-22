@@ -22,7 +22,7 @@ import {
 
 import { useFollowLink, type FollowLink } from "../link-context";
 import type { FrameMotion, FrameTransition } from "../motion";
-import { isRuns, runsOf, type RichText, type TextRun } from "../rich-text";
+import { isRuns, withLineBreaks, runsOf, type RichText, type TextRun } from "../rich-text";
 import { motionCss, transitionCss, useWebMotion } from "./motion-css";
 
 export type FrameLayout = "none" | "row" | "column";
@@ -951,8 +951,13 @@ export function Text(props: TextProps) {
          * line, as Figma's auto width does, and so does native, where a Yoga
          * item does not shrink. `pre` rather than `nowrap` so the line breaks a
          * designer typed stay line breaks, as they are on both of those.
+         *
+         * Every other width wraps, and `pre-line` rather than the default so
+         * it still keeps those breaks: `normal` folded a typed `\n` into a
+         * space, and a paragraph the canvas and native draw on two lines ran
+         * together on the web. Spaces still collapse as they did before.
          */
-        whiteSpace: width === "hug" ? "pre" : undefined,
+        whiteSpace: width === "hug" ? "pre" : "pre-line",
         height: size(height),
         flexGrow: grow ? 1 : undefined,
         // The words' own box — spelled exactly as `Frame` spells it.
@@ -1173,8 +1178,12 @@ export const ui: {
    */
   Text: (props, children) =>
     isRuns(children)
-      ? createElement(Text, { ...(props as TextProps), runs: children })
-      : createElement(Text, props as TextProps, ...spread(children)),
+      ? createElement(Text, { ...(props as TextProps), runs: withLineBreaks(children) })
+      : createElement(
+          Text,
+          props as TextProps,
+          ...spread(typeof children === "string" ? withLineBreaks(children) : children),
+        ),
   Image: (props) => createElement(Image, props as ImageProps),
   Input: (props) => createElement(Input, props as InputProps),
 };

@@ -56,7 +56,7 @@ function mirrorAlign(
   if (align === "center" || !rightToLeft) return align;
   return align === "left" ? "right" : "left";
 }
-import { isRuns, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
+import { isRuns, withLineBreaks, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
 import {
   nativeBox,
   nativeColor,
@@ -751,8 +751,12 @@ export const ui = {
    */
   Text: (props?: Omit<TextProps, "children" | "runs">, children?: Children | RichText) =>
     isRuns(children)
-      ? createElement(Text, { ...(props as TextProps), runs: children })
-      : createElement(Text, props as TextProps, ...spread(children as Children)),
+      ? createElement(Text, { ...(props as TextProps), runs: withLineBreaks(children) })
+      : createElement(
+          Text,
+          props as TextProps,
+          ...spread(typeof children === "string" ? withLineBreaks(children) : (children as Children)),
+        ),
   Image: (props?: ImageProps) => createElement(Image, props as ImageProps),
   Input: (props?: InputProps) => createElement(Input, props as InputProps),
 };

@@ -297,7 +297,7 @@ describe("Text, sized to its words", () => {
     expect(screen.getByTestId("words")).toHaveStyle({ whiteSpace: "pre" });
   });
 
-  it("wraps as before at a fixed or filling width", () => {
+  it("wraps at a fixed or filling width, and still keeps the line breaks it was given", () => {
     render(
       <>
         {ui.Text({ width: 88, testId: "fixed" }, "Maybe later")}
@@ -305,8 +305,31 @@ describe("Text, sized to its words", () => {
       </>,
     );
 
-    expect(screen.getByTestId("fixed").style.whiteSpace).toBe("");
-    expect(screen.getByTestId("filling").style.whiteSpace).toBe("");
+    expect(screen.getByTestId("fixed")).toHaveStyle({ whiteSpace: "pre-line" });
+    expect(screen.getByTestId("filling")).toHaveStyle({ whiteSpace: "pre-line" });
+  });
+});
+
+describe("Text, pasted from Figma", () => {
+  it("breaks the line where Figma wrote a line separator", () => {
+    render(<>{ui.Text({ testId: "words" }, "Course finished\u2028AI Toolkit\u2029Certificate")}</>);
+
+    expect(screen.getByTestId("words").textContent).toBe("Course finished\nAI Toolkit\nCertificate");
+  });
+
+  it("does the same inside rich copy, keeping each run's marks", () => {
+    render(
+      <>
+        {ui.Text({ testId: "words" }, [
+          { text: "Progress frozen\u2028", bold: true },
+          { text: "No certificate" },
+        ])}
+      </>,
+    );
+
+    const words = screen.getByTestId("words");
+    expect(words.textContent).toBe("Progress frozen\nNo certificate");
+    expect(words.querySelector("strong")?.textContent).toBe("Progress frozen\n");
   });
 });
 
