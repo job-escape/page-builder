@@ -229,7 +229,7 @@ export function evaluate(condition: SourceCondition, state: ConditionState): boo
  */
 export function showPresentation(link: {
   as?: "replace" | "overlay";
-  position?: "center" | "bottom" | "top" | "side" | "fill";
+  position?: "center" | "bottom" | "top" | "side" | "fill" | "drawer";
   dim?: boolean;
   closeOnOutside?: boolean;
 }): Record<string, unknown> | undefined {

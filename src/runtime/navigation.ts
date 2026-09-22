@@ -30,8 +30,15 @@ export type Presentation = {
    * anything chosen here. That is what a designer means by drawing a dialog at
    * the size of the page and putting the body where they want it: a sheet is
    * then `justify: "end"` on the frame, not `position: "bottom"` on the step.
+   *
+   * `drawer` is a sheet a visitor can throw away: the frame docks to the bottom
+   * edge, slides up, and closes on a swipe down or a tap on the backdrop (unless
+   * `closeOnOutside` is false). On the web a host may draw it with its own
+   * drawer — see `configureDrawer` — and one that has none gets the built-in
+   * sheet. Separate from `bottom` on purpose: `bottom` is a static panel that
+   * published funnels already open, and they keep it.
    */
-  position?: "center" | "bottom" | "top" | "side" | "fill";
+  position?: "center" | "bottom" | "top" | "side" | "fill" | "drawer";
   dim?: boolean;
   closeOnOutside?: boolean;
 };

@@ -59,7 +59,7 @@ export type PopupRule = {
   show: {
     target: string;
     as: "overlay" | "replace";
-    position?: "center" | "bottom" | "top" | "side" | "fill";
+    position?: "center" | "bottom" | "top" | "side" | "fill" | "drawer";
     dim?: boolean;
   };
   manifestUrl: string;

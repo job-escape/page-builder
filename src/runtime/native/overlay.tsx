@@ -11,8 +11,16 @@
  * the overlay *stack* rather than to any one overlay — and getting that wrong is
  * how "back closes the sheet" turns into "back leaves the funnel".
  */
-import { useState, type ReactNode } from "react";
-import { Modal, Pressable, View, useWindowDimensions, type ViewStyle } from "react-native";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Animated,
+  Modal,
+  PanResponder,
+  Pressable,
+  View,
+  useWindowDimensions,
+  type ViewStyle,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { Presentation } from "../navigation";
@@ -33,6 +41,132 @@ const PLACEMENT: Record<string, ViewStyle> = {
 };
 
 export function Overlay({
+  presentation,
+  onDismiss,
+  children,
+}: {
+  presentation: Presentation;
+  onDismiss: () => void;
+  children: ReactNode;
+}) {
+  if (presentation.position === "drawer") {
+    return (
+      <DrawerSheet
+        onDismiss={onDismiss}
+        dismissible={presentation.closeOnOutside !== false}
+        dim={presentation.dim !== false}
+      >
+        {children}
+      </DrawerSheet>
+    );
+  }
+  return (
+    <PanelOverlay presentation={presentation} onDismiss={onDismiss}>
+      {children}
+    </PanelOverlay>
+  );
+}
+
+/** How far down, as a share of its height, a released drawer has to be to close. */
+const CLOSE_AT = 0.25;
+/** A flick this fast (points per ms) closes it however far it moved. */
+const FLICK = 0.8;
+
+/**
+ * `position: "drawer"` on a phone — the native half of the web's `DrawerSheet`.
+ *
+ * Docked to the bottom edge and slid up on arrival; dragged down it follows the
+ * finger, and released past a quarter of its height, or flicked, it slides away
+ * and closes. A tap on the backdrop closes it too, unless the step said
+ * `closeOnOutside: false`. The sheet paints to the very bottom of the phone and
+ * its first painted frame keeps its content clear of the home indicator — see
+ * `BleedContext` — as the frame drawn on the canvas does.
+ */
+function DrawerSheet({
+  onDismiss,
+  dismissible,
+  dim,
+  children,
+}: {
+  onDismiss: () => void;
+  dismissible: boolean;
+  dim: boolean;
+  children: ReactNode;
+}) {
+  const insets = useSafeAreaInsets();
+  const declared = useDeclaredDirection();
+  const { height: windowHeight } = useWindowDimensions();
+  const offset = useRef(new Animated.Value(windowHeight)).current;
+  const sheetHeight = useRef(windowHeight);
+  const leaving = useRef(false);
+
+  useEffect(() => {
+    Animated.spring(offset, { toValue: 0, useNativeDriver: true, bounciness: 0, speed: 16 }).start();
+  }, [offset]);
+
+  const close = useMemo(
+    () => () => {
+      if (leaving.current) return;
+      leaving.current = true;
+      Animated.timing(offset, {
+        toValue: sheetHeight.current,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => onDismiss());
+    },
+    [offset, onDismiss],
+  );
+
+  const responder = useMemo(
+    () =>
+      PanResponder.create({
+        // Only a vertical drag downwards is the sheet's; taps and sideways
+        // gestures stay with the controls inside it.
+        onMoveShouldSetPanResponder: (_, gesture) =>
+          dismissible && gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderMove: (_, gesture) => offset.setValue(Math.max(0, gesture.dy)),
+        onPanResponderRelease: (_, gesture) => {
+          if (gesture.dy > sheetHeight.current * CLOSE_AT || gesture.vy > FLICK) close();
+          else Animated.spring(offset, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start();
+        },
+        onPanResponderTerminate: () =>
+          Animated.spring(offset, { toValue: 0, useNativeDriver: true, bounciness: 0 }).start(),
+      }),
+    [close, dismissible, offset],
+  );
+
+  return (
+    <Modal transparent visible onRequestClose={close} animationType="fade" accessibilityViewIsModal>
+      <View
+        style={[
+          { flex: 1, justifyContent: "flex-end" },
+          declared ? { direction: declared } : null,
+          dim ? { backgroundColor: "#00000080" } : null,
+        ]}
+      >
+        {dismissible ? (
+          <Pressable
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+            onPress={close}
+            accessibilityLabel="Close"
+          />
+        ) : null}
+        <Animated.View
+          accessibilityRole="none"
+          {...responder.panHandlers}
+          onLayout={(event) => {
+            sheetHeight.current = event.nativeEvent.layout.height;
+          }}
+          style={{ maxHeight: "100%", transform: [{ translateY: offset }] }}
+        >
+          <BleedContext.Provider value={{ top: 0, bottom: insets.bottom }}>{children}</BleedContext.Provider>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+function PanelOverlay({
   presentation,
   onDismiss,
   children,

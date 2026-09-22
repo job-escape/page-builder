@@ -21,7 +21,8 @@ export type {
   ScreenProps,
 } from "./runtime/client/funnel";
 
-export { Overlay } from "./runtime/client/overlay";
+export { configureDrawer, Overlay } from "./runtime/client/overlay";
+export type { DrawerHostProps } from "./runtime/client/overlay";
 
 /**
  * A screen tree, as a screen module — so `<Funnel>` cannot tell it from a
