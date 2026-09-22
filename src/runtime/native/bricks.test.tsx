@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { Frame, Input, PressContext, Text, configureTokens } from "./bricks";
 import { DirectionContext } from "./direction";
 import { imageFillOf } from "./bricks";
+import { BleedContext } from "./bleed";
 
 /**
  * The native bricks, rendered through `react-native-web`.
@@ -195,5 +196,31 @@ describe("a press, as the web draws one", () => {
     expect(screen.queryByText("Resting")).toBeNull();
     expect(style(screen.getByText("Pressed")).color).toBe("rgb(255, 255, 255)");
     expect(style(screen.getByTestId("card")).backgroundColor).toBe("rgb(222, 222, 224)");
+  });
+});
+
+describe("a full-screen dialog's insets", () => {
+  it("are paid by the first frame that paints, as padding over its own, and only once", () => {
+    render(
+      <BleedContext.Provider value={{ top: 62, bottom: 34 }}>
+        <Frame testId="root" fill="transparent" padding={[0, 0, 0, 0]}>
+          <Frame testId="surface" fill="#ffffff" padding={[8, 16, 8, 16]}>
+            <Frame testId="card" fill="#f5f5f5" padding={[8, 16, 8, 16]} />
+          </Frame>
+        </Frame>
+      </BleedContext.Provider>,
+    );
+    // Transparent: nothing to bleed, so it passes the insets on.
+    expect(style(screen.getByTestId("root")).paddingTop).toBe("0px");
+    // The first frame with a background runs under the status bar; its content starts below.
+    expect(style(screen.getByTestId("surface")).paddingTop).toBe("70px");
+    expect(style(screen.getByTestId("surface")).paddingBottom).toBe("42px");
+    // Already paid.
+    expect(style(screen.getByTestId("card")).paddingTop).toBe("8px");
+  });
+
+  it("are nothing outside such a dialog", () => {
+    render(<Frame testId="plain" fill="#ffffff" padding={[8, 16, 8, 16]} />);
+    expect(style(screen.getByTestId("plain")).paddingTop).toBe("8px");
   });
 });

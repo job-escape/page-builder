@@ -11,11 +11,12 @@
  * the overlay *stack* rather than to any one overlay — and getting that wrong is
  * how "back closes the sheet" turns into "back leaves the funnel".
  */
-import type { ReactNode } from "react";
-import { Modal, Pressable, View, type ViewStyle } from "react-native";
+import { useState, type ReactNode } from "react";
+import { Modal, Pressable, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { Presentation } from "../navigation";
+import { BleedContext, NO_BLEED } from "./bleed";
 import { useDeclaredDirection } from "./direction";
 
 const PLACEMENT: Record<string, ViewStyle> = {
@@ -45,6 +46,15 @@ export function Overlay({
   const position = presentation.position ?? "center";
   const dim = presentation.dim ?? true;
   const closeOnOutside = presentation.closeOnOutside ?? true;
+  const { height: windowHeight } = useWindowDimensions();
+  /**
+   * Whether this centred dialog is as tall as the phone — measured, because
+   * only its drawn height says so. Such a dialog is a surface, not a card: it
+   * is drawn edge to edge, status bar to bottom, and its content is kept clear
+   * of both through `BleedContext` rather than by the dialog stopping short.
+   */
+  const [fullSurface, setFullSurface] = useState(false);
+  const safeHeight = windowHeight - insets.top - insets.bottom;
 
   return (
     <Modal
@@ -69,11 +79,12 @@ export function Overlay({
            * The backdrop still covers the whole screen — this pads the space
            * the dialog is centred in, not the dim behind it. A small dialog is
            * centred as before, a few points lower at most; one as tall as the
-           * phone — a dialog whose phone layout fills the surface — stops at
-           * the status bar and the home indicator instead of running under
-           * them, which put a popup's title behind the notch.
+           * phone is measured here and then drawn edge to edge instead — see
+           * `fullSurface` — with its content clear of the notch.
            */
-          position === "center" ? { paddingTop: insets.top, paddingBottom: insets.bottom } : null,
+          position === "center" && !fullSurface
+            ? { paddingTop: insets.top, paddingBottom: insets.bottom }
+            : null,
           dim ? { backgroundColor: "#00000080" } : null,
         ]}
       >
@@ -105,9 +116,23 @@ export function Overlay({
             ...(position === "fill" ? { flex: 1 } : {}),
             // Never taller than the space it is centred in.
             ...(position === "center" ? { maxHeight: "100%" } : {}),
+            // A dialog that fills that space fills the phone instead.
+            ...(position === "center" && fullSurface ? { flex: 1, alignSelf: "stretch" } : {}),
           }}
+          onLayout={
+            position === "center" && !fullSurface
+              ? (event) => {
+                  // Stopped by the safe area, so it wanted at least the whole phone.
+                  if (event.nativeEvent.layout.height >= safeHeight - 1) setFullSurface(true);
+                }
+              : undefined
+          }
         >
-          {children}
+          <BleedContext.Provider
+            value={fullSurface ? { top: insets.top, bottom: insets.bottom } : NO_BLEED}
+          >
+            {children}
+          </BleedContext.Provider>
         </View>
       </View>
     </Modal>

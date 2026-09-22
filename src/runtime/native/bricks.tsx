@@ -38,6 +38,7 @@ import {
 import { boxFromProps, paddingFrom } from "../style/adapt-legacy";
 import { flexForSize } from "../style/emit-css";
 import { useFollowLink, type FollowLink } from "../link-context";
+import { BleedContext, NO_BLEED } from "./bleed";
 import { useDeclaredDirection, useRightToLeft } from "./direction";
 import { useNativeMotion } from "./motion";
 
@@ -426,6 +427,21 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
    * whose height is its content cannot overflow, so it is a plain view.
    */
   scroll = scroll && heightDefinite;
+  /**
+   * The insets a full-screen dialog still owes — paid by the first frame that
+   * paints something, as padding over its own, so its background runs under
+   * the status bar and its content starts below it. See `BleedContext`.
+   */
+  const bleed = useContext(BleedContext);
+  const paints =
+    Boolean(style.backgroundColor && style.backgroundColor !== "transparent") ||
+    Boolean(box.gradient) ||
+    Boolean(imageFillOf(props as Record<string, unknown>));
+  const paysBleed = paints && (bleed.top > 0 || bleed.bottom > 0);
+  if (paysBleed) {
+    style.paddingTop = ((style.paddingTop as number | undefined) ?? 0) + bleed.top;
+    style.paddingBottom = ((style.paddingBottom as number | undefined) ?? 0) + bleed.bottom;
+  }
   /** A picture fill — which `nativeBox` does not know, since React Native has no background image. */
   const image = imageFillOf(props as Record<string, unknown>);
   if (image) style.overflow = "hidden";
@@ -473,7 +489,13 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
       <FlowContext.Provider value={own}>
         <HeightContext.Provider value={ownDefinite}>
           {/* Only a frame that takes taps publishes its own press; the rest pass on theirs. */}
-          <PressContext.Provider value={pressed}>{children}</PressContext.Provider>
+          <PressContext.Provider value={pressed}>
+            {paysBleed ? (
+              <BleedContext.Provider value={NO_BLEED}>{children}</BleedContext.Provider>
+            ) : (
+              children
+            )}
+          </PressContext.Provider>
         </HeightContext.Provider>
       </FlowContext.Provider>
       {box.overlayStroke ? <StrokeLayer stroke={box.overlayStroke} /> : null}
