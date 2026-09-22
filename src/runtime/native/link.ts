@@ -10,12 +10,16 @@
  *
  * Not on react-native-web: there the browser's own default, with its fallback
  * for a tab the gesture no longer owns, is the better answer.
+ *
+ * A function the native `Funnel` calls, not an import run for its effect: the
+ * package declares `sideEffects: false`, and the bundler drops a bare import.
  */
 import { Linking, Platform } from "react-native";
 
 import { configureDefaultOpener } from "../link";
 
-if (Platform.OS !== "web") {
+export function configurePlatformOpener(): void {
+  if (Platform.OS === "web") return;
   configureDefaultOpener((url) => {
     Linking.openURL(url).catch((cause: unknown) => {
       console.error("pb.link.failed", { url, cause });

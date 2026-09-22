@@ -33,7 +33,7 @@ import type { TextDirection } from "../locale";
 import type { RichText, TextLink } from "../rich-text";
 import { configureTokens, ui } from "./bricks";
 import { DirectionContext } from "./direction";
-import "./link";
+import { configurePlatformOpener } from "./link";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
 import type { HostConfig } from "./host-config";
@@ -42,6 +42,9 @@ type Ui = typeof ui;
 type Component = (props: never) => ReactNode;
 export type NativeScreenProps = FunnelServices<Ui, Component>;
 export type NativeScreenModule = (props: NativeScreenProps) => ReactNode;
+
+// A phone has no `window.open`; see `./link`.
+configurePlatformOpener();
 
 const FunnelContext = createContext<NativeScreenProps | null>(null);
 

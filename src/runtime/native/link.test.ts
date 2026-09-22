@@ -13,7 +13,7 @@ afterEach(() => {
 function load(os: string, openURL: jest.Mock) {
   jest.doMock("react-native", () => ({ Platform: { OS: os }, Linking: { openURL } }));
   jest.isolateModules(() => {
-    require("./link");
+    (require("./link") as typeof import("./link")).configurePlatformOpener();
   });
   return require("../link") as typeof import("../link");
 }
