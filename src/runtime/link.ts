@@ -24,7 +24,10 @@
  * a browser has no in-app browser to present, and an iframe in a panel is
  * refused by most addresses worth opening. The app's host answers `sheet` with
  * a web view it presents over the funnel. A host that wants either done its own
- * way passes `open` to `configureLinks`.
+ * way passes `open` to `configureLinks`. A phone has no `window.open`, so the
+ * native entry registers the platform's own opener as the default beneath that
+ * (`configureDefaultOpener`): without it a host that configured nothing had a
+ * button that did nothing.
  *
  * Kept on `globalThis` for the reason `track` is: every entry bundles its own
  * copy of this module, and a host configures through one while `<Funnel>` runs
@@ -46,8 +49,10 @@ export type LinkOptions = {
 
 const SHARED = Symbol.for("@job-escape/page-builder/links");
 
-const shared = (): { options: LinkOptions } => {
-  const holder = globalThis as unknown as Record<symbol, { options: LinkOptions } | undefined>;
+type Shared = { options: LinkOptions; fallback?: LinkOptions["open"] };
+
+const shared = (): Shared => {
+  const holder = globalThis as unknown as Record<symbol, Shared | undefined>;
   holder[SHARED] ??= { options: {} };
   return holder[SHARED];
 };
@@ -56,6 +61,16 @@ const shared = (): { options: LinkOptions } => {
 export function configureLinks(next: LinkOptions): void {
   const state = shared();
   state.options = { ...state.options, ...next };
+}
+
+/**
+ * The platform's opener, used when the host passed no `open` of its own.
+ *
+ * A separate slot rather than `configureLinks({ open })`, so it can never
+ * replace what a host configured, whichever of the two runs first.
+ */
+export function configureDefaultOpener(open: NonNullable<LinkOptions["open"]>): void {
+  shared().fallback = open;
 }
 
 /** The names the host's session answers, and nothing else does. */
@@ -110,7 +125,7 @@ export function openLink(
     return;
   }
   const how = as === "sheet" ? "sheet" : "tab";
-  const { open } = shared().options;
+  const open = shared().options.open ?? shared().fallback;
   try {
     if (open) {
       open(url, how);

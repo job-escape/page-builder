@@ -33,6 +33,7 @@ import type { TextDirection } from "../locale";
 import type { RichText, TextLink } from "../rich-text";
 import { configureTokens, ui } from "./bricks";
 import { DirectionContext } from "./direction";
+import "./link";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
 import type { HostConfig } from "./host-config";

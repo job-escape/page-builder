@@ -7,7 +7,7 @@
  * dialog was a button that ignored the tap. These are the rules it now keeps.
  */
 import { run, type ActionContext } from "./interpret";
-import { configureLinks, linkAddress, openLink } from "./link";
+import { configureDefaultOpener, configureLinks, linkAddress, openLink } from "./link";
 
 const context = (values: Record<string, unknown> = {}): ActionContext =>
   ({
@@ -20,7 +20,12 @@ const context = (values: Record<string, unknown> = {}): ActionContext =>
     req: (async () => ({})) as never,
   }) as unknown as ActionContext;
 
-afterEach(() => configureLinks({ open: undefined, session: undefined }));
+afterEach(() => {
+  configureLinks({ open: undefined, session: undefined });
+  (globalThis as Record<symbol, { fallback?: unknown }>)[
+    Symbol.for("@job-escape/page-builder/links")
+  ]!.fallback = undefined;
+});
 
 describe("the address", () => {
   it("fills the session's tokens from the host, read when it is asked", () => {
@@ -118,5 +123,33 @@ describe("a link step", () => {
     expect(finished).toBe(true);
     expect(opened).toEqual(["https://x.example/?t=abc&g=design"]);
     expect(closed).toEqual(["closed"]);
+  });
+});
+
+describe("the platform's default", () => {
+  it("opens the address when the host configured no opener", () => {
+    const opened: [string, string][] = [];
+    configureDefaultOpener((url, as) => opened.push([url, as]));
+    openLink("https://x.example/", "sheet", () => null);
+    expect(opened).toEqual([["https://x.example/", "sheet"]]);
+  });
+
+  it("gives way to the host's opener, whichever was configured first", () => {
+    const host: string[] = [];
+    const platform: string[] = [];
+    configureLinks({ open: (url) => host.push(url) });
+    configureDefaultOpener((url) => platform.push(url));
+    openLink("https://x.example/", "tab", () => null);
+    expect(host).toEqual(["https://x.example/"]);
+    expect(platform).toEqual([]);
+  });
+
+  it("still refuses what is not a place", () => {
+    const opened: string[] = [];
+    configureDefaultOpener((url) => opened.push(url));
+    const error = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    openLink("javascript:alert(1)", "tab", () => null);
+    expect(opened).toEqual([]);
+    error.mockRestore();
   });
 });
