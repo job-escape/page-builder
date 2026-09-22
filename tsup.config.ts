@@ -119,4 +119,17 @@ export default defineConfig([
     external,
     banner: { js: `"use client";` },
   },
+  // Beta entry — popup rules: when a console popup opens, for every host. Pure
+  // logic plus one React screen that draws nothing, so the webapp and the app
+  // both import it; it shares no chunks with the runtime entries.
+  {
+    entry: { "popup-rules": "src/runtime-popup-rules.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+  },
 ]);
