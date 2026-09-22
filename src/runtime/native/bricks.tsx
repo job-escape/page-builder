@@ -57,6 +57,7 @@ function mirrorAlign(
   if (align === "center" || !rightToLeft) return align;
   return align === "left" ? "right" : "left";
 }
+import { DockedEdge } from "../docked";
 import { cropBox, type CropBox } from "../image-crop";
 import { isRuns, withLineBreaks, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
 import {
@@ -438,12 +439,20 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
     Boolean(box.gradient) ||
     Boolean(imageFillOf(props as Record<string, unknown>));
   const paysBleed = paints && (bleed.top > 0 || bleed.bottom > 0);
+  // A drawer's sheet meets the docked edge square — the first frame that
+  // paints is the sheet, as it is the one that pays the bleed. See `docked`.
+  const docked = useContext(DockedEdge);
+  const squares = paints && docked === "bottom";
   if (paysBleed) {
     style.paddingTop = ((style.paddingTop as number | undefined) ?? 0) + bleed.top;
     style.paddingBottom = ((style.paddingBottom as number | undefined) ?? 0) + bleed.bottom;
   }
   /** A picture fill — which `nativeBox` does not know, since React Native has no background image. */
   const image = imageFillOf(props as Record<string, unknown>);
+  if (squares) {
+    style.borderBottomLeftRadius = 0;
+    style.borderBottomRightRadius = 0;
+  }
   if (image) style.overflow = "hidden";
   const { view, content } = splitForScroll(style, scroll);
   if (scroll) {
@@ -490,11 +499,13 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
         <HeightContext.Provider value={ownDefinite}>
           {/* Only a frame that takes taps publishes its own press; the rest pass on theirs. */}
           <PressContext.Provider value={pressed}>
-            {paysBleed ? (
-              <BleedContext.Provider value={NO_BLEED}>{children}</BleedContext.Provider>
-            ) : (
-              children
-            )}
+            <DockedEdge.Provider value={squares ? null : docked}>
+              {paysBleed ? (
+                <BleedContext.Provider value={NO_BLEED}>{children}</BleedContext.Provider>
+              ) : (
+                children
+              )}
+            </DockedEdge.Provider>
           </PressContext.Provider>
         </HeightContext.Provider>
       </FlowContext.Provider>

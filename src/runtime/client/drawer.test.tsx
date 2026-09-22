@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
+import { ui } from "./bricks";
 import { configureDrawer, Overlay, type DrawerHostProps } from "./overlay";
 
 afterEach(() => configureDrawer(undefined));
@@ -70,5 +71,29 @@ describe('an overlay opened as position "drawer"', () => {
     });
     expect(onDismiss).not.toHaveBeenCalled();
     jest.useRealTimers();
+  });
+});
+
+describe("a drawer's sheet", () => {
+  const sheet = () =>
+    ui.Frame({ testId: "wrapper", fill: "transparent" }, [
+      ui.Frame({ testId: "sheet", fill: "#ffffff", radius: 16 }, [
+        ui.Frame({ testId: "card", fill: "#f4f4f5", radius: 12 }),
+      ]),
+    ]);
+
+  it("meets the bottom edge square, and only the frame that paints the sheet does", () => {
+    render(
+      <Overlay presentation={{ position: "drawer" }} onDismiss={() => {}}>
+        {sheet()}
+      </Overlay>,
+    );
+    expect(screen.getByTestId("sheet").style.borderRadius).toBe("16px 16px 0px 0px");
+    expect(screen.getByTestId("card").style.borderRadius).toBe("12px");
+  });
+
+  it("keeps all four corners anywhere else", () => {
+    render(<>{sheet()}</>);
+    expect(screen.getByTestId("sheet").style.borderRadius).toBe("16px");
   });
 });

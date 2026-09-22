@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { DockedEdge } from "../docked";
 import type { Presentation } from "../navigation";
 
 const PLACEMENT: Record<string, CSSProperties> = {
@@ -87,13 +88,15 @@ export function Overlay({
     const dismissible = presentation.closeOnOutside !== false;
     const dim = presentation.dim !== false;
     const Host = hostDrawer;
+    // The sheet meets the bottom edge square — see `docked`.
+    const sheet = <DockedEdge.Provider value="bottom">{children}</DockedEdge.Provider>;
     return Host ? (
       <Host onDismiss={onDismiss} dismissible={dismissible} dim={dim}>
-        {children}
+        {sheet}
       </Host>
     ) : (
       <DrawerSheet onDismiss={onDismiss} dismissible={dismissible} dim={dim}>
-        {children}
+        {sheet}
       </DrawerSheet>
     );
   }

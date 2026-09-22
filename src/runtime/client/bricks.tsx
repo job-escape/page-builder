@@ -23,6 +23,7 @@ import {
 import { useFollowLink, type FollowLink } from "../link-context";
 import type { FrameMotion, FrameTransition } from "../motion";
 import { isRuns, withLineBreaks, runsOf, type RichText, type TextRun } from "../rich-text";
+import { DockedEdge, dockedRadius } from "../docked";
 import { frameBackground } from "../image-crop";
 import { motionCss, transitionCss, useWebMotion } from "./motion-css";
 
@@ -315,6 +316,10 @@ const size = (value: FrameProps["width"] | TextProps["width"]): string | number 
 type ParentFlow = "none" | "row" | "column";
 const Parent = createContext<ParentFlow | null>(null);
 
+/** A radius as CSS: one number, or four corners clockwise from the top left. */
+const radiusCss = (radius: number | readonly number[] | string | undefined) =>
+  Array.isArray(radius) ? radius.map((corner) => `${corner}px`).join(" ") : (radius as number | string | undefined);
+
 /**
  * Whether an ancestor is already a real `<button>`.
  *
@@ -530,6 +535,14 @@ export function Frame(props: FrameProps) {
     and bottom off a picture the canvas showed whole. See `image-crop`.
   */
   const background = frameBackground(fill, (props as Record<string, unknown>).fillPaint);
+  /*
+    A drawer's sheet meets the docked edge square — see `docked`. The first
+    frame that paints is the sheet, as the first that paints pays a bleed on
+    native; everything inside it is told nothing is docked.
+  */
+  const docked = useContext(DockedEdge);
+  const squares =
+    docked !== null && typeof background === "string" && background !== "" && background !== "transparent";
 
   const glide = transitionCss(props.transition);
   const shown = useWebMotion({
@@ -600,7 +613,7 @@ export function Frame(props: FrameProps) {
     justifyContent: justify ? JUSTIFY[justify] : undefined,
     background,
     border,
-    borderRadius: radius,
+    borderRadius: squares ? radiusCss(dockedRadius(radius, docked)) : radius,
     opacity: shown.opacity as number | undefined,
     boxShadow: shadow,
     flexGrow: grow || fillsFlow ? 1 : undefined,
@@ -703,7 +716,9 @@ export function Frame(props: FrameProps) {
        `FlowContext` carries, and what tells a child whether it is placed by
        this frame or laid out by it. It also means no descendant reads itself
        as the screen's root. */
-    <Parent.Provider value={ownFlow}>{children}</Parent.Provider>
+    <Parent.Provider value={ownFlow}>
+      {squares ? <DockedEdge.Provider value={null}>{children}</DockedEdge.Provider> : children}
+    </Parent.Provider>
   );
 
   const drawn = createElement(

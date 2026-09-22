@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DockedEdge } from "../docked";
 import type { Presentation } from "../navigation";
 import { BleedContext, NO_BLEED } from "./bleed";
 import { useDeclaredDirection } from "./direction";
@@ -159,7 +160,9 @@ function DrawerSheet({
           }}
           style={{ maxHeight: "100%", transform: [{ translateY: offset }] }}
         >
-          <BleedContext.Provider value={{ top: 0, bottom: insets.bottom }}>{children}</BleedContext.Provider>
+          <BleedContext.Provider value={{ top: 0, bottom: insets.bottom }}>
+            <DockedEdge.Provider value="bottom">{children}</DockedEdge.Provider>
+          </BleedContext.Provider>
         </Animated.View>
       </View>
     </Modal>
