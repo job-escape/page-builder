@@ -63,6 +63,17 @@ export function Overlay({
           // the funnel's is set again here — see `direction`.
           declared ? { direction: declared } : null,
           PLACEMENT[position],
+          /**
+           * A centred dialog stays inside the safe area.
+           *
+           * The backdrop still covers the whole screen — this pads the space
+           * the dialog is centred in, not the dim behind it. A small dialog is
+           * centred as before, a few points lower at most; one as tall as the
+           * phone — a dialog whose phone layout fills the surface — stops at
+           * the status bar and the home indicator instead of running under
+           * them, which put a popup's title behind the notch.
+           */
+          position === "center" ? { paddingTop: insets.top, paddingBottom: insets.bottom } : null,
           dim ? { backgroundColor: "#00000080" } : null,
         ]}
       >
@@ -92,6 +103,8 @@ export function Overlay({
              * padding, which is the same answer `bleed` gives a screen.
              */
             ...(position === "fill" ? { flex: 1 } : {}),
+            // Never taller than the space it is centred in.
+            ...(position === "center" ? { maxHeight: "100%" } : {}),
           }}
         >
           {children}

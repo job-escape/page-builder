@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 
 import { Frame, Input, Text, configureTokens } from "./bricks";
 import { DirectionContext } from "./direction";
+import { imageFillOf } from "./bricks";
 
 /**
  * The native bricks, rendered through `react-native-web`.
@@ -73,6 +74,13 @@ describe("Text", () => {
     // and stack every row of text on the last.
     expect(style(screen.getByText("words")).lineHeight).toBe("28px");
   });
+
+  it("reads a line height the design gives as points, as the web does", () => {
+    // `lineHeight: 24` is 24px on the web brick. Read as a multiple, a 16-point
+    // line was 384 points tall.
+    render(<Text size={16} lineHeight={24}>words</Text>);
+    expect(style(screen.getByText("words")).lineHeight).toBe("24px");
+  });
 });
 
 describe("Input", () => {
@@ -119,5 +127,26 @@ describe("a funnel that declares its direction lays text out in it", () => {
     const node = screen.getByText("plain");
     expect(style(node).textAlign).toBe("left");
     expect(node.getAttribute("style") ?? "").not.toContain("direction");
+  });
+});
+
+describe("a frame filled with a picture", () => {
+  it("reads the canvas's image paint, cropped to cover by default", () => {
+    expect(
+      imageFillOf({ fillPaint: [{ kind: "image", src: "https://cdn.example/a.png", fit: "crop" }] }),
+    ).toEqual({ uri: "https://cdn.example/a.png", resizeMode: "cover" });
+    expect(imageFillOf({ fillPaint: [{ kind: "image", src: "https://cdn.example/a.png", fit: "fit" }] }))
+      .toEqual({ uri: "https://cdn.example/a.png", resizeMode: "contain" });
+  });
+
+  it("falls back to the CSS url the web brick paints", () => {
+    expect(imageFillOf({ fill: 'url("https://cdn.example/b.png") center / cover no-repeat' })).toEqual({
+      uri: "https://cdn.example/b.png",
+      resizeMode: "cover",
+    });
+  });
+
+  it("is nothing for a colour", () => {
+    expect(imageFillOf({ fill: "#ffffff", fillPaint: [{ kind: "solid", color: "#ffffff" }] })).toBeNull();
   });
 });

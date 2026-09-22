@@ -247,6 +247,56 @@ function a11y(props: Pick<FrameProps, "role" | "ariaLabel" | "ariaChecked" | "di
   } as const;
 }
 
+/** A frame's picture fill: where it comes from and how it meets the box. */
+type ImageFill = { uri: string; resizeMode: "cover" | "contain" | "stretch" | "repeat" };
+
+/**
+ * A frame filled with a picture, read from what the artifact says.
+ *
+ * The structured paint first — `fillPaint: [{ kind: "image", src, fit }]`, the
+ * canvas's own record — and a CSS `url(…)` in `fill` when there is no paint,
+ * which is how the web brick draws it (`background: url(…) center / cover`).
+ * Figma's `crop` and `fill` cover the box; `fit` shows all of it; `tile`
+ * repeats. The topmost image paint wins, as it is the one on top.
+ */
+export function imageFillOf(props: Record<string, unknown>): ImageFill | null {
+  const paints = Array.isArray(props.fillPaint) ? (props.fillPaint as Record<string, unknown>[]) : [];
+  const paint = [...paints].reverse().find((one) => one?.kind === "image" && typeof one.src === "string");
+  if (paint) {
+    const fit = paint.fit;
+    const resizeMode =
+      fit === "fit" ? "contain" : fit === "tile" ? "repeat" : fit === "stretch" ? "stretch" : "cover";
+    return { uri: paint.src as string, resizeMode };
+  }
+  if (typeof props.fill === "string") {
+    const match = /url\(\s*(?:\\?["'])?([^"')\\]+)(?:\\?["'])?\s*\)/.exec(props.fill);
+    if (match) {
+      const resizeMode = /\bcontain\b/.test(props.fill) ? "contain" : /\brepeat\b(?!-)/.test(props.fill) && !/no-repeat/.test(props.fill) ? "repeat" : "cover";
+      return { uri: match[1], resizeMode };
+    }
+  }
+  return null;
+}
+
+/**
+ * The picture behind a frame's content, as `GradientLayer` is the gradient.
+ *
+ * React Native has no background image, so it is an `Image` filling the box,
+ * drawn first so the frame's children sit on it. The frame clips it to its
+ * corners (`overflow: hidden` where a picture is drawn), as a CSS background
+ * is clipped to the border radius.
+ */
+function ImageLayer({ image }: { image: ImageFill }) {
+  return (
+    <RNImage
+      source={{ uri: image.uri }}
+      resizeMode={image.resizeMode}
+      style={StyleSheet.absoluteFill}
+      accessible={false}
+    />
+  );
+}
+
 function GradientLayer({ gradient }: { gradient: NativeGradient }) {
   const Gradient = deps.Gradient;
   if (!Gradient) {
@@ -299,6 +349,7 @@ export function Frame(props: FrameProps) {
   return props.hidden ? null : <DrawnFrame {...props} />;
 }
 
+
 function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
   // The frame this one sits in — what its own `fill` is measured along.
   const flow = useContext(FlowContext);
@@ -306,7 +357,35 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
   const definite = useContext(HeightContext);
   const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup, flow, definite);
   const style = { ...box.style, ...layoutOf(props as FrameProps, flow) };
+  /**
+   * Whether this frame's own height is a definite one — a number, or a `fill`
+   * of a parent that has one.
+   */
+  const heightDefinite =
+    typeof props.height === "number" || (props.height === "fill" && definite);
+  /**
+   * A frame scrolls only if it can overflow: a definite height it may run past.
+   *
+   * `scroll` is also what a design says for "does not clip its children" —
+   * Figma's clip content turned off imports as it — and on the web the two look
+   * alike, since a box whose content fits scrolls nowhere. Here a `ScrollView`
+   * is not a box that happens not to scroll: it grows (React Native's own
+   * style is `flexGrow: 1`) and it measures its content against nothing. So a
+   * hugging row of an icon and a caption became 393 points tall, a subtitle's
+   * wrapper 768, and the card between them was pushed out of sight. A frame
+   * whose height is its content cannot overflow, so it is a plain view.
+   */
+  scroll = scroll && heightDefinite;
+  /** A picture fill — which `nativeBox` does not know, since React Native has no background image. */
+  const image = imageFillOf(props as Record<string, unknown>);
+  if (image) style.overflow = "hidden";
   const { view, content } = splitForScroll(style, scroll);
+  if (scroll) {
+    // A scroll view grows and shrinks only when the design says so — not
+    // because React Native's default style does.
+    view.flexGrow ??= 0;
+    view.flexShrink ??= 0;
+  }
   /** The way this frame lays out its own children, handed down to them. */
   const own: Flow = props.layout === "column" || props.layout === "row" ? props.layout : "none";
   /**
@@ -314,12 +393,16 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
    *
    * A number is one. A `fill` is one only if what it fills has one. A hug is
    * not — its height is whatever its content comes to, so a child filling it
-   * would be measuring against itself. A scrolling frame is not either, for
-   * the same reason a scrolling screen is not.
+   * would be measuring against itself.
+   *
+   * A frame that scrolls keeps the answer its height gives. Its content is at
+   * least its viewport (`splitForScroll`), so a `fill` child fills what shows
+   * and the rest scrolls — as the browser's `overflow: auto` box lays out the
+   * same design. It used to count as indefinite, like a scrolling screen, and
+   * a card's picture set to fill drew 0 points tall. A screen is different: its
+   * height is whatever its content comes to.
    */
-  const ownDefinite = scroll
-    ? false
-    : typeof props.height === "number" || (props.height === "fill" && definite);
+  const ownDefinite = heightDefinite;
 
   /**
    * The pressed look, resolved once rather than while a finger is down.
@@ -359,6 +442,7 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
 
   const inner = (
     <>
+      {image ? <ImageLayer image={image} /> : null}
       {box.gradient ? <GradientLayer gradient={box.gradient} /> : null}
       <FlowContext.Provider value={own}>
         <HeightContext.Provider value={ownDefinite}>{children}</HeightContext.Provider>
@@ -573,12 +657,17 @@ function DrawnText({
      */
     ...(declared ? { writingDirection: declared } : {}),
     /**
-     * Absolute points, always. The web brick's unitless multiplier would be read
-     * here as a line 1.4 points tall, stacking every row of text on the last —
-     * which is why `LineHeight` carries its unit through the artifact.
+     * Absolute points, always — React Native has no unitless line height.
+     *
+     * A number in the artifact is points, as the web brick reads it
+     * (`${lineHeight}px`) and as the canvas authored it. It was read here as a
+     * multiple of the font size, so a 16-point line with a line height of 24
+     * was 384 points tall: a popup's two buttons stretched to 400 points, its
+     * subtitle to 768, and its title floated in the middle of a 560-point line.
+     * Without one, 1.4 times the size, as before.
      */
     lineHeight: nativeLineHeight(
-      typeof lineHeight === "number" ? { kind: "multiple", value: lineHeight } : { kind: "multiple", value: 1.4 },
+      typeof lineHeight === "number" ? { kind: "px", value: lineHeight } : { kind: "multiple", value: 1.4 },
       fontSize,
     ),
   };
