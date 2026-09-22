@@ -10,7 +10,8 @@ import {
   loadPopupDesign,
   popupEventProps,
   popupFunnelManifest,
-  popupHostScreen,
+  PopupClosedContext,
+  PopupHostScreen,
   type PopupManifest,
 } from "./design";
 import type { PopupRule } from "./types";
@@ -84,17 +85,25 @@ describe("the funnel a popup runs", () => {
 });
 
 describe("the host screen", () => {
+  it("does not report closed before anything was shown", () => {
+    const closed = jest.fn();
+    const nav = { state: () => ({ screen: POPUP_HOST_SCREEN, overlays: [], direction: "forward" }) } as never;
+    render(createElement(PopupClosedContext.Provider, { value: closed }, createElement(PopupHostScreen, { nav })));
+    expect(closed).not.toHaveBeenCalled();
+  });
+
   it("reports closed once the popup it showed is gone, and not before", () => {
     const closed = jest.fn();
-    const Host = popupHostScreen(closed);
     let overlays = [{ id: "dialog" }];
     const nav = { state: () => ({ screen: POPUP_HOST_SCREEN, overlays, direction: "forward" }) } as never;
+    const tree = () =>
+      createElement(PopupClosedContext.Provider, { value: closed }, createElement(PopupHostScreen, { nav }));
 
-    const view = render(createElement(Host, { nav }));
+    const view = render(tree());
     expect(closed).not.toHaveBeenCalled();
 
     overlays = [];
-    act(() => view.rerender(createElement(Host, { nav })));
+    act(() => view.rerender(tree()));
     expect(closed).toHaveBeenCalledTimes(1);
   });
 });

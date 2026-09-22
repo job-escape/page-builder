@@ -9,8 +9,8 @@
  * `runtime-client`, the mobile app with `runtime-native` — one implementation
  * of *when* a popup opens, where there used to be one per app.
  *
- * React appears only in `popupHostScreen`, the invisible screen a popup opens
- * over; no DOM and no native element, so both platforms import this entry.
+ * React appears only in `PopupHostScreen`, the invisible screen a popup opens
+ * over, and the context it reports closing through; no DOM and no native element, so both platforms import this entry.
  */
 export type {
   EventFilter,
@@ -50,5 +50,6 @@ export {
   loadPopupDesign,
   popupEventProps,
   popupFunnelManifest,
-  popupHostScreen,
+  PopupClosedContext,
+  PopupHostScreen,
 } from "./runtime/popup-rules/design";

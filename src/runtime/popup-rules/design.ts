@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 
 import type { FunnelManifest as PublishedManifest } from "../compiler/manifest";
 import type { ScreenTree } from "../compiler/tree";
@@ -115,30 +115,37 @@ export function popupFunnelManifest(rule: PopupRule, manifest: PopupManifest): F
 }
 
 /**
+ * What the host screen calls once the popup is gone — provided by the host
+ * around its `<Funnel>`: `<PopupClosedContext value={onClosed}>`.
+ *
+ * Context rather than a closure baked into the screen: the screen is a stable
+ * component (a new one per render would remount the popup), and the host's
+ * callback changes as it renders. Read when the popup closes, so the latest.
+ */
+export const PopupClosedContext = createContext<() => void>(() => undefined);
+
+/**
  * The invisible screen a popup opens over, for either platform's `<Funnel>`.
  *
  * It watches the navigation it is rendered with: once the target has been
  * shown and nothing is open above the host any more, the visitor has closed
- * the popup. A popup that navigates to a full screen of its own (`replace`)
- * stays open on that screen until it closes. Draws nothing, so it needs no
- * platform — only React.
+ * the popup, and it calls `PopupClosedContext`. A popup that navigates to a
+ * full screen of its own (`replace`) stays open on that screen until it closes.
+ * Draws nothing, so it needs no platform — only React.
  */
-export function popupHostScreen(
-  onClosed: () => void,
-): (props: { nav: { state(): NavigationState } }) => null {
-  return function PopupHostScreen({ nav }) {
-    const state = nav.state();
-    const opened = useRef(false);
-    useEffect(() => {
-      if (state.screen !== POPUP_HOST_SCREEN) return;
-      if (state.overlays.length > 0) {
-        opened.current = true;
-        return;
-      }
-      if (opened.current) onClosed();
-    });
-    return null;
-  };
+export function PopupHostScreen({ nav }: { nav: { state(): NavigationState } }): null {
+  const state = nav.state();
+  const onClosed = useContext(PopupClosedContext);
+  const opened = useRef(false);
+  useEffect(() => {
+    if (state.screen !== POPUP_HOST_SCREEN) return;
+    if (state.overlays.length > 0) {
+      opened.current = true;
+      return;
+    }
+    if (opened.current) onClosed();
+  });
+  return null;
 }
 
 /**
