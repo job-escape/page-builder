@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 
-import { Frame, Input, Text, configureTokens } from "./bricks";
+import { Frame, Input, PressContext, Text, configureTokens } from "./bricks";
 import { DirectionContext } from "./direction";
 import { imageFillOf } from "./bricks";
 
@@ -148,5 +148,45 @@ describe("a frame filled with a picture", () => {
 
   it("is nothing for a colour", () => {
     expect(imageFillOf({ fill: "#ffffff", fillPaint: [{ kind: "solid", color: "#ffffff" }] })).toBeNull();
+  });
+});
+
+describe("a press, as the web draws one", () => {
+  /** A button drawn the way publish writes a component's press variant. */
+  const button = (onClick: () => void = jest.fn()) =>
+    render(
+      <Frame testId="button" onClick={onClick} fill="#ebebec" states={{ press: { fill: "#dedee0" } }}>
+        <Text states={{ press: { hidden: true } }}>Resting</Text>
+        <Text hidden states={{ press: { hidden: false } }}>
+          Pressed
+        </Text>
+      </Frame>,
+    );
+
+  it("draws the resting label, and not the pressed one, at rest", () => {
+    button();
+    expect(screen.getByText("Resting")).toBeInTheDocument();
+    expect(screen.queryByText("Pressed")).toBeNull();
+  });
+
+  it("swaps the labels and applies the press layers while a press holds", () => {
+    /*
+      A finger on the button is \`onPressIn\` → the button's own press, published
+      to what it holds. jsdom cannot drive react-native-web's press recognizer,
+      so the press arrives here as a button around it would publish it.
+    */
+    render(
+      <PressContext.Provider value>
+        <Frame testId="card" fill="#ffffff" states={{ press: { fill: "#dedee0" } }}>
+          <Text states={{ press: { hidden: true } }}>Resting</Text>
+          <Text hidden color="#18181b" states={{ press: { hidden: false, color: "#ffffff" } }}>
+            Pressed
+          </Text>
+        </Frame>
+      </PressContext.Provider>,
+    );
+    expect(screen.queryByText("Resting")).toBeNull();
+    expect(style(screen.getByText("Pressed")).color).toBe("rgb(255, 255, 255)");
+    expect(style(screen.getByTestId("card")).backgroundColor).toBe("rgb(222, 222, 224)");
   });
 });

@@ -335,22 +335,51 @@ const PRESSED = { transform: [{ scale: 0.97 }] };
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 /**
- * A brick the design says is not drawn — `hidden`, which the publish step
- * writes on the drawings of a component's hover and press variants.
+ * Whether the nearest tappable frame above is under a finger — the web's
+ * `PointerState`, press only.
  *
- * Their resting drawing ships beside them, and the web swaps the two under the
- * pointer (see `FrameLook.hidden`). A phone has no hover, and a press here is
- * resolved on the pressed view alone, so the alternate drawings stay hidden and
- * the resting one is what a visitor sees — which is the component as designed.
- * Answered before the brick itself so none of its hooks run for a view that is
- * never drawn.
+ * The finger is on one view and the look it drives is usually on another: a
+ * button's fill darkens and its label turns white, or its resting label is
+ * swapped for a pressed one — a `Text` inside that no touch lands on. The
+ * frame that takes the tap publishes its press; everything inside applies its
+ * own `press` layer. Hover has no counterpart: a phone has no pointer to hover
+ * with, so a hover layer is data this platform correctly ignores.
+ */
+export const PressContext = createContext<boolean>(false);
+
+/** The look with its `press` layer over it, while a press holds. */
+function pressedLook<Look extends { states?: { press?: object } }>(look: Look, pressed: boolean): Look {
+  return pressed && look.states?.press ? { ...look, ...(look.states.press as Partial<Look>) } : look;
+}
+
+/**
+ * A brick the design says is not drawn — `hidden`, at rest or while a press
+ * holds.
+ *
+ * The publish step writes the drawings of a component's hover and press
+ * variants beside its resting one, each hidden except in its own state, and
+ * the web swaps them under the pointer. The press swap happens here too: a
+ * label hidden at rest and shown while pressed appears under a finger, as it
+ * does in the browser. Answered before the brick itself so none of its hooks
+ * run for a view that is not drawn.
  */
 export function Frame(props: FrameProps) {
-  return props.hidden ? null : <DrawnFrame {...props} />;
+  const pressed = useContext(PressContext);
+  return pressedLook(props, pressed).hidden ? null : <DrawnFrame {...props} />;
 }
 
 
-function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: FrameProps) {
+function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }: FrameProps) {
+  /**
+   * The press this frame is drawn under: its own finger, if it takes taps, or
+   * the one on a tappable frame around it.
+   */
+  const inheritedPress = useContext(PressContext);
+  const [ownPress, setOwnPress] = useState(false);
+  const pressed = ownPress || inheritedPress;
+  // The look in force — the `press` layer over the authored one, as the web's
+  // `withState` does. Everything below is drawn from this.
+  const props = pressedLook({ ...authored, states }, pressed) as typeof authored;
   // The frame this one sits in — what its own `fill` is measured along.
   const flow = useContext(FlowContext);
   // And whether that frame's height is a definite one — what `fill` means here.
@@ -404,29 +433,6 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
    */
   const ownDefinite = heightDefinite;
 
-  /**
-   * The pressed look, resolved once rather than while a finger is down.
-   *
-   * Only `press`: a phone has no pointer to hover with, so a hover layer is
-   * data this platform correctly ignores rather than something it is missing.
-   *
-   * Style only, not the gradient or the stroke layers — those are separate
-   * views behind and in front of the content, and swapping them under a press
-   * is a second mechanism for a case nobody has drawn yet.
-   */
-  const pressedStyle = states?.press
-    ? (() => {
-        const merged = {
-          ...(props as Record<string, unknown>),
-          ...(states.press as Record<string, unknown>),
-        };
-        return {
-          ...nativeBox(boxFromProps(merged), lookup, flow).style,
-          ...layoutOf(merged as FrameProps, flow),
-        };
-      })()
-    : null;
-
   /*
     Motion, when the design gave the frame any: a transition gliding a bound
     width, a preset playing on its own. Hooks called on every render; the
@@ -438,14 +444,16 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
     motion: (props as FrameProps).motion,
     motionKey: (props as FrameProps).motionKey,
   });
-  const [pressing, setPressing] = useState(false);
 
   const inner = (
     <>
       {image ? <ImageLayer image={image} /> : null}
       {box.gradient ? <GradientLayer gradient={box.gradient} /> : null}
       <FlowContext.Provider value={own}>
-        <HeightContext.Provider value={ownDefinite}>{children}</HeightContext.Provider>
+        <HeightContext.Provider value={ownDefinite}>
+          {/* Only a frame that takes taps publishes its own press; the rest pass on theirs. */}
+          <PressContext.Provider value={pressed}>{children}</PressContext.Provider>
+        </HeightContext.Provider>
       </FlowContext.Provider>
       {box.overlayStroke ? <StrokeLayer stroke={box.overlayStroke} /> : null}
     </>
@@ -460,21 +468,31 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
           contentContainerStyle={content as ViewStyle}
           testID={props.testId}
         >
-          {onClick ? <Pressable onPress={onClick}>{inner}</Pressable> : inner}
+          {onClick ? (
+            <Pressable
+              onPress={onClick}
+              onPressIn={() => setOwnPress(true)}
+              onPressOut={() => setOwnPress(false)}
+            >
+              {inner}
+            </Pressable>
+          ) : (
+            inner
+          )}
         </Animated.ScrollView>
       );
     }
     if (onClick) {
       const transform = [
         ...((motion.style.transform as unknown[]) ?? ((view as ViewStyle).transform as unknown[]) ?? []),
-        ...(pressing ? PRESSED.transform : []),
+        ...(ownPress ? PRESSED.transform : []),
       ];
       return (
         <AnimatedPressable
-          style={[view, pressing ? pressedStyle : null, motion.style, { transform }] as never}
+          style={[view, motion.style, { transform }] as never}
           onPress={onClick}
-          onPressIn={() => setPressing(true)}
-          onPressOut={() => setPressing(false)}
+          onPressIn={() => setOwnPress(true)}
+          onPressOut={() => setOwnPress(false)}
           disabled={disabled}
           {...a11y({ ...props, disabled })}
           testID={props.testId}
@@ -500,7 +518,12 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
         {/* Pressable inside, never outside: a Pressable wrapping a ScrollView
             swallows the drag and the surface stops scrolling. */}
         {onClick ? (
-          <Pressable onPress={onClick} style={({ pressed }) => (pressed ? PRESSED : null)}>
+          <Pressable
+            onPress={onClick}
+            onPressIn={() => setOwnPress(true)}
+            onPressOut={() => setOwnPress(false)}
+            style={ownPress ? PRESSED : null}
+          >
             {inner}
           </Pressable>
         ) : (
@@ -515,16 +538,20 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...props }: F
       <Pressable
         // Every tappable frame shrinks a little under a finger, over whatever
         // pressed look the design drew — the web brick's `pressScale`.
-        style={({ pressed }) =>
-          (pressed
+        // The press layer is already in `view` (see `pressedLook` above); the
+        // shrink is this frame's own press only, so a pressed card does not
+        // shrink the button inside it twice.
+        style={
+          (ownPress
             ? {
                 ...view,
-                ...pressedStyle,
                 transform: [...(((view as ViewStyle).transform as never[]) ?? []), ...PRESSED.transform],
               }
             : view) as ViewStyle
         }
         onPress={onClick}
+        onPressIn={() => setOwnPress(true)}
+        onPressOut={() => setOwnPress(false)}
         disabled={disabled}
         {...a11y({ ...props, disabled })}
         testID={props.testId}
@@ -579,7 +606,10 @@ function runText(run: TextRun, at: number, follow: FollowLink | null): ReactNode
 
 /** Not drawn — see `Frame`. */
 export function Text(props: TextProps) {
-  return props.hidden ? null : <DrawnText {...props} />;
+  // A label's own `press` layer, under the tappable frame around it — a colour,
+  // a weight, or whether it is the one drawn.
+  const look = pressedLook(props, useContext(PressContext));
+  return look.hidden ? null : <DrawnText {...look} states={undefined} />;
 }
 
 function DrawnText({
@@ -708,7 +738,8 @@ function DrawnText({
 
 /** Not drawn — see `Frame`. */
 export function Image(props: ImageProps) {
-  return props.hidden ? null : <DrawnImage {...props} />;
+  const look = pressedLook(props, useContext(PressContext));
+  return look.hidden ? null : <DrawnImage {...look} />;
 }
 
 function DrawnImage({
