@@ -23,6 +23,7 @@ import {
 import { useFollowLink, type FollowLink } from "../link-context";
 import type { FrameMotion, FrameTransition } from "../motion";
 import { isRuns, withLineBreaks, runsOf, type RichText, type TextRun } from "../rich-text";
+import { frameBackground } from "../image-crop";
 import { motionCss, transitionCss, useWebMotion } from "./motion-css";
 
 export type FrameLayout = "none" | "row" | "column";
@@ -523,6 +524,12 @@ export function Frame(props: FrameProps) {
     hidden,
     style,
   } = withState(props as FrameLook, states, at);
+  /*
+    A picture in Figma's crop mode is placed by its matrix, not covered: the
+    CSS `fill` beside the structured paint says `cover`, which cut the top
+    and bottom off a picture the canvas showed whole. See `image-crop`.
+  */
+  const background = frameBackground(fill, (props as Record<string, unknown>).fillPaint);
 
   const glide = transitionCss(props.transition);
   const shown = useWebMotion({
@@ -591,7 +598,7 @@ export function Frame(props: FrameProps) {
     height: rootFill ? undefined : size(shown.height as FrameProps["height"]),
     alignItems: align ? ALIGN[align] : undefined,
     justifyContent: justify ? JUSTIFY[justify] : undefined,
-    background: fill,
+    background,
     border,
     borderRadius: radius,
     opacity: shown.opacity as number | undefined,
@@ -681,7 +688,7 @@ export function Frame(props: FrameProps) {
   const buttonReset: CSSProperties = asButton
     ? {
         appearance: "none",
-        background: fill ?? "transparent",
+        background: background ?? "transparent",
         border: border ?? "none",
         padding: pad(padding) ?? 0,
         margin: 0,

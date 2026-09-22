@@ -131,9 +131,16 @@ describe("a funnel that declares its direction lays text out in it", () => {
 });
 
 describe("a frame filled with a picture", () => {
-  it("reads the canvas's image paint, cropped to cover by default", () => {
+  it("reads the canvas's image paint, a crop placed by its matrix as the canvas places it", () => {
     expect(
       imageFillOf({ fillPaint: [{ kind: "image", src: "https://cdn.example/a.png", fit: "crop" }] }),
+    ).toEqual({
+      uri: "https://cdn.example/a.png",
+      resizeMode: "stretch",
+      box: { left: 0, top: 0, width: 1, height: 1 },
+    });
+    expect(
+      imageFillOf({ fillPaint: [{ kind: "image", src: "https://cdn.example/a.png", fit: "fill" }] }),
     ).toEqual({ uri: "https://cdn.example/a.png", resizeMode: "cover" });
     expect(imageFillOf({ fillPaint: [{ kind: "image", src: "https://cdn.example/a.png", fit: "fit" }] }))
       .toEqual({ uri: "https://cdn.example/a.png", resizeMode: "contain" });

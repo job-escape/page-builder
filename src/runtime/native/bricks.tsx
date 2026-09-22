@@ -56,6 +56,7 @@ function mirrorAlign(
   if (align === "center" || !rightToLeft) return align;
   return align === "left" ? "right" : "left";
 }
+import { cropBox, type CropBox } from "../image-crop";
 import { isRuns, withLineBreaks, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
 import {
   nativeBox,
@@ -248,7 +249,12 @@ function a11y(props: Pick<FrameProps, "role" | "ariaLabel" | "ariaChecked" | "di
 }
 
 /** A frame's picture fill: where it comes from and how it meets the box. */
-type ImageFill = { uri: string; resizeMode: "cover" | "contain" | "stretch" | "repeat" };
+type ImageFill = {
+  uri: string;
+  resizeMode: "cover" | "contain" | "stretch" | "repeat";
+  /** For Figma's crop: the picture's rectangle as fractions of the box — see `image-crop`. */
+  box?: CropBox;
+};
 
 /**
  * A frame filled with a picture, read from what the artifact says.
@@ -256,14 +262,18 @@ type ImageFill = { uri: string; resizeMode: "cover" | "contain" | "stretch" | "r
  * The structured paint first — `fillPaint: [{ kind: "image", src, fit }]`, the
  * canvas's own record — and a CSS `url(…)` in `fill` when there is no paint,
  * which is how the web brick draws it (`background: url(…) center / cover`).
- * Figma's `crop` and `fill` cover the box; `fit` shows all of it; `tile`
- * repeats. The topmost image paint wins, as it is the one on top.
+ * Figma's `fill` covers the box; `fit` shows all of it; `tile` repeats; `crop`
+ * places the picture by its matrix, as the canvas does (`image-crop`) — not
+ * `cover`, which cut off what the canvas showed. The topmost image paint wins.
  */
 export function imageFillOf(props: Record<string, unknown>): ImageFill | null {
   const paints = Array.isArray(props.fillPaint) ? (props.fillPaint as Record<string, unknown>[]) : [];
   const paint = [...paints].reverse().find((one) => one?.kind === "image" && typeof one.src === "string");
   if (paint) {
     const fit = paint.fit;
+    if (fit === "crop") {
+      return { uri: paint.src as string, resizeMode: "stretch", box: cropBox(paint.transform) };
+    }
     const resizeMode =
       fit === "fit" ? "contain" : fit === "tile" ? "repeat" : fit === "stretch" ? "stretch" : "cover";
     return { uri: paint.src as string, resizeMode };
@@ -287,11 +297,22 @@ export function imageFillOf(props: Record<string, unknown>): ImageFill | null {
  * is clipped to the border radius.
  */
 function ImageLayer({ image }: { image: ImageFill }) {
+  const box = image.box;
   return (
     <RNImage
       source={{ uri: image.uri }}
       resizeMode={image.resizeMode}
-      style={StyleSheet.absoluteFill}
+      style={
+        box
+          ? {
+              position: "absolute",
+              left: `${box.left * 100}%`,
+              top: `${box.top * 100}%`,
+              width: `${box.width * 100}%`,
+              height: `${box.height * 100}%`,
+            }
+          : StyleSheet.absoluteFill
+      }
       accessible={false}
     />
   );
