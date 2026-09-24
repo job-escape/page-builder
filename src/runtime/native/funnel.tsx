@@ -19,11 +19,13 @@ import { BackHandler, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import {
+  useBeforePaint,
   useDismissOnBack,
   useFunnelRuntime,
   type FunnelManifest,
   type FunnelServices,
 } from "../funnel-core";
+import { resolveMode } from "../appearance";
 import type { TimerStorage } from "../timers";
 import { chooseMode, paletteFromVariables, tokensForVariant } from "../style/tokens";
 import { chooseVariant } from "../variant";
@@ -172,7 +174,7 @@ export function Funnel({
    * the first paint of every screen with no colours.
    */
   const values = services.state.snapshot();
-  useMemo(() => {
+  const appearance = useMemo(() => {
     const fromVariables = paletteFromVariables(manifest.variables, values);
     // No cookie here: a native app owns its own storage, so the host decides
     // the assignment and passes it in. The order it falls through is the same,
@@ -192,6 +194,12 @@ export function Funnel({
       tokens: table,
       mode: chooseMode(table, mode ?? designed, manifest.defaultMode),
     });
+    return {
+      // The phone's scheme arrives as `mode` — the host reads it — so there is
+      // no system setting of our own to consult here.
+      mode: resolveMode({ host: mode, designed: fromVariables.mode, fallback: manifest.defaultMode }),
+      variant: active ?? null,
+    };
   }, [
     manifest.tokens,
     manifest.themes,
@@ -202,6 +210,11 @@ export function Funnel({
     variant,
     values,
   ]);
+
+  // `$mode` and `$variant` for conditions, before paint — see the web funnel.
+  useBeforePaint(() => {
+    services.state.setAppearance(appearance);
+  }, [services.state, appearance.mode, appearance.variant]);
 
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 

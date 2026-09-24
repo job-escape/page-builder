@@ -25,8 +25,10 @@ import {
   type ReactNode,
 } from "react";
 
+import { resolveMode } from "../appearance";
 import { DESKTOP_MEDIA_QUERY, type Device } from "../device";
 import {
+  useBeforePaint,
   useDismissOnBack,
   useFunnelRuntime,
   type FunnelManifest,
@@ -322,6 +324,22 @@ export function Funnel({
     return tokenCustomProperties(table, preferred, manifest.defaultMode);
   }, [manifest.tokens, manifest.themes, manifest.defaultMode, activeVariant, mode, systemMode, fromVariables.mode]);
   const hasPalette = Object.keys(paletteStyle).length > 0;
+
+  /*
+    `$mode` and `$variant` for conditions — a picture that differs in dark is a
+    condition on these, since the palette can only switch colours. Before paint,
+    as `$device` is, so the first frame already shows the right branch.
+  */
+  const appearanceMode = resolveMode({
+    host: mode,
+    designed: fromVariables.mode,
+    system: systemMode,
+    fallback: manifest.defaultMode,
+  });
+  const appearanceVariant = activeVariant ?? null;
+  useBeforePaint(() => {
+    services.state.setAppearance({ mode: appearanceMode, variant: appearanceVariant });
+  }, [services.state, appearanceMode, appearanceVariant]);
 
   // `request` is re-exported through the services by the core; naming it here
   // keeps the import graph honest for anything reading this file alone.

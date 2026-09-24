@@ -78,6 +78,10 @@ export {
   isDevice,
 } from "./runtime/device";
 
+/** Which palette mode and brand a funnel is painted in — `$mode`, `$variant`. */
+export type { Appearance } from "./runtime/appearance";
+export { MODE_VARIABLE, VARIANT_VARIABLE } from "./runtime/appearance";
+
 export type {
   NavigationState,
   Navigator,

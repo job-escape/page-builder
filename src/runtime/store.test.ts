@@ -195,3 +195,41 @@ describe("reset", () => {
     expect(s.status("lead")).toBe("idle");
   });
 });
+
+describe("$mode and $variant — the palette's answer, for a picture that is not a colour", () => {
+  it("reads nothing until the funnel says what it is painted in", () => {
+    const s = store();
+    expect(s.get("$mode")).toBeNull();
+    expect(s.isSet("$mode")).toBe(false);
+  });
+
+  it("reads the mode and brand it was given, and a condition can test them", () => {
+    const s = store();
+    s.setAppearance({ mode: "dark", variant: "warm" });
+    expect(s.get("$mode")).toBe("dark");
+    expect(s.get("$variant")).toBe("warm");
+    expect(s.isSet("$variant")).toBe(true);
+    expect(s.has("$mode", "dark")).toBe(true);
+  });
+
+  it("redraws when the phone switches, and not when nothing changed", () => {
+    const s = store();
+    s.setAppearance({ mode: "light", variant: null });
+    const before = s.snapshot();
+    const seen = jest.fn();
+    s.subscribe(seen);
+    s.setAppearance({ mode: "light", variant: null });
+    expect(seen).not.toHaveBeenCalled();
+    s.setAppearance({ mode: "dark", variant: null });
+    expect(seen).toHaveBeenCalledTimes(1);
+    expect(s.snapshot()).not.toBe(before);
+  });
+
+  it("wins over a declared variable of the same name, and is never reported as unknown", () => {
+    const onUnknown = jest.fn();
+    const s = createFunnelStore({ table, onUnknown });
+    s.setAppearance({ mode: "dark", variant: null });
+    expect(s.get("$mode")).toBe("dark");
+    expect(onUnknown).not.toHaveBeenCalled();
+  });
+});

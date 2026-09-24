@@ -16,6 +16,7 @@
  * negligible at funnel scale, and it removes the "lost the last answer" failure
  * that a debounce introduces when someone navigates during the window.
  */
+import { isAppearanceVariable, MODE_VARIABLE, NO_APPEARANCE, type Appearance } from "./appearance";
 import { DEVICE_VARIABLE, type Device } from "./device";
 import type { SourceValue } from "./compiler/source";
 import { pathGet } from "./data";
@@ -129,6 +130,10 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   // The device lives apart from answers for the same reason: it is never
   // persisted and never reported, because the visitor did not say it.
   let device: Device = options.device ?? "mobile";
+  // `$mode` and `$variant` — the same bargain as the device, for the palette.
+  let appearance: Appearance = NO_APPEARANCE;
+  const appearanceOf = (name: string): string | null =>
+    name === MODE_VARIABLE ? appearance.mode : appearance.variant;
 
   const listeners = new Set<() => void>();
   const notify = () => listeners.forEach((listener) => listener());
@@ -148,6 +153,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     // Before the table, so an artifact that once declared `$device` as an
     // ordinary variable reads the runtime's answer rather than its own default.
     if (name === DEVICE_VARIABLE) return device;
+    if (isAppearanceVariable(name)) return appearanceOf(name);
     const decl = declOf(name);
     if (!decl) return null;
     if (decl.formula) return computed(decl);
@@ -302,8 +308,20 @@ export function createFunnelStore(options: FunnelStoreOptions) {
 
   const deviceOf = (): Device => device;
 
+  /**
+   * The palette's mode or brand changed — a phone switched to dark, a Set step
+   * flipped the funnel's own theme. Not `set`, for `setDevice`'s reasons.
+   */
+  function setAppearance(next: Appearance): void {
+    if (next.mode === appearance.mode && next.variant === appearance.variant) return;
+    appearance = { mode: next.mode, variant: next.variant };
+    values = { ...values };
+    notify();
+  }
+
   /** Operators. Unknown names answer falsely rather than throwing. */
   const has = (name: string, value: string): boolean => {
+    if (isAppearanceVariable(name)) return appearanceOf(name)?.includes(value) ?? false;
     const decl = declOf(name);
     return decl ? hasOf(decl, values[name], value) : false;
   };
@@ -311,6 +329,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   const isSet = (name: string): boolean => {
     // Always answered — there is no moment a funnel is drawn for no device.
     if (name === DEVICE_VARIABLE) return true;
+    if (isAppearanceVariable(name)) return Boolean(appearanceOf(name));
     const decl = declOf(name);
     return decl ? isSetOf(decl, values[name]) : false;
   };
@@ -415,6 +434,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
     setStatus,
     device: deviceOf,
     setDevice,
+    setAppearance,
     subscribe,
     snapshot,
     reset,

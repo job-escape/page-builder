@@ -207,7 +207,7 @@ export type FunnelCoreOptions<Ui, Component> = {
  * The device has to reach the store before the browser paints, or a desktop
  * visitor sees one frame of the phone layout on every crossing.
  */
-const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
+export const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export function useFunnelRuntime<Ui, Component>({
   manifest,
