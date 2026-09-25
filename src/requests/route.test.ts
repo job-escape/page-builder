@@ -101,11 +101,10 @@ describe("createRequestRoute", () => {
     expect(await (await route(post({ action: "plans.list" }))).json()).toEqual({ from: "jobescape" });
   });
 
-  it("passes api:<id> to the host's project API call", async () => {
-    const apiCall = jest.fn(async (id: number) => new Response(JSON.stringify({ id }), { status: 201 }));
-    const route = createRequestRoute({ actions: {}, apiCall });
+  it("answers a project API call (api:<id>) as an unknown action — there are none any more", async () => {
+    const route = createRequestRoute({ actions: {} });
     const response = await route(post({ action: "api:42", payload: { a: 1 } }));
-    expect(response.status).toBe(201);
-    expect(apiCall).toHaveBeenCalledWith(42, { a: 1 }, expect.objectContaining({ request: expect.any(Request) }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "unknown_action" });
   });
 });

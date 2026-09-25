@@ -18,7 +18,7 @@
  * all call it.
  */
 
-/** The actions a design can name, beside `api:<id>` project API calls. */
+/** The actions a design can name. */
 export const ACTION_NAMES = [
   "leads.create",
   "leads.update_name",

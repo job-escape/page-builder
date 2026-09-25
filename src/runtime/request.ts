@@ -66,7 +66,7 @@ const DEFAULT_TIMEOUT = 15_000;
  * entry (`configureRequests` from `…/runtime`) while `<Funnel>` sends through
  * another (`…/runtime-client`). A module variable gave each copy its own
  * answer: the copy `<Funnel>` used was never configured, so every request —
- * an API call step, a lead — failed before it was sent, into the step's error
+ * the plans, a lead — failed before it was sent, into the step's error
  * branch, with nothing on the page to say so. One symbol, one configuration,
  * whichever copy asks.
  */

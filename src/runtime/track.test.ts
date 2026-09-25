@@ -241,7 +241,7 @@ describe("an analytics step", () => {
                 {
                   type: "submit" as const,
                   action: "api:1",
-                  // Inside an API call's success, where a lead is reported.
+                  // Inside a request's success, where a lead is reported.
                   onSuccess: [step],
                 },
               ],

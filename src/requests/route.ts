@@ -7,7 +7,7 @@
  * validates the envelope, finds the action, and turns what the action did into
  * the status and body the design's `into` / `errorInto` read.
  */
-import { ActionError, silentLog, type ActionHandlers, type Log, type Payload, type RequestContext } from "./contract";
+import { ActionError, silentLog, type ActionHandlers, type Log, type RequestContext } from "./contract";
 
 export type RequestRouteOptions = {
   /**
@@ -19,11 +19,6 @@ export type RequestRouteOptions = {
    * cache (the NVS catalogue) that a set built per request would throw away.
    */
   actions: ActionHandlers | ((context: RequestContext) => ActionHandlers);
-  /**
-   * `api:<id>` project API calls — funnel_backend's `design-api-calls/run`.
-   * Absent, such an action is a 400 like any unknown one.
-   */
-  apiCall?: (id: number, payload: Payload, context: RequestContext) => Promise<Response>;
   log?: Log;
 };
 
@@ -65,12 +60,6 @@ export function createRequestRoute(options: RequestRouteOptions): (request: Requ
       request,
       responseHeaders: new Headers(),
     };
-
-    const apiCall = /^api:(\d+)$/.exec(action);
-    if (apiCall) {
-      if (!options.apiCall) return json({ error: "unknown_action", message: `Unknown action: ${action}` }, 400);
-      return options.apiCall(Number(apiCall[1]), payload, context);
-    }
 
     const actions = typeof options.actions === "function" ? options.actions(context) : options.actions;
     const handler = actions[action];

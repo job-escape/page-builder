@@ -391,7 +391,7 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
             if (action.type === "analytics") {
               propertyValues(action).forEach((value) => namesInValue(value, new Set(), facts));
             }
-            // An API call's outcomes are lists like a branch's, and a step in
+            // A request's outcomes are lists like a branch's, and a step in
             // either can ask about the visitor too.
             if (action.type === "submit") {
               walk(action.onSuccess ?? []);
