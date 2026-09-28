@@ -153,3 +153,79 @@ describe("the platform's default", () => {
     error.mockRestore();
   });
 });
+
+describe("coming back from a link", () => {
+  const onClose = (variable: string) => [
+    { type: "link" as const, url: "https://x.example/", as: "sheet" as const, onClose: [{ type: "set" as const, variable, value: "back" }] },
+  ];
+
+  it("hands the host a way to say the visitor is back, and runs onClose when it does", async () => {
+    let report: (() => void) | undefined;
+    configureLinks({ open: (_url, _as, closed) => (report = closed) });
+    const written: [string, unknown][] = [];
+    const ctx = context();
+    ctx.state.set = (name: string, value: unknown) => void written.push([name, value]);
+
+    expect(await run(onClose("seen"), ctx)).toBe(true);
+    expect(written).toEqual([]);
+
+    report?.();
+    await Promise.resolve();
+    expect(written).toEqual([["seen", "back"]]);
+  });
+
+  it("runs it once, however many times the host reports", async () => {
+    let report: (() => void) | undefined;
+    configureLinks({ open: (_url, _as, closed) => (report = closed) });
+    const written: string[] = [];
+    const ctx = context();
+    ctx.state.set = (name: string) => void written.push(name);
+
+    await run(onClose("seen"), ctx);
+    report?.();
+    report?.();
+    await Promise.resolve();
+    expect(written).toEqual(["seen"]);
+  });
+
+  it("does not run it for a visitor who has left the screen", async () => {
+    let report: (() => void) | undefined;
+    configureLinks({ open: (_url, _as, closed) => (report = closed) });
+    let here = true;
+    const written: string[] = [];
+    const ctx = context();
+    ctx.state.set = (name: string) => void written.push(name);
+    ctx.nav.alive = () => () => here;
+
+    await run(onClose("seen"), ctx);
+    here = false;
+    report?.();
+    await Promise.resolve();
+    expect(written).toEqual([]);
+  });
+
+  it("offers the host nothing to call when there is nothing to run", async () => {
+    const calls: unknown[][] = [];
+    configureLinks({ open: (...args) => void calls.push(args) });
+    await run([{ type: "link", url: "https://x.example/", as: "sheet" }], context());
+    expect(calls).toEqual([["https://x.example/", "sheet"]]);
+  });
+
+  it("watches a web tab it opened, and reports when it closes", () => {
+    jest.useFakeTimers();
+    const tab = { opener: {} as unknown, closed: false };
+    const open = jest.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    const reported: string[] = [];
+
+    openLink("https://x.example/", "tab", () => null, () => reported.push("back"));
+    jest.advanceTimersByTime(2000);
+    expect(reported).toEqual([]);
+    tab.closed = true;
+    jest.advanceTimersByTime(600);
+    jest.advanceTimersByTime(600);
+    expect(reported).toEqual(["back"]);
+
+    open.mockRestore();
+    jest.useRealTimers();
+  });
+});

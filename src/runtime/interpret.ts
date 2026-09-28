@@ -281,11 +281,24 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         ctx.nav.close();
         break;
 
-      case "link":
+      case "link": {
         // Opened now, from the tap, and never in the way of what follows —
-        // see `runtime/link`.
-        openLink(action.url, action.as, (name) => ctx.state.get(name));
+        // see `runtime/link`. What hangs off it runs when the visitor comes
+        // back, and only if they are still on this screen — a timer's `onEnd`.
+        const after = action.onClose ?? [];
+        const alive = after.length ? (ctx.nav.alive?.() ?? (() => true)) : null;
+        openLink(
+          action.url,
+          action.as,
+          (name) => ctx.state.get(name),
+          alive
+            ? () => {
+                if (alive()) void run(after, ctx);
+              }
+            : undefined,
+        );
         break;
+      }
 
       case "back":
         if (ctx.nav.back) ctx.nav.back();

@@ -14,14 +14,33 @@
  * A function the native `Funnel` calls, not an import run for its effect: the
  * package declares `sideEffects: false`, and the bundler drops a bare import.
  */
-import { Linking, Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 
 import { configureDefaultOpener } from "../link";
 
 export function configurePlatformOpener(): void {
   if (Platform.OS === "web") return;
-  configureDefaultOpener((url) => {
+  configureDefaultOpener((url, _as, closed) => {
+    /*
+      Back from the address: the system browser (or the app it belongs to) took
+      the foreground, and the visitor is back when this app has it again. The
+      app never left if the address opened nothing — no report then, rather
+      than one the moment the tap is handled.
+    */
+    let left = false;
+    const watch = closed
+      ? AppState.addEventListener("change", (state) => {
+          if (state !== "active") {
+            left = true;
+            return;
+          }
+          if (!left) return;
+          watch?.remove();
+          closed();
+        })
+      : null;
     Linking.openURL(url).catch((cause: unknown) => {
+      watch?.remove();
       console.error("pb.link.failed", { url, cause });
     });
   });

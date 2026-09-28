@@ -125,3 +125,28 @@ describe("a screen's opening steps", () => {
     expect(manifest.screens.find((screen) => screen.id === "s_wait")).not.toHaveProperty("enter");
   });
 });
+
+describe("a link's onClose in the emitted module", () => {
+  it("hands link a callback that runs the steps, asked of the screen at the tap", () => {
+    const module = emitScreen(
+      screenWith([
+        {
+          type: "link",
+          url: "https://x.example/",
+          as: "sheet",
+          onClose: [{ type: "set", variable: "back", value: true }],
+        },
+      ]),
+    );
+    expect(module).toContain("const here = nav.alive ? nav.alive() : () => true;");
+    expect(module).toContain('link("https://x.example/", "sheet", (name) => state.get(name), () => {');
+    expect(module).toContain("if (!here()) return;");
+    expect(module).toContain('state.set("back", true)');
+  });
+
+  it("emits the plain call when nothing hangs off the link", () => {
+    const module = emitScreen(screenWith([{ type: "link", url: "https://x.example/" }]));
+    expect(module).toContain('link("https://x.example/", "tab", (name) => state.get(name));');
+    expect(module).not.toContain("const here");
+  });
+});

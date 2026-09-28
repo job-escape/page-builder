@@ -171,6 +171,8 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
       }
       // Where a countdown sends somebody when it ends is somewhere they can go.
       if (action.type === "timer") walk(action.onEnd ?? []);
+      // And where coming back from a link does.
+      if (action.type === "link") walk(action.onClose ?? []);
     });
   };
 
@@ -302,6 +304,7 @@ function variablesInActions(actions: SourceAction[], into: Set<string>): void {
       if (action.from) namesInValue(action.from, into, new Set());
     }
     if (action.type === "timer") variablesInActions(action.onEnd ?? [], into);
+    if (action.type === "link") variablesInActions(action.onClose ?? [], into);
     if (action.type === "waitUntil") variablesInCondition(action.when, into);
     if (action.type === "submit") {
       Object.values(action.values ?? {}).forEach((value) => namesInValue(value, into, new Set()));
@@ -398,6 +401,7 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
               walk(action.onError ?? []);
             }
             if (action.type === "timer") walk(action.onEnd ?? []);
+            if (action.type === "link") walk(action.onClose ?? []);
             if (action.type !== "conditional") return;
             action.branches.forEach((branch) => {
               if (branch.when) visitorFactsInCondition(branch.when, facts);

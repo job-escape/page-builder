@@ -41,8 +41,15 @@ export type LinkSession = {
 };
 
 export type LinkOptions = {
-  /** Opens an address. Without it the web opens a new tab. */
-  open?: (url: string, as: "tab" | "sheet") => void;
+  /**
+   * Opens an address. Without it the web opens a new tab.
+   *
+   * `closed`, when the step has something to do afterwards: call it once, when
+   * the visitor is back from the address — the sheet dismissed, the browser
+   * left. A host that cannot tell leaves it uncalled, and the step's `onClose`
+   * simply never runs.
+   */
+  open?: (url: string, as: "tab" | "sheet", closed?: () => void) => void;
   /** The session, read at the moment of the tap. Without it the tokens stay unfilled. */
   session?: () => LinkSession | null | undefined;
 };
@@ -108,15 +115,31 @@ const refused = (name: string, url: string, cause?: unknown) => {
   console.error(name, { url, ...(cause === undefined ? {} : { cause }) });
 };
 
+/** How often a tab this page opened is asked whether it has been closed. */
+const TAB_POLL_MS = 500;
+
+/** `closed`, callable once however many ways a host reports it. */
+function once(closed: (() => void) | undefined): (() => void) | undefined {
+  if (!closed) return undefined;
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    closed();
+  };
+}
+
 /**
  * Open the address a step names. Never waits and never interrupts: the visitor
  * is sent somewhere and the funnel stays where it was, so what follows the step
- * still runs.
+ * still runs. `onClosed` is called once when they come back from it — see
+ * `LinkOptions.open`.
  */
 export function openLink(
   template: string,
   as: "tab" | "sheet" | undefined,
   read: (name: string) => unknown,
+  onClosed?: () => void,
 ): void {
   const url = linkAddress(template, read).trim();
   if (!url) return;
@@ -126,9 +149,11 @@ export function openLink(
   }
   const how = as === "sheet" ? "sheet" : "tab";
   const open = shared().options.open ?? shared().fallback;
+  const closed = once(onClosed);
   try {
     if (open) {
-      open(url, how);
+      if (closed) open(url, how, closed);
+      else open(url, how);
       return;
     }
     const opener = (globalThis as { open?: Window["open"] }).open;
@@ -152,6 +177,23 @@ export function openLink(
         opened.opener = null;
       } catch {
         // A cross-origin window may refuse the write; it is already cut loose then.
+      }
+      /*
+        Back from the tab: `closed` is readable across origins, and it is the
+        only thing a page may ask of a window it opened on another site.
+      */
+      if (closed) {
+        const watch = setInterval(() => {
+          let gone = true;
+          try {
+            gone = opened.closed;
+          } catch {
+            // A window that refuses even this is past asking — treat it as gone.
+          }
+          if (!gone) return;
+          clearInterval(watch);
+          closed();
+        }, TAB_POLL_MS);
       }
     } else {
       const location = (globalThis as { location?: Location }).location;

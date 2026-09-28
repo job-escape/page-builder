@@ -185,8 +185,14 @@ export type SourceAction =
    * system browser in the app. `url` is a template: `{name}` reads a variable,
    * `{accessToken}` and `{refreshToken}` read the host's session. Never waits
    * and never interrupts: the funnel stays where it was. See `runtime/link`.
+   *
+   * `onClose` runs when the visitor comes back from the address — the sheet
+   * dismissed, the tab closed, the app foregrounded again after the system
+   * browser — and only while they are still on this screen, as a timer's
+   * `onEnd` does. A host that cannot tell never runs it. Additive: a runtime
+   * from before it opens the link and ignores the list.
    */
-  | { type: "link"; url: string; as?: "tab" | "sheet" }
+  | { type: "link"; url: string; as?: "tab" | "sheet"; onClose?: SourceAction[] }
   /**
    * The back gesture, as a step: closes the top overlay if one is open, else
    * returns to the screen the visitor came from (entrance played in reverse).

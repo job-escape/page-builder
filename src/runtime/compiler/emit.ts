@@ -193,10 +193,26 @@ function emitAction(action: SourceAction, indent: string): string {
       const timer = `new Promise((go) => setTimeout(() => go(true), ${seconds} * 1000))`;
       return `${indent}if (!(await (nav.wait ? nav.wait(${seconds}) : ${timer}))) return;`;
     }
-    case "link":
+    case "link": {
       // Opened from the tap and never waited on — see `runtime/link`. A host too
       // old to hand the service over makes this nothing, like `track`.
-      return `${indent}if (link) link(${lit(action.url)}, ${lit(action.as ?? "tab")}, (name) => state.get(name));`;
+      const call = `${indent}if (link) link(${lit(action.url)}, ${lit(action.as ?? "tab")}, (name) => state.get(name)`;
+      const after = action.onClose ?? [];
+      if (!after.length) return `${call});`;
+      // What hangs off it, when the visitor is back — and only if still on
+      // this screen, which is asked of the screen as it was at the tap.
+      return [
+        `${indent}{`,
+        `${indent}  const here = nav.alive ? nav.alive() : () => true;`,
+        `${call.replace(indent, `${indent}  `)}, () => {`,
+        `${indent}    if (!here()) return;`,
+        `${indent}    void (async () => {`,
+        ...after.map((inner) => emitAction(inner, `${indent}      `)),
+        `${indent}    })();`,
+        `${indent}  });`,
+        `${indent}}`,
+      ].join(NL);
+    }
     case "track":
       // A name for the host's pixels, fired and not awaited — see `runtime/track`.
       // `track` is a service like `req`; a host too old to hand it over makes
