@@ -154,6 +154,45 @@ describe("saving without being told where", () => {
   });
 });
 
+describe("values the host already knows", () => {
+  it("start the funnel with them, on the server too", () => {
+    Object.assign(globalThis, { TextEncoder });
+    const { renderToString } = require("react-dom/server") as typeof import("react-dom/server");
+    const html = renderToString(
+      <Funnel
+        manifest={compiled.manifest}
+        screens={screens}
+        locale={source.locales!.en}
+        initialValues={{ goal: "from the host" }}
+      />,
+    );
+    expect(html).toContain("goal: from the host");
+  });
+
+  it("are not replaced by what the funnel saved", async () => {
+    mount();
+    fireEvent.click(screen.getByTestId("pick"));
+    cleanup();
+
+    mount({ initialValues: { goal: "from the host" } });
+    await act(async () => {});
+    expect(screen.getByText("goal: from the host")).toBeInTheDocument();
+  });
+
+  it("ignore a name the funnel does not declare, and a value its declaration does not take", async () => {
+    mount({ initialValues: { nobody: "x", goal: 42 } });
+    await act(async () => {});
+    expect(screen.getByText("goal: none")).toBeInTheDocument();
+  });
+
+  it("are not reported as the visitor's answers", async () => {
+    const onAnswer = jest.fn();
+    mount({ initialValues: { email: "ana@example.com" }, onAnswer });
+    await act(async () => {});
+    expect(onAnswer).not.toHaveBeenCalledWith("email", expect.anything());
+  });
+});
+
 describe("visitor facts", () => {
   it("are saved as soon as the funnel opens, before anything is answered", () => {
     mount({ visitor: { utm_source: "google", country: "US" } });

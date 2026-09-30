@@ -114,6 +114,14 @@ export type FunnelStoreOptions = {
    * Ignored when `persist.saved` is given, which both sides can read.
    */
   deferRestore?: boolean;
+  /**
+   * Values the host already knows when the funnel starts — the email and
+   * account id it keeps for the visitor. Over the declared defaults, and never
+   * replaced by a restore: the host is where these come from. Only declared
+   * names whose value matches the declaration are taken; neither written back
+   * as a change nor reported, since the visitor did not just say them.
+   */
+  initial?: Readonly<Record<string, VariableValue>>;
 };
 
 export type FunnelStore = ReturnType<typeof createFunnelStore>;
@@ -134,7 +142,18 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   // Restored answers layered over declared defaults, so a variable added since
   // the visitor last came back gets its default rather than being absent.
   const restored = persist && !deferred ? persistence.read(table, persist) : null;
-  let values: Record<string, VariableValue> = { ...initialState(table), ...(restored ?? {}) };
+  /** What the host handed in that the declarations accept — see `initial`. */
+  const given = Object.fromEntries(
+    Object.entries(options.initial ?? {}).filter(([name, value]) => {
+      const decl = table[name];
+      return decl !== undefined && !decl.formula && persistence.matchesDeclaration(decl, value);
+    }),
+  );
+  let values: Record<string, VariableValue> = {
+    ...initialState(table),
+    ...(restored ?? {}),
+    ...given,
+  };
   /** What the store started from, so a deferred restore can tell what has been set since. */
   const started = values;
   /**
@@ -193,6 +212,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
       // that compares snapshots sees the restored facts even with no answers.
       const next = { ...values };
       Object.entries(saved).forEach(([name, value]) => {
+        if (name in given) return;
         if (same(values[name], started[name])) next[name] = value;
       });
       values = next;

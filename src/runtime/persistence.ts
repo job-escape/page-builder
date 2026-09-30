@@ -109,6 +109,10 @@ const isSaved = (decl: VariableDecl): boolean =>
 
 const keptAlways = (decl: VariableDecl): boolean => decl.keep === "always";
 
+/** Whether a value is one a declaration accepts — for anything a host hands in. */
+export const matchesDeclaration = (decl: VariableDecl, value: unknown): boolean =>
+  matchesDecl(decl, value);
+
 function matchesDecl(decl: VariableDecl, value: unknown): boolean {
   if (value === null) return true;
   if (isListType(decl)) {

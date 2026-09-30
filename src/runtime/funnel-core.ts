@@ -269,6 +269,11 @@ export type FunnelCoreOptions<Ui, Component> = {
    * restoring before then would hydrate it with answers the server never drew.
    */
   restoreOnMount?: boolean;
+  /**
+   * Values the host already knows when the funnel starts — see `initial` in
+   * the store. Read once, when the store is made.
+   */
+  initialValues?: Readonly<Record<string, VariableValue>>;
 };
 
 /**
@@ -295,7 +300,12 @@ export function useFunnelRuntime<Ui, Component>({
   start,
   onScreen,
   restoreOnMount = true,
+  initialValues,
 }: FunnelCoreOptions<Ui, Component>) {
+  // Read when a store is made, through a ref: a host writing the object inline
+  // must not rebuild the store — and lose every answer — on each render.
+  const initialRef = useRef(initialValues);
+  initialRef.current = initialValues;
   const table: VariableTable = useMemo(
     () => Object.fromEntries(manifest.variables.map((decl) => [decl.name, decl])),
     [manifest.variables],
@@ -345,6 +355,7 @@ export function useFunnelRuntime<Ui, Component>({
         // Read after hydration, below: the first render has to be the one a
         // server made, and a server has no cookie to read.
         deferRestore: true,
+        initial: initialRef.current,
       }),
     // A new store per funnel identity, not per render.
     [table, persistKey, visitor, onUnknown, onAnswer, timers],

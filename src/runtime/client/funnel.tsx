@@ -117,6 +117,15 @@ export type FunnelProps = {
    * Not called for the screen the funnel opened on, nor for overlays.
    */
   onScreen?: (screen: string) => void;
+  /**
+   * Values the host already knows when the funnel starts — the visitor's email
+   * and account id, kept by the host between visits. Over the declared
+   * defaults and never replaced by what the funnel saved; a name the funnel
+   * does not declare, or a value its declaration does not accept, is ignored.
+   * Read once, when the funnel mounts — the same on the server and in the
+   * browser, so hydration matches.
+   */
+  initialValues?: Readonly<Record<string, import("../types").VariableValue>>;
   components?: Record<string, (props: never) => ReactNode>;
   /**
    * The copy table the artifact carries, by key.
@@ -213,6 +222,7 @@ export function Funnel({
   prerender = 0,
   startScreen,
   onScreen,
+  initialValues,
   components = {},
   locale = {},
   fallbackLocale,
@@ -247,6 +257,7 @@ export function Funnel({
     device,
     start: startScreen,
     onScreen,
+    initialValues,
     // From inside the screen, once it has hydrated — see `ScreenStack`.
     restoreOnMount: false,
   });
