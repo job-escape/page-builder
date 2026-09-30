@@ -256,6 +256,28 @@ export type SourceAction =
       wait?: boolean;
     }
   /**
+   * The email step: who the visitor is, from the address they typed.
+   *
+   * Writes the address into the system variable `email`, asks the funnel's own
+   * server for the visitor's account (`email.submit` — `GetOrCreateUser` on
+   * the payments platform), and writes the account's id into `userId`. Then
+   * `onSuccess`, or `onError` with the message in `errorInto`. Both variables
+   * are the console's system variables, declared by publish in every design.
+   *
+   * `email` is where the address is read from — the field's own variable
+   * usually, which is `email` itself. `$req.email_submit.status` is `pending`
+   * while it runs. Its own step rather than a `submit`: nothing about it is
+   * configured per design, so there is nothing for a designer to get wrong.
+   * Tree only: the JavaScript emitter leaves it out.
+   */
+  | {
+      type: "email_submit";
+      email?: SourceValue;
+      onSuccess?: SourceAction[];
+      onError?: SourceAction[];
+      errorInto?: string;
+    }
+  /**
    * Move a number variable to a value over time — a loader's 0 → 100, a bar
    * filling, a price counting up.
    *

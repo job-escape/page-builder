@@ -35,5 +35,7 @@ export { classifyPaymentError, checkoutErrorBody } from "./requests/nvs/errors";
 export type { FunnelSubscription, NvsActionsOptions, PlatformProduct } from "./requests/nvs/actions";
 export { isPaidStatus, isPlatformUserId, nvsActions, toFunnelSubscription } from "./requests/nvs/actions";
 
+export { EMAIL_SUBMIT_ACTION, emailSubmitHandlers } from "./requests/email-submit";
+
 export type { JobescapeActionsOptions } from "./requests/jobescape/actions";
 export { jobescapeActions, readCookieUser } from "./requests/jobescape/actions";

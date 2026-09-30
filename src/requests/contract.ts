@@ -25,6 +25,7 @@ export const ACTION_NAMES = [
   "plans.list",
   "payments.create_session",
   "payments.confirm",
+  "email.submit",
 ] as const;
 
 export type ActionName = (typeof ACTION_NAMES)[number];

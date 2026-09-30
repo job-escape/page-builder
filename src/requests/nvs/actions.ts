@@ -78,7 +78,7 @@ export const isPlatformUserId = (value: unknown): value is string => typeof valu
 
 const ANALYTICS_ID = /^[1-9]\d{0,18}$/;
 
-function readAnalyticsId(value: unknown): string | undefined {
+export function readAnalyticsId(value: unknown): string | undefined {
   if (typeof value === "number") return Number.isSafeInteger(value) && value > 0 ? String(value) : undefined;
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();

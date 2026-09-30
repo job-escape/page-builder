@@ -337,6 +337,12 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         break;
       }
 
+      case "email_submit": {
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await submitEmail(action, ctx))) return false;
+        break;
+      }
+
       case "animate": {
         const moving = animateValue(action, ctx);
         if (action.wait === false) {
@@ -398,6 +404,47 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
  * handler that is still awaiting it), and the screen's own answer for one sent
  * with `wait: false`.
  */
+/** The request `email_submit` makes — answered by the host's `email.submit` handler. */
+export const EMAIL_SUBMIT_REQUEST = "email.submit";
+
+/** What `$req.<id>` an email step is known by in conditions. */
+const EMAIL_SUBMIT_ID = "email_submit";
+
+/**
+ * The email step — see `SourceAction`'s `email_submit`.
+ *
+ * The address is written to `email` first, so the rest of the funnel has it
+ * even when the account cannot be found or made; then the account's id goes to
+ * `userId`. A blank address is a failure the visitor caused, not a request:
+ * `onError` runs with nothing sent.
+ */
+async function submitEmail(
+  action: Extract<SourceAction, { type: "email_submit" }>,
+  ctx: ActionContext,
+): Promise<boolean> {
+  const typed = valueOf(action.email ?? { var: "email" }, ctx.state);
+  const email = typeof typed === "string" ? typed.trim() : "";
+  if (email) ctx.state.set("email", email);
+
+  const fail = async (message: string): Promise<boolean> => {
+    ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "error", message);
+    if (action.errorInto) ctx.state.set(action.errorInto, message);
+    return run(action.onError ?? [], ctx);
+  };
+  if (!email) return fail("A valid email is required.");
+
+  try {
+    ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "pending");
+    const response = await ctx.req(EMAIL_SUBMIT_REQUEST, { email });
+    const userId = pathGet(response, "userId");
+    if (typeof userId === "string" && userId) ctx.state.set("userId", userId);
+    ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "success");
+    return await run(action.onSuccess ?? [], ctx);
+  } catch (failure) {
+    return fail(failure instanceof Error ? failure.message : String(failure));
+  }
+}
+
 async function send(
   action: Extract<SourceAction, { type: "submit" }>,
   ctx: ActionContext,

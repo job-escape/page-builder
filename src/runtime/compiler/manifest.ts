@@ -178,6 +178,11 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
       }
       // Where a countdown sends somebody when it ends is somewhere they can go.
       if (action.type === "timer") walk(action.onEnd ?? []);
+      // As is where the email step goes once it has an account, or fails to.
+      if (action.type === "email_submit") {
+        walk(action.onSuccess ?? []);
+        walk(action.onError ?? []);
+      }
       // And where coming back from a link does.
       if (action.type === "link") walk(action.onClose ?? []);
     });
@@ -316,6 +321,14 @@ function variablesInActions(actions: SourceAction[], into: Set<string>): void {
     if (action.type === "submit") {
       Object.values(action.values ?? {}).forEach((value) => namesInValue(value, into, new Set()));
     }
+    if (action.type === "email_submit") {
+      // Reads the address, and writes `email` and `userId` for what follows.
+      namesInValue(action.email ?? { var: "email" }, into, new Set());
+      into.add("email");
+      into.add("userId");
+      variablesInActions(action.onSuccess ?? [], into);
+      variablesInActions(action.onError ?? [], into);
+    }
     if (action.type === "analytics") {
       // What it sends is read from the store as it runs, like a payload.
       propertyValues(action).forEach((value) => namesInValue(value, into, new Set()));
@@ -403,7 +416,7 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
             }
             // A request's outcomes are lists like a branch's, and a step in
             // either can ask about the visitor too.
-            if (action.type === "submit") {
+            if (action.type === "submit" || action.type === "email_submit") {
               walk(action.onSuccess ?? []);
               walk(action.onError ?? []);
             }
