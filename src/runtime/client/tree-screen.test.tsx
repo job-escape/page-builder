@@ -148,6 +148,47 @@ describe("what the tree path does on its own", () => {
     mount(screensFromTree(artifact));
     expect(screen.getByText("What's your goal?")).toBeInTheDocument();
   });
+
+  it("draws a screen of several top-level frames without React asking for keys", () => {
+    // A screen module is a list of its top-level frames. Unkeyed, React warns
+    // on every screen of every funnel — noise that buries the warnings that
+    // matter, and the red badge a host's dev overlay shows on every page.
+    const twoRoots: SourceFunnel = {
+      id: "two-roots",
+      version: "v1",
+      entry: "s_one",
+      variables: [],
+      screens: [
+        {
+          id: "s_one",
+          frames: [
+            { id: "header", parent: null, kind: "text", pos: "a0", textKey: "header" },
+            { id: "body", parent: null, kind: "text", pos: "a1", textKey: "body" },
+          ],
+        },
+      ],
+      locales: { en: { header: "Header", body: "Body" } },
+    };
+    const errors = jest.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const compiled = compileToTree(twoRoots);
+      render(
+        <Funnel
+          manifest={{ entry: compiled.manifest.entry, variables: compiled.manifest.variables }}
+          screens={screensFromTree(compiled)}
+          locale={twoRoots.locales!.en}
+        />,
+      );
+      expect(screen.getByText("Header")).toBeInTheDocument();
+      expect(screen.getByText("Body")).toBeInTheDocument();
+      const keyWarnings = errors.mock.calls.filter((call) =>
+        call.some((part) => String(part).includes('unique "key"')),
+      );
+      expect(keyWarnings).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
 });
 
 /**

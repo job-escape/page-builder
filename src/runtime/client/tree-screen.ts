@@ -20,7 +20,7 @@
  * **Schema 1.3 is tree-only.** Repeats, text params, value bindings and slots
  * are drawn here and not by the JavaScript emitter, which no host reads.
  */
-import { createElement, useEffect, useRef, type ReactNode } from "react";
+import { createElement, Fragment, useEffect, useRef, type ReactNode } from "react";
 
 import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
 import { isCaseBinding, isValueBinding, type SourceAction } from "../compiler/source";
@@ -339,7 +339,13 @@ function drawNode(
 }
 
 export function screenFromTree(tree: ScreenTree): ScreenModule {
-  return (props: ScreenProps) => tree.roots.map((root) => renderNode(root, props));
+  /*
+    A screen is the list of its top-level frames, and a list React draws needs
+    keys — without them every screen of every funnel warned, in the console
+    and in a host's dev overlay. Keyed by frame id, which is unique on a screen.
+  */
+  return (props: ScreenProps) =>
+    tree.roots.map((root) => createElement(Fragment, { key: root.id }, renderNode(root, props)));
 }
 
 /** Every screen of a compiled tree, keyed the way `<Funnel>` wants them. */
