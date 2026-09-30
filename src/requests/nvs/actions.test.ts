@@ -62,7 +62,6 @@ function actions(replies: Record<string, Reply | Reply[]>, extra: Partial<Parame
     apiKey: "key",
     projectId: "proj",
     fetch: doFetch,
-    sleep: async () => {},
     idempotencyKey: () => "idem-1",
     ...extra,
   });
@@ -85,17 +84,17 @@ describe("the RPC envelope", () => {
     });
   });
 
-  it("retries an unavailable platform, but not a 429 without Retry-After", async () => {
-    const flaky = actions({
+  it("asks the platform once — an unavailable platform, or a 429, is not asked again", async () => {
+    const down = actions({
       "/auth.v1.ServiceAccountService/GetOrCreateUser": [
         { status: 503, body: { code: "unavailable", message: "down" } },
         { body: { userId: USER_ID } },
       ],
     });
-    await expect(flaky.handlers["leads.create"]!({ email: "a@b.co" }, contextFor())).resolves.toMatchObject({
-      userId: USER_ID,
+    await expect(down.handlers["leads.create"]!({ email: "a@b.co" }, contextFor())).rejects.toMatchObject({
+      status: 502,
     });
-    expect(flaky.calls).toHaveLength(2);
+    expect(down.calls).toHaveLength(1);
 
     const limited = actions({
       "/auth.v1.ServiceAccountService/GetOrCreateUser": { status: 429, body: { code: "resource_exhausted", message: "slow" } },

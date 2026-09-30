@@ -6,11 +6,9 @@
  * the platform's contract and are kept exactly:
  *
  * - always `POST`, JSON body, `Authorization: Bearer <key>` and `X-Project-Id`;
- * - `internal` / `unavailable` retried twice with a growing backoff, and one
- *   retry of a sporadic `unauthenticated`;
- * - `resource_exhausted` (429) retried **only** when `Retry-After` says when and
- *   the wait fits inside a visitor's request — never on a blind backoff, which
- *   drains a bucket that is already empty;
+ * - **one request per call, never retried.** A failure is logged and thrown at
+ *   once; whoever made the call decides what to do next. A retry here sent the
+ *   same write to the platform up to three times behind the caller's back;
  * - the error envelope becomes an `NvsApiError`, carrying the platform's
  *   `reason` / `category` enum when it sends one.
  *
@@ -29,8 +27,6 @@ export type NvsConfig = {
   log?: Log;
   /** Injected in tests. */
   fetch?: typeof fetch;
-  /** Injected in tests, so a retry does not really wait. */
-  sleep?: (ms: number) => Promise<void>;
 };
 
 export type KnownNvsErrorCode =
@@ -83,29 +79,11 @@ export class NvsApiError extends Error {
   }
 }
 
-const RETRYABLE_CODES = new Set(["internal", "unavailable"]);
-const MAX_RETRIES = 2;
-const BASE_BACKOFF_MS = 250;
-/** Ceiling on honouring `Retry-After` inside a visitor's request. */
-const MAX_RETRY_AFTER_MS = 5000;
-
-const backoffMs = (attempt: number) => BASE_BACKOFF_MS * (attempt + 1);
-
 function headerNumber(response: Response, name: string): number | undefined {
   const raw = response.headers.get(name);
   if (raw === null) return undefined;
   const value = Number(raw);
   return Number.isFinite(value) ? value : undefined;
-}
-
-/** `Retry-After` is either delta-seconds or an HTTP-date (RFC 9110). */
-function parseRetryAfter(header: string | null): number | undefined {
-  if (!header) return undefined;
-  const seconds = Number(header);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-  const timestamp = Date.parse(header);
-  if (Number.isNaN(timestamp)) return undefined;
-  return Math.max(0, timestamp - Date.now());
 }
 
 /** Credentials inside platform payloads — never written to a log. Both spellings. */
@@ -138,98 +116,73 @@ export type NvsRpc = <TResponse>(procedure: string, body: Record<string, unknown
 export function createNvsClient(config: NvsConfig): NvsRpc {
   const log = config.log ?? silentLog;
   const doFetch = config.fetch ?? fetch;
-  const sleep = config.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   return async function nvsRpc<TResponse>(procedure: string, body: Record<string, unknown>): Promise<TResponse> {
     const url = `${config.baseUrl}${procedure}`;
+    const startedAt = Date.now();
 
-    for (let attempt = 0; ; attempt += 1) {
-      const startedAt = Date.now();
-      let response: Response;
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        response = await doFetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${config.apiKey}`,
-            "X-Project-Id": config.projectId,
-          },
-          body: JSON.stringify(body),
-          cache: "no-store",
-        });
-      } catch (error) {
-        if (attempt < MAX_RETRIES) {
-          // eslint-disable-next-line no-await-in-loop
-          await sleep(backoffMs(attempt));
-          continue;
-        }
-        log.error("nvs_rpc_network_error", {
-          procedure,
-          request: describe(body),
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      }
+    let response: Response;
+    try {
+      response = await doFetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+          "X-Project-Id": config.projectId,
+        },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      });
+    } catch (error) {
+      log.error("nvs_rpc_network_error", {
+        procedure,
+        request: describe(body),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
 
-      if (response.ok) {
-        // eslint-disable-next-line no-await-in-loop
-        const data = (await response.json()) as TResponse;
-        log.info("nvs_rpc", {
-          procedure,
-          status: response.status,
-          request: describe(body),
-          response: describe(data),
-          durationMs: Date.now() - startedAt,
-        });
-        return data;
-      }
-
-      let envelope: NvsErrorEnvelope;
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        envelope = (await response.json()) as NvsErrorEnvelope;
-      } catch {
-        envelope = { code: "internal", message: `HTTP ${response.status}` };
-      }
-
-      const rateLimited = envelope.code === "resource_exhausted";
-      const retryAfter = rateLimited ? parseRetryAfter(response.headers.get("retry-after")) : undefined;
-      const retryAfterTooLong = retryAfter !== undefined && retryAfter > MAX_RETRY_AFTER_MS;
-      const retryable = rateLimited
-        ? retryAfter !== undefined && !retryAfterTooLong
-        : RETRYABLE_CODES.has(envelope.code) || (envelope.code === "unauthenticated" && attempt === 0);
-      const willRetry = retryable && attempt < MAX_RETRIES;
-
-      const detail = paymentErrorDetail(envelope.details);
-      log.error("nvs_rpc_error", {
+    if (response.ok) {
+      const data = (await response.json()) as TResponse;
+      log.info("nvs_rpc", {
         procedure,
         status: response.status,
-        code: envelope.code,
-        message: envelope.message,
         request: describe(body),
-        response: describe(envelope),
-        reason: detail?.reason,
-        category: detail?.category,
-        attempt,
-        willRetry,
-        retryAfterMs: retryAfter,
-        ...(rateLimited
-          ? {
-              rateLimitPerMinute: headerNumber(response, "x-ratelimit-limit"),
-              rateLimitRemaining: headerNumber(response, "x-ratelimit-remaining"),
-              rateLimitResetAt: headerNumber(response, "x-ratelimit-reset"),
-            }
-          : {}),
+        response: describe(data),
+        durationMs: Date.now() - startedAt,
       });
-
-      if (willRetry) {
-        // eslint-disable-next-line no-await-in-loop
-        await sleep(retryAfter ?? backoffMs(attempt));
-        continue;
-      }
-
-      throw new NvsApiError(envelope, response.status);
+      return data;
     }
+
+    let envelope: NvsErrorEnvelope;
+    try {
+      envelope = (await response.json()) as NvsErrorEnvelope;
+    } catch {
+      envelope = { code: "internal", message: `HTTP ${response.status}` };
+    }
+
+    const rateLimited = envelope.code === "resource_exhausted";
+    const detail = paymentErrorDetail(envelope.details);
+    log.error("nvs_rpc_error", {
+      procedure,
+      status: response.status,
+      code: envelope.code,
+      message: envelope.message,
+      request: describe(body),
+      response: describe(envelope),
+      reason: detail?.reason,
+      category: detail?.category,
+      durationMs: Date.now() - startedAt,
+      ...(rateLimited
+        ? {
+            retryAfter: response.headers.get("retry-after") ?? undefined,
+            rateLimitPerMinute: headerNumber(response, "x-ratelimit-limit"),
+            rateLimitRemaining: headerNumber(response, "x-ratelimit-remaining"),
+            rateLimitResetAt: headerNumber(response, "x-ratelimit-reset"),
+          }
+        : {}),
+    });
+
+    throw new NvsApiError(envelope, response.status);
   };
 }

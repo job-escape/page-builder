@@ -26,7 +26,7 @@ const context = (): RequestContext => ({
 });
 
 const handler = (doFetch: typeof fetch) =>
-  emailSubmitHandlers({ baseUrl: HUB, apiKey: "key", projectId: "p1", fetch: doFetch, sleep: async () => {} })[
+  emailSubmitHandlers({ baseUrl: HUB, apiKey: "key", projectId: "p1", fetch: doFetch })[
     EMAIL_SUBMIT_ACTION
   ]!;
 
