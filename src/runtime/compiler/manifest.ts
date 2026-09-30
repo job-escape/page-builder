@@ -322,8 +322,8 @@ function variablesInActions(actions: SourceAction[], into: Set<string>): void {
       Object.values(action.values ?? {}).forEach((value) => namesInValue(value, into, new Set()));
     }
     if (action.type === "email_submit") {
-      // Reads the address, and writes `email` and `userId` for what follows.
-      namesInValue(action.email ?? { var: "email" }, into, new Set());
+      // Reads its argument, and writes `email` and `userId` for what follows.
+      if (action.email) namesInValue(action.email, into, new Set());
       into.add("email");
       into.add("userId");
       variablesInActions(action.onSuccess ?? [], into);

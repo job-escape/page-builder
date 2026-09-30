@@ -28,16 +28,17 @@ function context(req: ActionContext["req"]) {
 
 const step = {
   type: "email_submit" as const,
+  email: { var: "typed" },
   onSuccess: [{ type: "set" as const, variable: "after", value: "success" }],
   onError: [{ type: "set" as const, variable: "after", value: "error" }],
   errorInto: "problem",
 };
 
 describe("email_submit", () => {
-  it("sends the address, and writes email and the account's userId", async () => {
+  it("checks its argument, then writes email, asks for the account, and writes userId", async () => {
     const req = jest.fn(async () => ({ userId: "u-1", created: false }));
     const { state, ctx } = context(req as never);
-    state.set("email", " ana@example.com ");
+    state.set("typed", " ana@example.com ");
 
     await run([step], ctx);
 
@@ -48,23 +49,37 @@ describe("email_submit", () => {
     expect(state.get("$req.email_submit.status")).toBe("success");
   });
 
-  it("reads the address from where the step says, and writes it into email", async () => {
-    const req = jest.fn(async () => ({ userId: "u-2" }));
+  it("sends nothing for what is not an address, and leaves the system email alone", async () => {
+    const req = jest.fn();
     const { state, ctx } = context(req as never);
-    state.set("typed", "bo@example.com");
+    state.set("email", "kept@example.com");
+    state.set("typed", "ana@");
 
-    await run([{ ...step, email: { var: "typed" } }], ctx);
+    await run([step], ctx);
 
-    expect(req).toHaveBeenCalledWith(EMAIL_SUBMIT_REQUEST, { email: "bo@example.com" });
-    expect(state.get("email")).toBe("bo@example.com");
+    expect(req).not.toHaveBeenCalled();
+    expect(state.get("email")).toBe("kept@example.com");
+    expect(state.get("after")).toBe("error");
+    expect(state.get("problem")).toBe("A valid email is required.");
   });
 
-  it("keeps the address and runs onError when the account cannot be had", async () => {
+  it("sends nothing without an argument", async () => {
+    const req = jest.fn();
+    const { state, ctx } = context(req as never);
+    state.set("email", "ana@example.com");
+
+    await run([{ ...step, email: undefined } as never], ctx);
+
+    expect(req).not.toHaveBeenCalled();
+    expect(state.get("after")).toBe("error");
+  });
+
+  it("keeps a valid address and runs onError when the account cannot be had", async () => {
     const req = jest.fn(async () => {
       throw new Error("platform unavailable");
     });
     const { state, ctx } = context(req as never);
-    state.set("email", "ana@example.com");
+    state.set("typed", "ana@example.com");
 
     await run([step], ctx);
 
@@ -72,16 +87,6 @@ describe("email_submit", () => {
     expect(state.get("userId")).toBeNull();
     expect(state.get("after")).toBe("error");
     expect(state.get("problem")).toBe("platform unavailable");
-  });
-
-  it("sends nothing for a blank address, and runs onError", async () => {
-    const req = jest.fn();
-    const { state, ctx } = context(req as never);
-
-    await run([step], ctx);
-
-    expect(req).not.toHaveBeenCalled();
-    expect(state.get("after")).toBe("error");
   });
 });
 
@@ -101,7 +106,7 @@ describe("the manifest", () => {
               parent: null,
               kind: "frame",
               pos: "a0",
-              interactions: [{ on: { event: "click" }, do: [{ type: "email_submit", onSuccess: [{ type: "show", target: "s_name" }] }] }],
+              interactions: [{ on: { event: "click" }, do: [{ type: "email_submit", email: { var: "typed" }, onSuccess: [{ type: "show", target: "s_name" }] }] }],
             },
           ],
         },

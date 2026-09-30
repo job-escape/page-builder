@@ -258,21 +258,24 @@ export type SourceAction =
   /**
    * The email step: who the visitor is, from the address they typed.
    *
-   * Writes the address into the system variable `email`, asks the funnel's own
-   * server for the visitor's account (`email.submit` — `GetOrCreateUser` on
-   * the payments platform), and writes the account's id into `userId`. Then
-   * `onSuccess`, or `onError` with the message in `errorInto`. Both variables
-   * are the console's system variables, declared by publish in every design.
+   * `email` is the step's argument: where the typed address is read from —
+   * the email field's own variable. What was typed is not yet an email, so it
+   * is checked first; only a valid address is written into the system
+   * variable `email` and sent to the funnel's server for the visitor's
+   * account (`email.submit` — `GetOrCreateUser` on the payments platform),
+   * whose id is written into `userId`. Then `onSuccess`, or `onError` with
+   * the message in `errorInto` — for an invalid address too, with nothing
+   * sent and `email` left as it was. Both variables are the console's system
+   * variables, declared by publish in every design.
    *
-   * `email` is where the address is read from — the field's own variable
-   * usually, which is `email` itself. `$req.email_submit.status` is `pending`
-   * while it runs. Its own step rather than a `submit`: nothing about it is
-   * configured per design, so there is nothing for a designer to get wrong.
+   * `$req.email_submit.status` is `pending` while it runs. Its own step rather
+   * than a `submit`: the request, what it sends and where the id goes are
+   * fixed, so there is nothing for a designer to wire wrong.
    * Tree only: the JavaScript emitter leaves it out.
    */
   | {
       type: "email_submit";
-      email?: SourceValue;
+      email: SourceValue;
       onSuccess?: SourceAction[];
       onError?: SourceAction[];
       errorInto?: string;

@@ -13,6 +13,8 @@
  * in the expensive sense either — the vocabulary is eleven conditions and a
  * handful of actions, closed, so this is a switch, not a language.
  */
+import { z } from "zod";
+
 import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
 import { pathGet } from "./data";
 import { call, check, compare } from "./functions";
@@ -411,27 +413,36 @@ export const EMAIL_SUBMIT_REQUEST = "email.submit";
 const EMAIL_SUBMIT_ID = "email_submit";
 
 /**
+ * What counts as an email address — the one check the step and the server
+ * both make (`requests/email-submit`). zod's, so the rule is a maintained one
+ * rather than a hand-written pattern.
+ */
+const EMAIL = z.email();
+
+/**
  * The email step — see `SourceAction`'s `email_submit`.
  *
- * The address is written to `email` first, so the rest of the funnel has it
- * even when the account cannot be found or made; then the account's id goes to
- * `userId`. A blank address is a failure the visitor caused, not a request:
- * `onError` runs with nothing sent.
+ * The argument is what the visitor typed, which is not an address until it
+ * has been checked: an invalid one runs `onError` with nothing sent and the
+ * system `email` untouched. A valid one is written to `email` before asking,
+ * so the rest of the funnel has it even when the account cannot be found or
+ * made; then the account's id goes to `userId`.
  */
 async function submitEmail(
   action: Extract<SourceAction, { type: "email_submit" }>,
   ctx: ActionContext,
 ): Promise<boolean> {
-  const typed = valueOf(action.email ?? { var: "email" }, ctx.state);
-  const email = typeof typed === "string" ? typed.trim() : "";
-  if (email) ctx.state.set("email", email);
-
   const fail = async (message: string): Promise<boolean> => {
     ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "error", message);
     if (action.errorInto) ctx.state.set(action.errorInto, message);
     return run(action.onError ?? [], ctx);
   };
-  if (!email) return fail("A valid email is required.");
+
+  const typed = action.email ? valueOf(action.email, ctx.state) : null;
+  const checked = EMAIL.safeParse(typeof typed === "string" ? typed.trim() : typed);
+  if (!checked.success) return fail("A valid email is required.");
+  const email = checked.data;
+  ctx.state.set("email", email);
 
   try {
     ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "pending");

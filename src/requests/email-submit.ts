@@ -13,6 +13,8 @@
  *
  * Server-only: the platform key never leaves the host.
  */
+import { z } from "zod";
+
 import { ActionError, silentLog, text, type ActionHandlers, type Log } from "./contract";
 import { createNvsClient, type NvsConfig } from "./nvs/client";
 import { readAnalyticsId, type GetOrCreateUserResponse } from "./nvs/actions";
@@ -20,16 +22,20 @@ import { toActionError } from "./nvs/errors";
 
 export const EMAIL_SUBMIT_ACTION = "email.submit";
 
+/** The same check the step makes before it asks (`runtime/interpret`), made again here. */
+const EMAIL = z.email();
+
 /** Handlers answering `email.submit`, to spread into a host's request route. */
 export function emailSubmitHandlers(config: NvsConfig, log: Log = config.log ?? silentLog): ActionHandlers {
   const rpc = createNvsClient({ ...config, log });
 
   return {
     [EMAIL_SUBMIT_ACTION]: async (payload) => {
-      const email = text(payload, "email");
-      if (!email || !email.includes("@")) {
+      const checked = EMAIL.safeParse(text(payload, "email"));
+      if (!checked.success) {
         throw new ActionError(400, { error: "invalid_argument", message: "A valid email is required." });
       }
+      const email = checked.data;
       try {
         const result = await rpc<GetOrCreateUserResponse>("/auth.v1.ServiceAccountService/GetOrCreateUser", {
           email,

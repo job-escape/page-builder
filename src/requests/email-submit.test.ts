@@ -41,11 +41,14 @@ describe("email.submit", () => {
     expect(answer).toEqual({ userId: USER_ID, created: true, analyticsId: "4242" });
   });
 
-  it("refuses an address that is not one, without asking the platform", async () => {
-    const { calls, doFetch } = platform({ body: {} });
-    await expect(handler(doFetch)({ email: "not-an-email" }, context())).rejects.toBeInstanceOf(ActionError);
-    expect(calls).toEqual([]);
-  });
+  it.each(["not-an-email", "ana@", "@example.com", "ana@example"])(
+    "refuses %s, without asking the platform",
+    async (email) => {
+      const { calls, doFetch } = platform({ body: {} });
+      await expect(handler(doFetch)({ email }, context())).rejects.toBeInstanceOf(ActionError);
+      expect(calls).toEqual([]);
+    },
+  );
 
   it("answers a platform refusal as an ActionError with the platform's status", async () => {
     const { doFetch } = platform({ status: 400, body: { code: "invalid_argument", message: "bad email" } });
