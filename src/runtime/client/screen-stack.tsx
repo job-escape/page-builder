@@ -4,6 +4,8 @@
  */
 import type { ReactNode } from "react";
 
+import { useBeforePaint } from "../funnel-core";
+
 import type { ScreenPresentation } from "../compiler/manifest";
 import type { NavigationState } from "../navigation";
 import { Activity } from "./activity";
@@ -62,6 +64,7 @@ export function ScreenStack({
                 direction={current ? navState.direction : "forward"}
               >
                 {Module ? <Module {...services} /> : null}
+                {current ? <Restore state={services.state} /> : null}
               </ScreenHost>
             </Screens>
           );
@@ -75,6 +78,7 @@ export function ScreenStack({
           direction={navState.direction}
         >
           {Current ? <Current {...services} /> : null}
+          <Restore state={services.state} />
         </ScreenHost>
       )}
       {navState.overlays.map((overlay) => {
@@ -88,4 +92,21 @@ export function ScreenStack({
       })}
     </>
   );
+}
+
+/**
+ * Reads what the visitor saved, once the screen it sits in has hydrated.
+ *
+ * Inside the screen rather than in `<Funnel>` because React hydrates an
+ * `<Activity>` after the funnel around it has committed: a restore run by the
+ * funnel would reach the screen first, and the screen would hydrate with
+ * answers the server — which cannot read the cookie — never drew. Here, the
+ * screen has matched the server's HTML before the answers arrive. Before
+ * paint, so a funnel drawn only in the browser never shows its defaults.
+ */
+function Restore({ state }: { state: ScreenProps["state"] }): null {
+  useBeforePaint(() => {
+    state.restore();
+  }, [state]);
+  return null;
 }

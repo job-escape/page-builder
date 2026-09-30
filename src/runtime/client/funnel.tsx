@@ -246,6 +246,8 @@ export function Funnel({
     device,
     start: startScreen,
     onScreen,
+    // From inside the screen, once it has hydrated — see `ScreenStack`.
+    restoreOnMount: false,
   });
   useDismissOnEscape(navigator);
 

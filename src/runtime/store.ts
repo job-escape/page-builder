@@ -133,6 +133,8 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   // the visitor last came back gets its default rather than being absent.
   const restored = persist && !deferred ? persistence.read(table, persist) : null;
   let values: Record<string, VariableValue> = { ...initialState(table), ...(restored ?? {}) };
+  /** What the store started from, so a deferred restore can tell what has been set since. */
+  const started = values;
   /**
    * The visitor facts: the host's, filled in from what was saved for any it
    * cannot answer this time — see `mergeFacts`. Saved with the answers, so a
@@ -164,7 +166,9 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   };
 
   const flush = () => {
-    if (persist) persistence.write(table, values, persist, facts);
+    // Nothing is written while what was saved is still unread: a write now
+    // would replace the saved answers with defaults before they are restored.
+    if (persist && !deferred) persistence.write(table, values, persist, facts);
   };
 
   /**
@@ -173,15 +177,23 @@ export function createFunnelStore(options: FunnelStoreOptions) {
    * is answered. The saved answers go under the defaults' place, not over
    * anything answered since, which nothing can have been before this runs.
    */
+  let restoredOnce = false;
   function restore(): void {
-    if (!persist) return;
+    // Once per store: a host may ask on every screen it draws.
+    if (!persist || restoredOnce) return;
+    restoredOnce = true;
     if (deferred) {
       deferred = false;
-      const saved = persistence.read(table, persist);
+      const saved = persistence.read(table, persist) ?? {};
       facts = persistence.mergeFacts(persistence.readFacts(persist), visitor);
-      // A new object either way, so a render that compares snapshots sees the
-      // restored facts even when there were no answers to restore.
-      values = { ...values, ...(saved ?? {}) };
+      // Only into what is still as it started: an opening step that already
+      // set something keeps what it set. A new object either way, so a render
+      // that compares snapshots sees the restored facts even with no answers.
+      const next = { ...values };
+      Object.entries(saved).forEach(([name, value]) => {
+        if (same(values[name], started[name])) next[name] = value;
+      });
+      values = next;
     }
     flush();
     notify();

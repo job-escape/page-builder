@@ -261,6 +261,14 @@ export type FunnelCoreOptions<Ui, Component> = {
    * for an overlay, which is drawn over a screen rather than being one.
    */
   onScreen?: (screen: string) => void;
+  /**
+   * Read what was saved as soon as the funnel has mounted (before paint).
+   * `false` leaves it to the renderer, which calls `state.restore()` itself —
+   * the web does, from inside the screen it draws, because a screen inside
+   * `<Activity>` hydrates after the funnel around it has committed, and
+   * restoring before then would hydrate it with answers the server never drew.
+   */
+  restoreOnMount?: boolean;
 };
 
 /**
@@ -286,6 +294,7 @@ export function useFunnelRuntime<Ui, Component>({
   timerStorage,
   start,
   onScreen,
+  restoreOnMount = true,
 }: FunnelCoreOptions<Ui, Component>) {
   const table: VariableTable = useMemo(
     () => Object.fromEntries(manifest.variables.map((decl) => [decl.name, decl])),
@@ -348,8 +357,8 @@ export function useFunnelRuntime<Ui, Component>({
     steps and the timers, which run in plain effects and read what it restores.
   */
   useBeforePaint(() => {
-    store.restore();
-  }, [store]);
+    if (restoreOnMount) store.restore();
+  }, [store, restoreOnMount]);
 
   /*
     A running timer redraws what reads it — once per displayed second, never per

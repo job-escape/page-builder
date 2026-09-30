@@ -24,12 +24,23 @@ const source: SourceFunnel = {
   variables: [
     { name: "goal", type: "string", default: "none" },
     { name: "email", type: "string", sensitive: true },
+    { name: "opened", type: "boolean", default: false },
   ],
   screens: [
     {
       id: "s_goal",
       frames: [
-        { id: "s_goal", parent: null, kind: "frame", pos: "a0" },
+        {
+          id: "s_goal",
+          parent: null,
+          kind: "frame",
+          pos: "a0",
+          // An opening step that writes, as real funnels have: it runs before a
+          // prerendered screen hydrates, and must not wipe what was saved.
+          interactions: [
+            { on: { event: "load" }, do: [{ type: "set", variable: "opened", value: true }] },
+          ],
+        },
         {
           id: "pick",
           parent: "s_goal",
@@ -108,6 +119,16 @@ describe("saving without being told where", () => {
     expect(screen.getByText("goal: muscle")).toBeInTheDocument();
   });
 
+  it("brings them back when the screens are prerendered too", async () => {
+    mount({ prerender: 2 });
+    fireEvent.click(screen.getByTestId("pick"));
+    cleanup();
+
+    mount({ prerender: 2 });
+    await act(async () => {});
+    expect(screen.getByText("goal: muscle")).toBeInTheDocument();
+  });
+
   it("still never saves what is marked sensitive", () => {
     mount();
     fireEvent.click(screen.getByTestId("pick"));
@@ -175,5 +196,39 @@ describe("a server render", () => {
       <Funnel manifest={compiled.manifest} screens={screens} locale={source.locales!.en} />,
     );
     expect(html).toContain("goal: none");
+  });
+});
+
+describe("hydrating a server render", () => {
+  it("matches the server, then shows what was saved — an opening step and prerendering included", async () => {
+    mount({ prerender: 2 });
+    fireEvent.click(screen.getByTestId("pick"));
+    cleanup();
+
+    Object.assign(globalThis, { TextEncoder });
+    const { renderToString } = require("react-dom/server") as typeof import("react-dom/server");
+    const { hydrateRoot } = require("react-dom/client") as typeof import("react-dom/client");
+    const funnel = (
+      <Funnel manifest={compiled.manifest} screens={screens} locale={source.locales!.en} prerender={2} />
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(funnel);
+    document.body.appendChild(container);
+    expect(container.textContent).toContain("goal: none");
+
+    const errors = jest.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await act(async () => {
+        hydrateRoot(container, funnel);
+      });
+      await act(async () => {});
+      expect(container.textContent).toContain("goal: muscle");
+      expect(saved().a).toMatchObject({ goal: "muscle", opened: true });
+      const mismatches = errors.mock.calls.filter((call) => String(call[0]).includes("hydrat"));
+      expect(mismatches).toEqual([]);
+    } finally {
+      errors.mockRestore();
+      container.remove();
+    }
   });
 });
