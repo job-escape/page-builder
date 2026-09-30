@@ -73,6 +73,12 @@ export type FunnelManifest = {
    */
   enter?: Record<string, SourceAction[]>;
   /**
+   * Where each screen can lead, by screen id — `ScreenIndex.next`, forwarded by
+   * the host. What `prerender` draws ahead of the visitor. Absent means nothing
+   * is prerendered, which is every host written before this existed.
+   */
+  next?: Record<string, string[]>;
+  /**
    * The design's palette, aliases already followed, by mode then dotted path.
    *
    * Resolved by publish rather than here: chasing `{blue.600}` on a device

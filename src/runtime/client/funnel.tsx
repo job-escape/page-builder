@@ -15,6 +15,7 @@
  * no context gymnastics: an option re-renders because the value it compares
  * itself against changed.
  */
+import * as React from "react";
 import {
   createContext,
   useCallback,
@@ -22,6 +23,7 @@ import {
   useEffect,
   useMemo,
   useSyncExternalStore,
+  type ComponentType,
   type ReactNode,
 } from "react";
 
@@ -35,6 +37,7 @@ import {
   type FunnelNav,
   type FunnelServices,
 } from "../funnel-core";
+import { useLoadedScreens, type LoadScreen } from "../screen-loader";
 import { webTimerStorage, type TimerStorage } from "../timers";
 import { configureRequests, request } from "../request";
 import { showPresentation } from "../interpret";
@@ -53,6 +56,18 @@ export type { FunnelManifest, FunnelNav };
 export type ScreenProps = FunnelServices<Ui, (props: never) => ReactNode>;
 export type ScreenModule = (props: ScreenProps) => ReactNode;
 
+/**
+ * React's `<Activity>`, where the installed React has one (19.2 and later).
+ *
+ * Read off the namespace rather than imported by name, because the package
+ * still accepts React 18, where the name does not exist and a named import
+ * would fail to link. Without it, `prerender` does nothing and the funnel draws
+ * exactly what it drew before.
+ */
+const Activity = (React as unknown as Record<string, unknown>)["Activity"] as
+  | ComponentType<{ mode: "visible" | "hidden"; children?: ReactNode }>
+  | undefined;
+
 export type FunnelProps = {
   /**
    * An answer changed — where a host records what a visitor picked.
@@ -66,6 +81,30 @@ export type FunnelProps = {
   onAnswer?: (name: string, value: import("../types").VariableValue) => void;
   manifest: FunnelManifest;
   screens: Record<string, ScreenModule>;
+  /**
+   * Fetch a screen that is not in `screens` — see `runtime/screen-loader`.
+   *
+   * Asked for the screen the visitor arrives on, an overlay opened over it,
+   * and the screens `prerender` draws ahead. With it, every screen the
+   * manifest lists counts as known, so a `show` to one not fetched yet goes
+   * there and draws it when it arrives rather than being refused as unknown.
+   */
+  loadScreen?: LoadScreen<ScreenModule>;
+  /**
+   * How many of the screens the current one leads to (`manifest.next`) to draw
+   * ahead of the visitor, hidden, so that arriving on one reveals a screen
+   * already built — its pictures requested, its layout done.
+   *
+   * Drawn inside React's `<Activity mode="hidden">`, which holds back every
+   * effect until the screen is shown: a frame's `load` steps and a slot's own
+   * effects run on arrival, exactly when they run without prerendering. What a
+   * component does while *rendering* is not held back — see the slots a
+   * screen carries before turning this on for it.
+   *
+   * `0`, the default, draws only the current screen, as before. Needs React
+   * 19.2 or later; on an older React only the loading ahead happens.
+   */
+  prerender?: number;
   components?: Record<string, (props: never) => ReactNode>;
   /**
    * The copy table the artifact carries, by key.
@@ -202,6 +241,8 @@ export function Funnel({
   mode,
   variant,
   screens,
+  loadScreen,
+  prerender = 0,
   components = {},
   locale = {},
   fallbackLocale,
@@ -213,7 +254,19 @@ export function Funnel({
   device: fixedDevice,
   deviceHint,
 }: FunnelProps) {
-  const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
+  /*
+    From what the host handed over and, when it can fetch the rest, from the
+    manifest — never from what has loaded so far. The navigator is rebuilt when
+    this set changes, and a rebuilt navigator starts at the entry: a set that
+    grew with every fetched screen would send the visitor back to the start each
+    time one arrived.
+  */
+  const lazy = Boolean(loadScreen);
+  const known = useMemo(
+    () =>
+      new Set([...Object.keys(screens), ...(lazy ? Object.keys(manifest.screens ?? {}) : [])]),
+    [screens, lazy, manifest.screens],
+  );
   // Subscribed even when fixed, so the hook order never depends on a prop.
   const windowDevice = useWindowDevice(deviceHint);
   const device = fixedDevice ?? windowDevice;
@@ -244,7 +297,27 @@ export function Funnel({
   }, []);
   useDismissOnBack(onEscape, navigator);
 
-  const Screen = screens[navState.screen];
+  /*
+    The screens drawn ahead: the first `prerender` the current one leads to, in
+    the manifest's order. A tap that goes anywhere else builds that screen on
+    arrival, as every screen was built before.
+  */
+  const ahead = useMemo(
+    () =>
+      prerender > 0
+        ? [...new Set(manifest.next?.[navState.screen] ?? [])]
+            .filter((id) => id !== navState.screen)
+            .slice(0, prerender)
+        : [],
+    [prerender, manifest.next, navState.screen],
+  );
+  const loaded = useLoadedScreens({
+    screens,
+    loadScreen,
+    wanted: [navState.screen, ...navState.overlays.map((overlay) => overlay.id), ...ahead],
+  });
+
+  const Screen = loaded[navState.screen];
   const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
 
   /**
@@ -362,13 +435,43 @@ export function Funnel({
     <FunnelContext.Provider value={services}>
     <TextLinkProvider value={follow}>
       {/* The screen's own surface. Overlays get their own, from `Overlay`. */}
-      {/* Keyed by the screen, so each arrival mounts a host that plays the
-          screen's entrance — see `ScreenHost`. */}
-      <ScreenHost key={navState.screen} presentation={presentation} direction={navState.direction}>
-        {Screen ? <Screen {...services} /> : null}
-      </ScreenHost>
+      {Activity && prerender > 0 ? (
+        /*
+          Every screen in its own `<Activity>`, keyed by the screen — the current
+          one visible, the ones ahead hidden. Arriving on a screen drawn ahead
+          flips the same element to visible rather than mounting a new one, and
+          an element going from `display: none` to shown starts its CSS
+          animation, so the entrance still plays. The screen being left is
+          dropped, as it always was.
+
+          Always this shape while prerendering, even with nothing ahead yet: a
+          current screen that moved from a bare host into an `<Activity>` when
+          the next one arrived would be a different element, remounted, with
+          its `load` steps run twice.
+        */
+        [navState.screen, ...ahead.filter((id) => loaded[id])].map((id) => {
+          const Module = loaded[id];
+          const current = id === navState.screen;
+          return (
+            <Activity key={id} mode={current ? "visible" : "hidden"}>
+              <ScreenHost
+                presentation={manifest.screens?.[id] ?? DEFAULT_PRESENTATION}
+                direction={current ? navState.direction : "forward"}
+              >
+                {Module ? <Module {...services} /> : null}
+              </ScreenHost>
+            </Activity>
+          );
+        })
+      ) : (
+        /* Keyed by the screen, so each arrival mounts a host that plays the
+           screen's entrance — see `ScreenHost`. */
+        <ScreenHost key={navState.screen} presentation={presentation} direction={navState.direction}>
+          {Screen ? <Screen {...services} /> : null}
+        </ScreenHost>
+      )}
       {navState.overlays.map((overlay) => {
-        const Frame = screens[overlay.id];
+        const Frame = loaded[overlay.id];
         if (!Frame) return null;
         return (
           <Overlay
