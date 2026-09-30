@@ -15,60 +15,36 @@
  * no context gymnastics: an option re-renders because the value it compares
  * itself against changed.
  */
-import * as React from "react";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useSyncExternalStore,
-  type ComponentType,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 
-import { resolveMode } from "../appearance";
-import { DESKTOP_MEDIA_QUERY, type Device } from "../device";
+import type { Device } from "../device";
 import {
-  useBeforePaint,
-  useDismissOnBack,
   useFunnelRuntime,
   type FunnelManifest,
   type FunnelNav,
   type FunnelServices,
 } from "../funnel-core";
-import { runtimeManifest, type AnyManifest } from "../published-manifest";
-import { useLoadedScreens, type LoadScreen } from "../screen-loader";
-import { webTimerStorage, type TimerStorage } from "../timers";
-import { configureRequests, request } from "../request";
 import { showPresentation } from "../interpret";
 import { TextLinkProvider } from "../link-context";
+import { runtimeManifest, type AnyManifest } from "../published-manifest";
+import { request } from "../request";
 import type { RichText, TextLink } from "../rich-text";
-import { tokenCustomProperties } from "../style/emit-css";
-import { paletteFromVariables, tokensForVariant } from "../style/tokens";
-import { chooseVariant, readVariant, writeVariant } from "../variant";
+import type { LoadScreen } from "../screen-loader";
+import { webTimerStorage, type TimerStorage } from "../timers";
 import { ui, type Ui } from "./bricks";
-import { Overlay } from "./overlay";
-import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
-import { screenFromTree } from "./tree-screen";
+import { FunnelContext } from "./funnel-context";
+import { useAppearance } from "./hooks/use-appearance";
+import { useDismissOnEscape } from "./hooks/use-dismiss-on-escape";
+import { useWindowDevice } from "./hooks/media";
+import { useScreenSource, useScreensAhead } from "./hooks/use-screens";
+import { ScreenStack } from "./screen-stack";
 
 export type { FunnelManifest, FunnelNav };
+export { useFunnel } from "./funnel-context";
 
 /** What a compiled screen module is handed. */
 export type ScreenProps = FunnelServices<Ui, (props: never) => ReactNode>;
 export type ScreenModule = (props: ScreenProps) => ReactNode;
-
-/**
- * React's `<Activity>`, where the installed React has one (19.2 and later).
- *
- * Read off the namespace rather than imported by name, because the package
- * still accepts React 18, where the name does not exist and a named import
- * would fail to link. Without it, `prerender` does nothing and the funnel draws
- * exactly what it drew before.
- */
-const Activity = (React as unknown as Record<string, unknown>)["Activity"] as
-  | ComponentType<{ mode: "visible" | "hidden"; children?: ReactNode }>
-  | undefined;
 
 export type FunnelProps = {
   /**
@@ -153,8 +129,14 @@ export type FunnelProps = {
    * before this existed. See `FunnelCoreOptions.fallbackLocale`.
    */
   fallbackLocale?: Record<string, RichText>;
-  /** Absent disables persistence — preview must not leave answers behind. */
-  persist?: { funnelId: string | number; version: string };
+  /**
+   * Absent disables persistence — preview must not leave answers behind.
+   *
+   * A host that renders on the server passes `saved`: the answers cookie
+   * (`cookieName(funnelId)`) as the request carried it, so the server draws the
+   * saved answers too and hydration matches. See `PersistenceOptions.saved`.
+   */
+  persist?: { funnelId: string | number; version: string; saved?: string | null };
   /**
    * Where timers keep their deadlines — see `runtime/timers`. Absent, a funnel
    * that persists keeps them in `localStorage` under its id; `null` keeps them
@@ -215,71 +197,6 @@ export type FunnelProps = {
   deviceHint?: Device;
 };
 
-const FunnelContext = createContext<ScreenProps | null>(null);
-
-/**
- * Which device this window is, as a value React can subscribe to.
- *
- * The same shape as `useSystemMode`: `matchMedia` in the browser, following the
- * window across the breakpoint; the server's guess where there is no window,
- * which is also the snapshot hydration compares against — so a correct guess
- * hydrates with nothing to change, and a wrong one is corrected before paint.
- */
-function useWindowDevice(hint: Device | undefined): Device {
-  return useSyncExternalStore(
-    (onChange) => {
-      if (typeof window === "undefined" || !window.matchMedia) return () => {};
-      const query = window.matchMedia(DESKTOP_MEDIA_QUERY);
-      query.addEventListener("change", onChange);
-      return () => query.removeEventListener("change", onChange);
-    },
-    () => {
-      if (typeof window === "undefined" || !window.matchMedia) return hint ?? "mobile";
-      return window.matchMedia(DESKTOP_MEDIA_QUERY).matches ? "desktop" : "mobile";
-    },
-    () => hint ?? "mobile",
-  );
-}
-
-/**
- * Whether this visitor's system is set to dark, as a value React can subscribe
- * to. `null` on a server render and anywhere `matchMedia` is missing, which is
- * the honest answer rather than a guess at light.
- */
-function useSystemMode(): "dark" | "light" | null {
-  return useSyncExternalStore(
-    (onChange) => {
-      if (typeof window === "undefined" || !window.matchMedia) return () => {};
-      const query = window.matchMedia("(prefers-color-scheme: dark)");
-      query.addEventListener("change", onChange);
-      return () => query.removeEventListener("change", onChange);
-    },
-    () => {
-      if (typeof window === "undefined" || !window.matchMedia) return null;
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    },
-    () => null,
-  );
-}
-
-/** For design components and nested pieces that need the same services. */
-export function useFunnel(): ScreenProps {
-  const value = useContext(FunnelContext);
-  if (!value) throw new Error("useFunnel must be used inside <Funnel>");
-  return value;
-}
-
-/**
- * A published screen, fetched and built. A failed fetch or a body that is not
- * a tree answers `null`, which the loader treats as "ask again next time".
- */
-async function fetchScreen(url: string): Promise<ScreenModule | null> {
-  const response = await fetch(url);
-  if (!response.ok) return null;
-  const tree = (await response.json()) as Parameters<typeof screenFromTree>[0];
-  return tree && Array.isArray(tree.roots) ? screenFromTree(tree) : null;
-}
-
 export function Funnel({
   manifest: given,
   mode,
@@ -301,42 +218,11 @@ export function Funnel({
   deviceHint,
 }: FunnelProps) {
   const manifest = useMemo(() => runtimeManifest(given), [given]);
-  /*
-    The host's loader, else the published trees. Kept stable across renders so
-    the set of known screens below is too.
-  */
-  const trees = manifest.trees;
-  const fromTrees = useMemo<LoadScreen<ScreenModule> | undefined>(
-    () =>
-      trees && Object.keys(trees).length
-        ? async (id) => (trees[id] ? fetchScreen(trees[id]!) : null)
-        : undefined,
-    [trees],
-  );
-  const load = loadScreen ?? fromTrees;
-  /*
-    From what the host handed over and, when it can fetch the rest, from the
-    manifest — never from what has loaded so far. The navigator is rebuilt when
-    this set changes, and a rebuilt navigator starts at the entry: a set that
-    grew with every fetched screen would send the visitor back to the start each
-    time one arrived.
-  */
-  /*
-    Keyed by the ids rather than by the objects, for the same reason: a host
-    writing `screens={{}}` hands over a new object every render, and a set
-    rebuilt from each one reset the visitor on every render.
-  */
-  const lazy = Boolean(load);
-  const knownIds = [
-    ...Object.keys(screens),
-    ...(lazy ? Object.keys(manifest.screens ?? {}) : []),
-  ]
-    .sort()
-    .join("\n");
-  const known = useMemo(() => new Set(knownIds.split("\n").filter(Boolean)), [knownIds]);
+  const { load, known } = useScreenSource({ manifest, screens, loadScreen });
   // Subscribed even when fixed, so the hook order never depends on a prop.
   const windowDevice = useWindowDevice(deviceHint);
   const device = fixedDevice ?? windowDevice;
+
   const { services, navState, navigator } = useFunnelRuntime<Ui, (props: never) => ReactNode>({
     manifest,
     known,
@@ -354,134 +240,16 @@ export function Funnel({
     start: startScreen,
     onScreen,
   });
+  useDismissOnEscape(navigator);
 
-  // Escape closes the top overlay rather than leaving the funnel — the same
-  // `navigator.close()` the hardware back button reaches on a phone.
-  const onEscape = useCallback((dismiss: () => void) => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dismiss();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  useDismissOnBack(onEscape, navigator);
-
-  /*
-    The screens drawn ahead: the first `prerender` the current one leads to, in
-    the manifest's order. A tap that goes anywhere else builds that screen on
-    arrival, as every screen was built before.
-  */
-  const ahead = useMemo(
-    () =>
-      prerender > 0
-        ? [...new Set(manifest.next?.[navState.screen] ?? [])]
-            .filter((id) => id !== navState.screen)
-            .slice(0, prerender)
-        : [],
-    [prerender, manifest.next, navState.screen],
-  );
-  const loaded = useLoadedScreens({
-    screens,
-    loadScreen: load,
-    wanted: [navState.screen, ...navState.overlays.map((overlay) => overlay.id), ...ahead],
+  const { ahead, loaded } = useScreensAhead({ manifest, navState, prerender, screens, load });
+  const paletteStyle = useAppearance({
+    manifest,
+    state: services.state,
+    mode,
+    variant,
+    funnelId: persist?.funnelId,
   });
-
-  const Screen = loaded[navState.screen];
-  const presentation = manifest.screens?.[navState.screen] ?? DEFAULT_PRESENTATION;
-
-  /**
-   * The palette, as custom properties the screens below can resolve.
-   *
-   * A design's props are still CSS — `background: var(--bg-brand-solid)` — so
-   * the browser needs these defined above them. `display: contents` because
-   * this element exists only to hold them: it must not become a box, or every
-   * funnel gains a wrapper that changes its layout.
-   *
-   * Nothing at all when the artifact carries no palette, so a funnel published
-   * before this renders through exactly the tree it rendered through before.
-   */
-  /**
-   * The brand this visitor sees, decided once and then held.
-   *
-   * Held in its own cookie rather than in the answers, because the answers are
-   * discarded whenever `Manifest.version` changes: republishing a headline
-   * would otherwise reassign everybody mid-funnel and poison any comparison
-   * between the brands.
-   */
-  const funnelId = persist?.funnelId;
-  /*
-    What the funnel's own variables ask of the palette. Read from the store's
-    snapshot, whose identity changes on every write, so a Set step that flips
-    `theme` repaints on the render it causes.
-  */
-  const values = services.state.snapshot();
-  const fromVariables = useMemo(
-    () => paletteFromVariables(manifest.variables, values),
-    [manifest.variables, values],
-  );
-  const activeVariant = useMemo(() => {
-    const themes = manifest.themes;
-    if (!themes) return undefined;
-    // A `?v=` a person typed beats the design; the design beats an assignment
-    // made before it said anything.
-    const asked = variant ?? (fromVariables.brand && themes[fromVariables.brand] ? fromVariables.brand : null);
-    return chooseVariant({
-      available: Object.keys(themes),
-      requested: asked,
-      stored: funnelId == null ? null : readVariant(funnelId),
-      fallback: manifest.defaultVariant,
-    });
-  }, [manifest.themes, manifest.defaultVariant, variant, funnelId, fromVariables.brand]);
-
-  useEffect(() => {
-    // Written after the choice rather than as part of it: an assignment is a
-    // side effect, and making it during render would write a cookie every time
-    // React re-rendered a screen.
-    if (funnelId != null && activeVariant) writeVariant(funnelId, activeVariant);
-  }, [funnelId, activeVariant]);
-
-  useEffect(() => {
-    /**
-     * The assignment travels with every backend call, and therefore with every
-     * event derived from one.
-     *
-     * Done here rather than left to the host, because "which brand was this
-     * visitor shown" is the one question a comparison between two brands cannot
-     * be answered without — and a host that forgets to stamp it produces data
-     * that looks complete and means nothing.
-     */
-    if (activeVariant) configureRequests({ context: { variant: activeVariant } });
-  }, [activeVariant]);
-
-  const systemMode = useSystemMode();
-  const paletteStyle = useMemo(() => {
-    const table = tokensForVariant(manifest.tokens, manifest.themes, activeVariant);
-    // The host's choice, then the artifact's default, then the visitor's own
-    // system preference — and only when the artifact actually declares a mode
-    // by that name, because most modes are called things like "Mode 1".
-    // The funnel's own `palette: "mode"` variable sits between the two: a host
-    // that forces a mode still wins, and a visitor who picked one beats the OS.
-    const designed = fromVariables.mode && table?.[fromVariables.mode] ? fromVariables.mode : undefined;
-    const preferred = mode ?? designed ?? (systemMode && table?.[systemMode] ? systemMode : undefined);
-    return tokenCustomProperties(table, preferred, manifest.defaultMode);
-  }, [manifest.tokens, manifest.themes, manifest.defaultMode, activeVariant, mode, systemMode, fromVariables.mode]);
-  const hasPalette = Object.keys(paletteStyle).length > 0;
-
-  /*
-    `$mode` and `$variant` for conditions — a picture that differs in dark is a
-    condition on these, since the palette can only switch colours. Before paint,
-    as `$device` is, so the first frame already shows the right branch.
-  */
-  const appearanceMode = resolveMode({
-    host: mode,
-    designed: fromVariables.mode,
-    system: systemMode,
-    fallback: manifest.defaultMode,
-  });
-  const appearanceVariant = activeVariant ?? null;
-  useBeforePaint(() => {
-    services.state.setAppearance({ mode: appearanceMode, variant: appearanceVariant });
-  }, [services.state, appearanceMode, appearanceVariant]);
 
   // `request` is re-exported through the services by the core; naming it here
   // keeps the import graph honest for anything reading this file alone.
@@ -502,61 +270,28 @@ export function Funnel({
 
   const body = (
     <FunnelContext.Provider value={services}>
-    <TextLinkProvider value={follow}>
-      {/* The screen's own surface. Overlays get their own, from `Overlay`. */}
-      {Activity && prerender > 0 ? (
-        /*
-          Every screen in its own `<Activity>`, keyed by the screen — the current
-          one visible, the ones ahead hidden. Arriving on a screen drawn ahead
-          flips the same element to visible rather than mounting a new one, and
-          an element going from `display: none` to shown starts its CSS
-          animation, so the entrance still plays. The screen being left is
-          dropped, as it always was.
-
-          Always this shape while prerendering, even with nothing ahead yet: a
-          current screen that moved from a bare host into an `<Activity>` when
-          the next one arrived would be a different element, remounted, with
-          its `load` steps run twice.
-        */
-        [navState.screen, ...ahead.filter((id) => loaded[id])].map((id) => {
-          const Module = loaded[id];
-          const current = id === navState.screen;
-          return (
-            <Activity key={id} mode={current ? "visible" : "hidden"}>
-              <ScreenHost
-                presentation={manifest.screens?.[id] ?? DEFAULT_PRESENTATION}
-                direction={current ? navState.direction : "forward"}
-              >
-                {Module ? <Module {...services} /> : null}
-              </ScreenHost>
-            </Activity>
-          );
-        })
-      ) : (
-        /* Keyed by the screen, so each arrival mounts a host that plays the
-           screen's entrance — see `ScreenHost`. */
-        <ScreenHost key={navState.screen} presentation={presentation} direction={navState.direction}>
-          {Screen ? <Screen {...services} /> : null}
-        </ScreenHost>
-      )}
-      {navState.overlays.map((overlay) => {
-        const Frame = loaded[overlay.id];
-        if (!Frame) return null;
-        return (
-          <Overlay
-            key={overlay.id}
-            presentation={overlay.presentation}
-            onDismiss={navigator.close}
-          >
-            <Frame {...services} />
-          </Overlay>
-        );
-      })}
-    </TextLinkProvider>
+      <TextLinkProvider value={follow}>
+        <ScreenStack
+          navState={navState}
+          loaded={loaded}
+          ahead={ahead}
+          prerender={prerender}
+          presentations={manifest.screens}
+          services={services}
+          onDismiss={navigator.close}
+        />
+      </TextLinkProvider>
     </FunnelContext.Provider>
   );
 
-  return hasPalette ? (
+  /*
+    The palette above the screens, as custom properties. `display: contents`
+    because this element exists only to hold them: it must not become a box, or
+    every funnel gains a wrapper that changes its layout. Nothing at all when
+    the artifact carries no palette, so a funnel published before this renders
+    through exactly the tree it rendered through before.
+  */
+  return Object.keys(paletteStyle).length > 0 ? (
     <div style={{ display: "contents", ...paletteStyle }}>{body}</div>
   ) : (
     body
