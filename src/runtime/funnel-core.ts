@@ -215,7 +215,7 @@ export type FunnelCoreOptions<Ui, Component> = {
   onUnknown?: (kind: "variable" | "target" | "key" | "param", name: string) => void;
   /**
    * An answer changed. Handed straight to the store — see `onChange` there for
-   * why analytics is the host's job and why a `sensitive` answer never arrives.
+   * why analytics is the host's job, and why a `sensitive` answer arrives too.
    */
   onAnswer?: (name: string, value: VariableValue) => void;
   /**

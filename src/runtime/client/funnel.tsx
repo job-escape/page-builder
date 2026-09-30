@@ -55,8 +55,9 @@ export type FunnelProps = {
    * Analytics is the app's, not the artifact's: a compiled funnel is a public
    * file, so event names and destinations do not belong in it. This reports
    * the change and nothing else, so every funnel already published is covered
-   * without being republished. A `sensitive` variable never arrives — see
-   * `onChange` in the store.
+   * without being republished. A `sensitive` variable arrives too — an email
+   * the host keeps for the account — so a host forwarding this to analytics
+   * filters there. See `onChange` in the store.
    */
   onAnswer?: (name: string, value: import("../types").VariableValue) => void;
   /**

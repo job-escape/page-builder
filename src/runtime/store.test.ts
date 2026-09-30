@@ -233,3 +233,12 @@ describe("$mode and $variant — the palette's answer, for a picture that is not
     expect(onUnknown).not.toHaveBeenCalled();
   });
 });
+
+describe("telling the host an answer changed", () => {
+  it("reports a sensitive answer too — the host keeps the email, so it has to hear it", () => {
+    const changes: Array<[string, unknown]> = [];
+    const s = createFunnelStore({ table, onChange: (name, value) => changes.push([name, value]) });
+    s.set("email", "ana@example.com");
+    expect(changes).toEqual([["email", "ana@example.com"]]);
+  });
+});

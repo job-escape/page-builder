@@ -86,10 +86,12 @@ export type FunnelStoreOptions = {
    * it — the app decides, and every funnel already published gets it without
    * being republished or edited.
    *
-   * **A `sensitive` variable never arrives here.** An email or a name is an
-   * answer the funnel collects and not one an event stream should carry, and a
-   * rule enforced in every host separately is a rule that holds in all of them
-   * but one. Filtered at the source instead.
+   * **A `sensitive` variable arrives too.** The host is the one that keeps an
+   * email for the visitor's account, and it cannot keep what it is never told;
+   * `sensitive` governs what the funnel itself writes to the answers cookie
+   * (see `persistence`), not what the host hears. A host that forwards these
+   * to analytics decides there what an event stream may carry. A screen's own
+   * state still never arrives — it is not something the visitor said.
    *
    * Called after the value has actually changed — writing the same answer twice
    * is not an event — and after persistence, so a listener that reads the store
@@ -255,8 +257,8 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   /** Report a change, unless the declaration says it is nobody else's business. */
   function reportChange(decl: VariableDecl, name: string): void {
     // A screen's own state is not something the visitor said — see
-    // `VariableDecl.screen` — so it is no more an event than an email is.
-    if (decl.sensitive || decl.screen) return;
+    // `VariableDecl.screen`. A sensitive answer is, and the host is told.
+    if (decl.screen) return;
     options.onChange?.(name, values[name] ?? null);
   }
 
