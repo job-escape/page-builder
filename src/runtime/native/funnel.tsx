@@ -95,7 +95,7 @@ export type NativeFunnelProps = {
    */
   fallbackLocale?: Record<string, RichText>;
   /** Absent disables persistence — preview must not leave answers behind. */
-  persist?: { funnelId: string | number; version: string };
+  persist?: { funnelId: string | number; version: string; saved?: string | null };
   /**
    * Where timers keep their deadlines — see `runtime/timers`. An app has no
    * `localStorage`, so it hands in its own (`AsyncStorage` fits the shape);

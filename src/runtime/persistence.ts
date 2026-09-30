@@ -58,6 +58,15 @@ export type StoredAnswers = {
 export type PersistenceOptions = {
   funnelId: string | number;
   version: string;
+  /**
+   * The answers cookie as the request carried it — `cookieName(funnelId)`,
+   * read by a host that renders on the server. Given, the first read uses it
+   * on the server and in the browser alike, so both draw the same answers and
+   * hydration matches; without it the server has no `document` to read and
+   * draws defaults while the browser draws what was saved. `null` is "the
+   * request had none". Writes still go to the cookie either way.
+   */
+  saved?: string | null;
   days?: number;
   /** Reported when a write is refused. Injected so this file stays pure-ish. */
   onOversize?: (bytes: number) => void;
@@ -163,11 +172,15 @@ export function deserialize(
   return restored;
 }
 
-/** Read persisted answers. Safe on the server, where `document` is absent. */
+/**
+ * Read persisted answers — from `saved` when the host passed what the request
+ * carried, else from the cookie. Safe on the server, where `document` is absent.
+ */
 export function read(
   table: VariableTable,
   options: PersistenceOptions,
 ): Record<string, VariableValue> | null {
+  if (options.saved !== undefined) return deserialize(table, options.saved ?? undefined, options.version);
   if (typeof document === "undefined") return null;
   return deserialize(table, Cookies.get(cookieName(options.funnelId)), options.version);
 }

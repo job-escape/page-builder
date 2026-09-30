@@ -5,7 +5,9 @@
  * cookie, so these run without a document and still cover every rule that
  * matters: sensitive exclusion, version keying, and shape validation.
  */
-import { MAX_BYTES, deserialize, serialize } from "./persistence";
+import Cookies from "js-cookie";
+
+import { MAX_BYTES, cookieName, deserialize, read, serialize } from "./persistence";
 import type { VariableTable } from "./types";
 
 const table: VariableTable = {
@@ -155,5 +157,25 @@ describe('keep: "always" survives a republish', () => {
     expect(serialize(odd, { email: "ana@example.com", step: 2 }, "v7")).toBe('{"v":"v7","a":{}}');
     const smuggled = JSON.stringify({ v: "v6", a: {}, k: { email: "ana@example.com", step: 2 } });
     expect(deserialize(odd, smuggled, "v7")).toBeNull();
+  });
+});
+
+describe("the cookie as the request carried it", () => {
+  afterEach(() => Cookies.remove(cookieName("f1")));
+
+  it("reads `saved` rather than the cookie, so a server draws the same answers", () => {
+    Cookies.set(cookieName("f1"), serialize(table, { ...state, goal: "lose_weight" }, "v1"));
+    const saved = serialize(table, state, "v1");
+    expect(read(table, { funnelId: "f1", version: "v1", saved })?.goal).toBe("build_muscle");
+  });
+
+  it("reads nothing when the request carried no cookie, whatever the browser has now", () => {
+    Cookies.set(cookieName("f1"), serialize(table, state, "v1"));
+    expect(read(table, { funnelId: "f1", version: "v1", saved: null })).toBeNull();
+  });
+
+  it("still reads the cookie when no `saved` is given", () => {
+    Cookies.set(cookieName("f1"), serialize(table, state, "v1"));
+    expect(read(table, { funnelId: "f1", version: "v1" })?.goal).toBe("build_muscle");
   });
 });

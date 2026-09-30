@@ -173,7 +173,7 @@ export type FunnelCoreOptions<Ui, Component> = {
    * artifact actually ships.
    */
   fallbackLocale?: Record<string, RichText>;
-  persist?: { funnelId: string | number; version: string };
+  persist?: { funnelId: string | number; version: string; saved?: string | null };
   /**
    * Where timers keep their deadlines — see `runtime/timers`. The web host
    * passes `localStorage`, an app its own storage. Absent, a timer still runs
