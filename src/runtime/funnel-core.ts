@@ -211,6 +211,24 @@ export type FunnelCoreOptions<Ui, Component> = {
    * leaves it absent, which is `mobile`.
    */
   device?: Device;
+  /**
+   * The screen to open on instead of `manifest.entry` — where a returning
+   * visitor was when they left, as the host saved it from `onScreen`.
+   *
+   * Read once, when the funnel mounts: a later change does not move a visitor
+   * who is already somewhere. A screen the funnel does not know — deleted by a
+   * republish, from another design — is reported as an unknown `target` and
+   * the funnel opens on its entry, which is where it would have opened anyway.
+   * The screen's opening steps run, as they do for any screen arrived on. There
+   * is no history behind it, so there is nothing to go back to.
+   */
+  start?: string;
+  /**
+   * The visitor arrived on another screen — the id to save, so a refresh can
+   * open there (`start`). Not called for the screen the funnel opened on, nor
+   * for an overlay, which is drawn over a screen rather than being one.
+   */
+  onScreen?: (screen: string) => void;
 };
 
 /**
@@ -234,6 +252,8 @@ export function useFunnelRuntime<Ui, Component>({
   visitor,
   device,
   timerStorage,
+  start,
+  onScreen,
 }: FunnelCoreOptions<Ui, Component>) {
   const table: VariableTable = useMemo(
     () => Object.fromEntries(manifest.variables.map((decl) => [decl.name, decl])),
@@ -327,10 +347,19 @@ export function useFunnelRuntime<Ui, Component>({
     store.setDevice(device ?? "mobile");
   }, [store, device]);
 
+  /*
+    Where to open, read once: the host's `start` when the funnel knows it, else
+    the entry. Through a ref, so a host that later passes something else does
+    not move a visitor who is already on their way.
+  */
+  const startAt = useRef(start);
+  const opensOn =
+    startAt.current && known.has(startAt.current) ? startAt.current : manifest.entry;
+
   const navigator = useMemo(
     () =>
       createNavigator({
-        entry: manifest.entry,
+        entry: opensOn,
         defaults: manifest.overlayDefaults,
         known,
         onUnknown: (target) => onUnknown?.("target", target),
@@ -344,10 +373,38 @@ export function useFunnelRuntime<Ui, Component>({
           store.forgetScreen(screen);
         },
       }),
-    [manifest.entry, manifest.overlayDefaults, known, onUnknown, store],
+    [opensOn, manifest.overlayDefaults, known, onUnknown, store],
   );
 
   const navState = useSyncExternalStore(navigator.subscribe, navigator.state, navigator.state);
+
+  // A saved screen this funnel does not have: said once, so the host can see
+  // how often a republish strands a returning visitor on the entry.
+  useEffect(() => {
+    const asked = startAt.current;
+    if (asked && !known.has(asked)) onUnknown?.("target", asked);
+    // Once, for the screen asked for at mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /*
+    Each screen arrived on, for the host to save. Not the one opened on — the
+    host already knows it, and saying it would be a write on every page load.
+    Compared with the last one reported, so a re-render, or an effect run twice
+    in development, is not a second arrival.
+  */
+  const reported = useRef<string | null>(null);
+  const onScreenRef = useRef(onScreen);
+  onScreenRef.current = onScreen;
+  useEffect(() => {
+    if (reported.current === null) {
+      reported.current = navState.screen;
+      return;
+    }
+    if (reported.current === navState.screen) return;
+    reported.current = navState.screen;
+    onScreenRef.current?.(navState.screen);
+  }, [navState.screen]);
   useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
 
   const t = useCallback(

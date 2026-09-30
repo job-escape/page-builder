@@ -66,6 +66,19 @@ export type NativeFunnelProps = {
   /** Which brand to show. The host owns the assignment on native. */
   variant?: string | null;
   screens: Record<string, NativeScreenModule>;
+  /**
+   * The screen to open on instead of the entry — where this visitor was when
+   * they left, as the host saved it from `onScreen`. Read once, at mount; a
+   * screen the funnel does not know is reported as an unknown `target` and
+   * the entry is opened instead. See `FunnelCoreOptions.start`.
+   */
+  startScreen?: string;
+  /**
+   * The visitor arrived on another screen — its id, for the host to save
+   * against the visitor so a refresh can reopen it through `startScreen`.
+   * Not called for the screen the funnel opened on, nor for overlays.
+   */
+  onScreen?: (screen: string) => void;
   components?: Record<string, Component>;
   /**
    * The copy table the artifact carries, by key.
@@ -128,6 +141,8 @@ export function Funnel({
   mode,
   variant,
   screens,
+  startScreen,
+  onScreen,
   components = {},
   locale = {},
   fallbackLocale,
@@ -153,6 +168,8 @@ export function Funnel({
     timerStorage,
     onUnknown,
     visitor,
+    start: startScreen,
+    onScreen,
   });
 
   const onBack = useCallback((dismiss: () => void) => {

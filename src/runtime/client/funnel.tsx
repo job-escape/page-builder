@@ -125,6 +125,19 @@ export type FunnelProps = {
    * 19.2 or later; on an older React only the loading ahead happens.
    */
   prerender?: number;
+  /**
+   * The screen to open on instead of the entry — where this visitor was when
+   * they left, as the host saved it from `onScreen`. Read once, at mount; a
+   * screen the funnel does not know is reported as an unknown `target` and
+   * the entry is opened instead. See `FunnelCoreOptions.start`.
+   */
+  startScreen?: string;
+  /**
+   * The visitor arrived on another screen — its id, for the host to save
+   * against the visitor so a refresh can reopen it through `startScreen`.
+   * Not called for the screen the funnel opened on, nor for overlays.
+   */
+  onScreen?: (screen: string) => void;
   components?: Record<string, (props: never) => ReactNode>;
   /**
    * The copy table the artifact carries, by key.
@@ -274,6 +287,8 @@ export function Funnel({
   screens,
   loadScreen,
   prerender = 0,
+  startScreen,
+  onScreen,
   components = {},
   locale = {},
   fallbackLocale,
@@ -336,6 +351,8 @@ export function Funnel({
     onAnswer,
     visitor,
     device,
+    start: startScreen,
+    onScreen,
   });
 
   // Escape closes the top overlay rather than leaving the funnel — the same
