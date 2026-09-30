@@ -56,6 +56,11 @@ export type FunnelNav = {
 
 export type FunnelManifest = {
   entry: string;
+  /**
+   * The published version — what saved answers are keyed by, so a republish
+   * starts them clean. From the manifest as published; see `persistenceFor`.
+   */
+  version?: string;
   variables: VariableDecl[];
   /** Per-frame presentation defaults for overlays. */
   overlayDefaults?: Record<string, Presentation>;
@@ -109,6 +114,32 @@ export type FunnelManifest = {
   /** Which brand to show when nothing else decides. */
   defaultVariant?: string;
 };
+
+/** Where a funnel keeps a visitor's answers and facts — see `runtime/persistence`. */
+export type PersistAs = { funnelId: string | number; version: string; saved?: string | null };
+
+/**
+ * What a host may say about saving: nothing, and the funnel saves on its own;
+ * `false`, and it saves nothing (a preview, a popup); or where, explicitly.
+ */
+export type PersistProp = false | PersistAs;
+
+/**
+ * Where to save, from what the host said and the manifest.
+ *
+ * Absent means save, under the entry screen's id — a UUID no other design
+ * shares — and the manifest's published version. A manifest without a version
+ * saves nothing: answers kept without one would be restored into whatever the
+ * funnel is republished as.
+ */
+export function persistenceFor(
+  persist: PersistProp | undefined,
+  manifest: Pick<FunnelManifest, "entry" | "version">,
+): PersistAs | undefined {
+  if (persist === false) return undefined;
+  if (persist) return persist;
+  return manifest.version ? { funnelId: manifest.entry, version: manifest.version } : undefined;
+}
 
 /**
  * Locale lookup, and the one lookup that is not words.
@@ -173,7 +204,8 @@ export type FunnelCoreOptions<Ui, Component> = {
    * artifact actually ships.
    */
   fallbackLocale?: Record<string, RichText>;
-  persist?: { funnelId: string | number; version: string; saved?: string | null };
+  /** Resolved by `persistenceFor`; absent saves nothing. */
+  persist?: PersistAs;
   /**
    * Where timers keep their deadlines — see `runtime/timers`. The web host
    * passes `localStorage`, an app its own storage. Absent, a timer still runs
@@ -301,10 +333,23 @@ export function useFunnelRuntime<Ui, Component>({
         onUnknown: (name) => onUnknown?.("variable", name),
         onChange: onAnswer,
         timers,
+        // Read after hydration, below: the first render has to be the one a
+        // server made, and a server has no cookie to read.
+        deferRestore: true,
       }),
     // A new store per funnel identity, not per render.
     [table, persistKey, visitor, onUnknown, onAnswer, timers],
   );
+
+  /*
+    What was saved, read once the first render has been committed and before
+    the browser paints it — so hydration matches the server, and a funnel drawn
+    only in the browser never shows its defaults at all. Before the opening
+    steps and the timers, which run in plain effects and read what it restores.
+  */
+  useBeforePaint(() => {
+    store.restore();
+  }, [store]);
 
   /*
     A running timer redraws what reads it — once per displayed second, never per

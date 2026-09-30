@@ -102,6 +102,16 @@ export type FunnelStoreOptions = {
    * nothing and a `timer` step starts nothing.
    */
   timers?: TimerBook;
+  /**
+   * Leave what was saved unread until `restore()` is called.
+   *
+   * For a renderer whose first render has to match one the server made
+   * without the cookie: both start from the declared defaults and the host's
+   * facts, and the saved answers and facts arrive with `restore()`, after
+   * hydration. Without it they are read when the store is made, as always.
+   * Ignored when `persist.saved` is given, which both sides can read.
+   */
+  deferRestore?: boolean;
 };
 
 export type FunnelStore = ReturnType<typeof createFunnelStore>;
@@ -116,11 +126,20 @@ function same(a: VariableValue | undefined, b: VariableValue | undefined): boole
 
 export function createFunnelStore(options: FunnelStoreOptions) {
   const { table, persist, onUnknown, visitor = {} } = options;
+  /** Whether what was saved is still to be read — see `deferRestore`. */
+  let deferred = Boolean(persist && options.deferRestore && persist.saved === undefined);
 
   // Restored answers layered over declared defaults, so a variable added since
   // the visitor last came back gets its default rather than being absent.
-  const restored = persist ? persistence.read(table, persist) : null;
+  const restored = persist && !deferred ? persistence.read(table, persist) : null;
   let values: Record<string, VariableValue> = { ...initialState(table), ...(restored ?? {}) };
+  /**
+   * The visitor facts: the host's, filled in from what was saved for any it
+   * cannot answer this time — see `mergeFacts`. Saved with the answers, so a
+   * campaign a visitor landed from is still known when they come back without it.
+   */
+  let facts: persistence.VisitorFacts =
+    persist && !deferred ? persistence.mergeFacts(persistence.readFacts(persist), visitor) : visitor;
 
   // Request status lives apart from answers on purpose: it must never be
   // persisted. A `pending` restored from a cookie would show a spinner for a
@@ -145,8 +164,28 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   };
 
   const flush = () => {
-    if (persist) persistence.write(table, values, persist);
+    if (persist) persistence.write(table, values, persist, facts);
   };
+
+  /**
+   * Read what was saved, if that was left for later (`deferRestore`), and save
+   * the facts known now — so a first visit's campaign is kept before anything
+   * is answered. The saved answers go under the defaults' place, not over
+   * anything answered since, which nothing can have been before this runs.
+   */
+  function restore(): void {
+    if (!persist) return;
+    if (deferred) {
+      deferred = false;
+      const saved = persistence.read(table, persist);
+      facts = persistence.mergeFacts(persistence.readFacts(persist), visitor);
+      // A new object either way, so a render that compares snapshots sees the
+      // restored facts even when there were no answers to restore.
+      values = { ...values, ...(saved ?? {}) };
+    }
+    flush();
+    notify();
+  }
 
   function get(name: string): VariableValue {
     if (name.startsWith(REQ)) return readRequest(name);
@@ -364,7 +403,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
    *   exists to prevent.
    */
   const visitorValue = (property: string): string | number | boolean | null => {
-    const held = visitor[property];
+    const held = facts[property];
     return held === undefined ? null : held;
   };
   const visitorIsSet = (property: string): boolean => {
@@ -402,6 +441,7 @@ export function createFunnelStore(options: FunnelStoreOptions) {
   }
 
   return {
+    restore,
     get,
     set,
     select,

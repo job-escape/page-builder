@@ -19,11 +19,13 @@ import { BackHandler, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import {
+  persistenceFor,
   useBeforePaint,
   useDismissOnBack,
   useFunnelRuntime,
   type FunnelManifest,
   type FunnelServices,
+  type PersistProp,
 } from "../funnel-core";
 import { resolveMode } from "../appearance";
 import { runtimeManifest, type AnyManifest } from "../published-manifest";
@@ -94,8 +96,11 @@ export type NativeFunnelProps = {
    * before this existed. See `FunnelCoreOptions.fallbackLocale`.
    */
   fallbackLocale?: Record<string, RichText>;
-  /** Absent disables persistence — preview must not leave answers behind. */
-  persist?: { funnelId: string | number; version: string; saved?: string | null };
+  /**
+   * Where answers and facts are saved. Absent, the funnel saves on its own —
+   * see the web `FunnelProps.persist`; `false` saves nothing.
+   */
+  persist?: PersistProp;
   /**
    * Where timers keep their deadlines — see `runtime/timers`. An app has no
    * `localStorage`, so it hands in its own (`AsyncStorage` fits the shape);
@@ -154,6 +159,7 @@ export function Funnel({
   dir,
 }: NativeFunnelProps) {
   const manifest = useMemo(() => runtimeManifest(given), [given]);
+  const saveAs = persistenceFor(persist, manifest);
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
   // No `device`: the app runs on phones only, so `$device` is always `mobile`
   // here and a design's desktop layer never applies. See `runtime/device`.
@@ -164,7 +170,7 @@ export function Funnel({
     components,
     locale,
     fallbackLocale,
-    persist,
+    persist: saveAs,
     timerStorage,
     onUnknown,
     visitor,

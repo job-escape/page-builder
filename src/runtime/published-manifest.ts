@@ -47,6 +47,7 @@ export function runtimeManifest(manifest: AnyManifest): FunnelManifest {
 
   return {
     entry: manifest.entry,
+    version: manifest.version,
     variables: manifest.variables,
     overlayDefaults: manifest.overlayDefaults,
     screens: map((screen) => screen.presentation),

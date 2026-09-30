@@ -19,8 +19,10 @@ import { useCallback, useMemo, type ReactNode } from "react";
 
 import type { Device } from "../device";
 import {
+  persistenceFor,
   useFunnelRuntime,
   type FunnelManifest,
+  type PersistProp,
   type FunnelNav,
   type FunnelServices,
 } from "../funnel-core";
@@ -130,13 +132,17 @@ export type FunnelProps = {
    */
   fallbackLocale?: Record<string, RichText>;
   /**
-   * Absent disables persistence — preview must not leave answers behind.
+   * Where the visitor's answers and facts are saved, so a refresh or a later
+   * visit picks up where they were — see `runtime/persistence`.
    *
-   * A host that renders on the server passes `saved`: the answers cookie
-   * (`cookieName(funnelId)`) as the request carried it, so the server draws the
-   * saved answers too and hydration matches. See `PersistenceOptions.saved`.
+   * Absent, the funnel saves on its own, under its entry screen's id and the
+   * manifest's published version: a republish starts the answers clean.
+   * `false` saves nothing — a preview, a popup, anything that must not leave
+   * answers behind for the next one. An object names the place explicitly;
+   * its `saved` is the cookie as the request carried it, for a host that
+   * wants the server to draw the saved answers too (see `PersistenceOptions`).
    */
-  persist?: { funnelId: string | number; version: string; saved?: string | null };
+  persist?: PersistProp;
   /**
    * Where timers keep their deadlines — see `runtime/timers`. Absent, a funnel
    * that persists keeps them in `localStorage` under its id; `null` keeps them
@@ -218,6 +224,7 @@ export function Funnel({
   deviceHint,
 }: FunnelProps) {
   const manifest = useMemo(() => runtimeManifest(given), [given]);
+  const saveAs = persistenceFor(persist, manifest);
   const { load, known } = useScreenSource({ manifest, screens, loadScreen });
   // Subscribed even when fixed, so the hook order never depends on a prop.
   const windowDevice = useWindowDevice(deviceHint);
@@ -230,9 +237,9 @@ export function Funnel({
     components,
     locale,
     fallbackLocale,
-    persist,
+    persist: saveAs,
     timerStorage:
-      timerStorage !== undefined ? timerStorage : persist ? webTimerStorage(persist.funnelId) : null,
+      timerStorage !== undefined ? timerStorage : saveAs ? webTimerStorage(saveAs.funnelId) : null,
     onUnknown,
     onAnswer,
     visitor,
@@ -248,7 +255,7 @@ export function Funnel({
     state: services.state,
     mode,
     variant,
-    funnelId: persist?.funnelId,
+    funnelId: saveAs?.funnelId,
   });
 
   // `request` is re-exported through the services by the core; naming it here
