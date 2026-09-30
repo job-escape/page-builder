@@ -32,6 +32,11 @@ export function useLoadedScreens<Module>({
   const [loaded, setLoaded] = useState<Record<string, Module>>({});
   /** Asked for and not yet answered — so a re-render does not ask twice. */
   const asking = useRef(new Set<string>());
+  /**
+   * Screens that failed, with what was wanted when they did. Asked again only
+   * once that changes — not every time some other screen arrives.
+   */
+  const failed = useRef(new Map<string, string>());
   /*
     Through a ref: hosts write the loader inline, which is a new function every
     render, and asking again on every render is what `asking` would then have
@@ -47,10 +52,16 @@ export function useLoadedScreens<Module>({
     if (!load) return;
     key.split("\n").forEach((id) => {
       if (!id || screens[id] || loaded[id] || asking.current.has(id)) return;
+      if (failed.current.get(id) === key) return;
       asking.current.add(id);
       const settle = (module: Module | null | undefined): void => {
         asking.current.delete(id);
-        if (module) setLoaded((held) => (held[id] ? held : { ...held, [id]: module }));
+        if (!module) {
+          failed.current.set(id, key);
+          return;
+        }
+        failed.current.delete(id);
+        setLoaded((held) => (held[id] ? held : { ...held, [id]: module }));
       };
       load(id).then(settle, () => settle(null));
     });

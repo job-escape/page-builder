@@ -52,6 +52,13 @@ export type ScreenIndex = {
   overlays: string[];
   presentation: ScreenPresentation;
   /**
+   * Where this screen's tree is published — a content-addressed address, so
+   * the copy there never changes. **Added by publish, not by this compiler**,
+   * like `tokens`: the compiler does not know where anything will be hosted.
+   * `<Funnel>` fetches it when the screen is needed; see `runtimeManifest`.
+   */
+  tree?: string;
+  /**
    * Every variable this screen reads.
    *
    * Derived here because the compiler can see it and a renderer cannot without

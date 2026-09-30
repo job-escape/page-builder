@@ -79,6 +79,12 @@ export type FunnelManifest = {
    */
   next?: Record<string, string[]>;
   /**
+   * Where each screen's tree is published, by screen id — `ScreenIndex.tree`.
+   * With it, `<Funnel>` fetches a screen it was not handed when the screen is
+   * needed. Absent means every screen comes from the host.
+   */
+  trees?: Record<string, string>;
+  /**
    * The design's palette, aliases already followed, by mode then dotted path.
    *
    * Resolved by publish rather than here: chasing `{blue.600}` on a device

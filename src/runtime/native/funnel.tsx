@@ -26,6 +26,7 @@ import {
   type FunnelServices,
 } from "../funnel-core";
 import { resolveMode } from "../appearance";
+import { runtimeManifest, type AnyManifest } from "../published-manifest";
 import type { TimerStorage } from "../timers";
 import { chooseMode, paletteFromVariables, tokensForVariant } from "../style/tokens";
 import { chooseVariant } from "../variant";
@@ -58,7 +59,8 @@ export function useFunnel(): NativeScreenProps {
 }
 
 export type NativeFunnelProps = {
-  manifest: FunnelManifest;
+  /** As published, or as a host reshaped it — see `runtime/published-manifest`. */
+  manifest: AnyManifest;
   /** Which token mode to paint. Defaults to the artifact's own. */
   mode?: string;
   /** Which brand to show. The host owns the assignment on native. */
@@ -122,7 +124,7 @@ export type NativeFunnelProps = {
 };
 
 export function Funnel({
-  manifest,
+  manifest: given,
   mode,
   variant,
   screens,
@@ -136,6 +138,7 @@ export function Funnel({
   visitor,
   dir,
 }: NativeFunnelProps) {
+  const manifest = useMemo(() => runtimeManifest(given), [given]);
   const known = useMemo(() => new Set(Object.keys(screens)), [screens]);
   // No `device`: the app runs on phones only, so `$device` is always `mobile`
   // here and a design's desktop layer never applies. See `runtime/device`.

@@ -37,6 +37,7 @@ import {
   type FunnelNav,
   type FunnelServices,
 } from "../funnel-core";
+import { runtimeManifest, type AnyManifest } from "../published-manifest";
 import { useLoadedScreens, type LoadScreen } from "../screen-loader";
 import { webTimerStorage, type TimerStorage } from "../timers";
 import { configureRequests, request } from "../request";
@@ -49,6 +50,7 @@ import { chooseVariant, readVariant, writeVariant } from "../variant";
 import { ui, type Ui } from "./bricks";
 import { Overlay } from "./overlay";
 import { DEFAULT_PRESENTATION, ScreenHost } from "./screen-host";
+import { screenFromTree } from "./tree-screen";
 
 export type { FunnelManifest, FunnelNav };
 
@@ -79,15 +81,33 @@ export type FunnelProps = {
    * `onChange` in the store.
    */
   onAnswer?: (name: string, value: import("../types").VariableValue) => void;
-  manifest: FunnelManifest;
+  /**
+   * The manifest as published — pass it whole, and the runtime reads what it
+   * needs from it (see `runtime/published-manifest`), so a field this package
+   * learns to use later needs no change in the host. The shape hosts used to
+   * reshape it into is still accepted.
+   *
+   * Read once per object: pass the same object on every render — the one the
+   * host fetched — not a copy made while rendering.
+   */
+  manifest: AnyManifest;
+  /**
+   * Screens the host already has. Any other screen the manifest publishes a
+   * tree for is fetched from there when it is needed, so a host with the
+   * published manifest can pass `{}` — or the entry, fetched on the server,
+   * for a first paint that does not wait.
+   */
   screens: Record<string, ScreenModule>;
   /**
-   * Fetch a screen that is not in `screens` — see `runtime/screen-loader`.
+   * Fetch a screen yourself instead — see `runtime/screen-loader`. For a host
+   * whose screens are not at the published addresses: a preview holding
+   * trees in memory, a test.
    *
    * Asked for the screen the visitor arrives on, an overlay opened over it,
-   * and the screens `prerender` draws ahead. With it, every screen the
-   * manifest lists counts as known, so a `show` to one not fetched yet goes
-   * there and draws it when it arrives rather than being refused as unknown.
+   * and the screens `prerender` draws ahead. With it, or with published trees,
+   * every screen the manifest lists counts as known, so a `show` to one not
+   * fetched yet goes there and draws it when it arrives rather than being
+   * refused as unknown.
    */
   loadScreen?: LoadScreen<ScreenModule>;
   /**
@@ -236,8 +256,19 @@ export function useFunnel(): ScreenProps {
   return value;
 }
 
+/**
+ * A published screen, fetched and built. A failed fetch or a body that is not
+ * a tree answers `null`, which the loader treats as "ask again next time".
+ */
+async function fetchScreen(url: string): Promise<ScreenModule | null> {
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const tree = (await response.json()) as Parameters<typeof screenFromTree>[0];
+  return tree && Array.isArray(tree.roots) ? screenFromTree(tree) : null;
+}
+
 export function Funnel({
-  manifest,
+  manifest: given,
   mode,
   variant,
   screens,
@@ -254,6 +285,20 @@ export function Funnel({
   device: fixedDevice,
   deviceHint,
 }: FunnelProps) {
+  const manifest = useMemo(() => runtimeManifest(given), [given]);
+  /*
+    The host's loader, else the published trees. Kept stable across renders so
+    the set of known screens below is too.
+  */
+  const trees = manifest.trees;
+  const fromTrees = useMemo<LoadScreen<ScreenModule> | undefined>(
+    () =>
+      trees && Object.keys(trees).length
+        ? async (id) => (trees[id] ? fetchScreen(trees[id]!) : null)
+        : undefined,
+    [trees],
+  );
+  const load = loadScreen ?? fromTrees;
   /*
     From what the host handed over and, when it can fetch the rest, from the
     manifest — never from what has loaded so far. The navigator is rebuilt when
@@ -261,12 +306,19 @@ export function Funnel({
     grew with every fetched screen would send the visitor back to the start each
     time one arrived.
   */
-  const lazy = Boolean(loadScreen);
-  const known = useMemo(
-    () =>
-      new Set([...Object.keys(screens), ...(lazy ? Object.keys(manifest.screens ?? {}) : [])]),
-    [screens, lazy, manifest.screens],
-  );
+  /*
+    Keyed by the ids rather than by the objects, for the same reason: a host
+    writing `screens={{}}` hands over a new object every render, and a set
+    rebuilt from each one reset the visitor on every render.
+  */
+  const lazy = Boolean(load);
+  const knownIds = [
+    ...Object.keys(screens),
+    ...(lazy ? Object.keys(manifest.screens ?? {}) : []),
+  ]
+    .sort()
+    .join("\n");
+  const known = useMemo(() => new Set(knownIds.split("\n").filter(Boolean)), [knownIds]);
   // Subscribed even when fixed, so the hook order never depends on a prop.
   const windowDevice = useWindowDevice(deviceHint);
   const device = fixedDevice ?? windowDevice;
@@ -313,7 +365,7 @@ export function Funnel({
   );
   const loaded = useLoadedScreens({
     screens,
-    loadScreen,
+    loadScreen: load,
     wanted: [navState.screen, ...navState.overlays.map((overlay) => overlay.id), ...ahead],
   });
 

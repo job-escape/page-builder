@@ -135,6 +135,13 @@ export type {
 export { buildManifest, presentationOf, readsOf } from "./runtime/compiler/manifest";
 
 /**
+ * The published manifest as `<Funnel>` reads it. `<Funnel>` calls this itself;
+ * exported for a host that wants the same reading on the server.
+ */
+export type { AnyManifest, PublishedManifest } from "./runtime/published-manifest";
+export { isPublishedManifest, runtimeManifest } from "./runtime/published-manifest";
+
+/**
  * The second emitter: the same compile, as data rather than as JavaScript.
  *
  * Additive on purpose. `compile` is unchanged and web keeps using it; this is
