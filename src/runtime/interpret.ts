@@ -13,10 +13,15 @@
  * in the expensive sense either — the vocabulary is eleven conditions and a
  * handful of actions, closed, so this is a switch, not a language.
  */
-import { z } from "zod";
 
 import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
 import { pathGet } from "./data";
+import {
+  EMAIL_SUBMIT_ACTION,
+  EmailAddress,
+  EmailSubmitFailure,
+  EmailSubmitResponse,
+} from "./email-submit";
 import { call, check, compare } from "./functions";
 import { openLink } from "./link";
 import { durationOf, ease, playFrames } from "./motion";
@@ -407,17 +412,10 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
  * with `wait: false`.
  */
 /** The request `email_submit` makes — answered by the host's `email.submit` handler. */
-export const EMAIL_SUBMIT_REQUEST = "email.submit";
+export const EMAIL_SUBMIT_REQUEST = EMAIL_SUBMIT_ACTION;
 
 /** What `$req.<id>` an email step is known by in conditions. */
 const EMAIL_SUBMIT_ID = "email_submit";
-
-/**
- * What counts as an email address — the one check the step and the server
- * both make (`requests/email-submit`). zod's, so the rule is a maintained one
- * rather than a hand-written pattern.
- */
-const EMAIL = z.email();
 
 /**
  * The email step — see `SourceAction`'s `email_submit`.
@@ -438,33 +436,40 @@ async function submitEmail(
   };
 
   const typed = action.email ? valueOf(action.email, ctx.state) : null;
-  const checked = EMAIL.safeParse(typeof typed === "string" ? typed.trim() : typed);
+  const checked = EmailAddress.safeParse(typed);
   if (!checked.success) {
     return fail({ message: "A valid email is required.", code: "invalid_email", status: 0 });
   }
   const email = checked.data;
   ctx.state.set("email", email);
 
+  ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "pending");
+  // Started and not awaited: its `set`s land before the request leaves, and
+  // anything slower — a wait, an animation — does not hold the request up.
+  if (action.onPending?.length) void run(action.onPending, ctx);
+
+  let sent: unknown;
   try {
-    ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "pending");
-    // Started and not awaited: its `set`s land before the request leaves, and
-    // anything slower — a wait, an animation — does not hold the request up.
-    if (action.onPending?.length) void run(action.onPending, ctx);
-    const response = await ctx.req(EMAIL_SUBMIT_REQUEST, { email });
-    const userId = pathGet(response, "userId");
-    if (typeof userId === "string" && userId) ctx.state.set("userId", userId);
-    ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "success");
-    return await run(action.onSuccess ?? [], ctx);
+    sent = await ctx.req(EMAIL_SUBMIT_ACTION, { email });
   } catch (failure) {
-    const refused = failure as { body?: unknown; status?: unknown };
-    const body =
-      refused.body !== null && typeof refused.body === "object" ? (refused.body as Record<string, unknown>) : {};
+    // The request's own failure, read by the shape it is defined to have.
+    const refused = EmailSubmitFailure.safeParse(failure);
     return fail({
       message: failure instanceof Error ? failure.message : String(failure),
-      code: typeof body.error === "string" && body.error ? body.error : "request_failed",
-      status: typeof refused.status === "number" ? refused.status : 0,
+      code: refused.data?.body?.error ?? "request_failed",
+      status: refused.data?.status ?? 0,
     });
   }
+
+  // The answer is `EmailSubmitResponse` or it is not an answer: one without the
+  // account's id fails the step rather than passing with `userId` unset.
+  const answer = EmailSubmitResponse.safeParse(sent);
+  if (!answer.success) {
+    return fail({ message: "The account could not be read.", code: "invalid_response", status: 0 });
+  }
+  ctx.state.set("userId", answer.data.userId);
+  ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "success");
+  return run(action.onSuccess ?? [], ctx);
 }
 
 /** Why an email step failed — what its failure steps read as `$error`. */

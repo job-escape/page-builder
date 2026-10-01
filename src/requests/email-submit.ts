@@ -8,22 +8,24 @@
  * `GetOrCreateUser`, which finds the account an email already has or makes
  * one, and answers the same account for the same email every time.
  *
- * The answer is `{ userId, created, analyticsId? }`; the runtime writes
- * `userId` into the design's system variable of that name.
+ * What it is sent, answers and refuses with is `runtime/email-submit` — the
+ * schemas the step parses with; the runtime writes the answer's `userId` into
+ * the design's system variable of that name.
  *
  * Server-only: the platform key never leaves the host.
  */
-import { z } from "zod";
+import {
+  EMAIL_SUBMIT_ACTION,
+  EmailSubmitPayload,
+  type EmailSubmitResponse,
+} from "../runtime/email-submit";
 
-import { ActionError, silentLog, text, type ActionHandlers, type Log } from "./contract";
+import { ActionError, silentLog, type ActionHandlers, type Log } from "./contract";
 import { createNvsClient, type NvsConfig } from "./nvs/client";
 import { readAnalyticsId, type GetOrCreateUserResponse } from "./nvs/actions";
 import { toActionError } from "./nvs/errors";
 
-export const EMAIL_SUBMIT_ACTION = "email.submit";
-
-/** The same check the step makes before it asks (`runtime/interpret`), made again here. */
-const EMAIL = z.email();
+export { EMAIL_SUBMIT_ACTION };
 
 /** Handlers answering `email.submit`, to spread into a host's request route. */
 export function emailSubmitHandlers(config: NvsConfig, log: Log = config.log ?? silentLog): ActionHandlers {
@@ -31,11 +33,12 @@ export function emailSubmitHandlers(config: NvsConfig, log: Log = config.log ?? 
 
   return {
     [EMAIL_SUBMIT_ACTION]: async (payload) => {
-      const checked = EMAIL.safeParse(text(payload, "email"));
+      // The same check the step makes before it asks, made again here.
+      const checked = EmailSubmitPayload.safeParse(payload);
       if (!checked.success) {
         throw new ActionError(400, { error: "invalid_argument", message: "A valid email is required." });
       }
-      const email = checked.data;
+      const { email } = checked.data;
       try {
         const result = await rpc<GetOrCreateUserResponse>("/auth.v1.ServiceAccountService/GetOrCreateUser", {
           email,
@@ -43,11 +46,12 @@ export function emailSubmitHandlers(config: NvsConfig, log: Log = config.log ?? 
         const analyticsId = readAnalyticsId(result.analyticsId);
         if (!analyticsId) log.warn("user_analytics_id_missing", { userId: result.userId });
         log.info("email_submitted", { userId: result.userId, created: result.created === true });
-        return {
+        const answer: EmailSubmitResponse = {
           userId: result.userId,
           created: result.created === true,
           ...(analyticsId ? { analyticsId } : {}),
         };
+        return answer;
       } catch (error) {
         return toActionError(error);
       }
