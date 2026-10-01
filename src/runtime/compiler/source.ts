@@ -263,10 +263,13 @@ export type SourceAction =
    * is checked first; only a valid address is written into the system
    * variable `email` and sent to the funnel's server for the visitor's
    * account (`email.submit` — `GetOrCreateUser` on the payments platform),
-   * whose id is written into `userId`. Then `onSuccess`, or `onError` with
-   * the message in `errorInto` — for an invalid address too, with nothing
-   * sent and `email` left as it was. Both variables are the console's system
-   * variables, declared by publish in every design.
+   * whose id is written into `userId`. Then `onSuccess`, or `onError` — for an
+   * invalid address too, with nothing sent and `email` left as it was. The
+   * failure steps read why from `$error`, theirs alone: `message`, `code`
+   * (`invalid_email`, or the server's — `invalid_argument`, `unavailable`, …)
+   * and `status` (the HTTP status, 0 when nothing was sent or answered). Both
+   * variables are the console's system variables, declared by publish in every
+   * design.
    *
    * `$req.email_submit.status` is `pending` while it runs. Its own step rather
    * than a `submit`: the request, what it sends and where the id goes are
@@ -278,7 +281,6 @@ export type SourceAction =
       email: SourceValue;
       onSuccess?: SourceAction[];
       onError?: SourceAction[];
-      errorInto?: string;
     }
   /**
    * Move a number variable to a value over time — a loader's 0 → 100, a bar

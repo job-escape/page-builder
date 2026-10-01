@@ -432,15 +432,16 @@ async function submitEmail(
   action: Extract<SourceAction, { type: "email_submit" }>,
   ctx: ActionContext,
 ): Promise<boolean> {
-  const fail = async (message: string): Promise<boolean> => {
-    ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "error", message);
-    if (action.errorInto) ctx.state.set(action.errorInto, message);
-    return run(action.onError ?? [], ctx);
+  const fail = async (error: EmailSubmitError): Promise<boolean> => {
+    ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "error", error.message);
+    return run(action.onError ?? [], withError(ctx, error));
   };
 
   const typed = action.email ? valueOf(action.email, ctx.state) : null;
   const checked = EMAIL.safeParse(typeof typed === "string" ? typed.trim() : typed);
-  if (!checked.success) return fail("A valid email is required.");
+  if (!checked.success) {
+    return fail({ message: "A valid email is required.", code: "invalid_email", status: 0 });
+  }
   const email = checked.data;
   ctx.state.set("email", email);
 
@@ -452,8 +453,37 @@ async function submitEmail(
     ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "success");
     return await run(action.onSuccess ?? [], ctx);
   } catch (failure) {
-    return fail(failure instanceof Error ? failure.message : String(failure));
+    const refused = failure as { body?: unknown; status?: unknown };
+    const body =
+      refused.body !== null && typeof refused.body === "object" ? (refused.body as Record<string, unknown>) : {};
+    return fail({
+      message: failure instanceof Error ? failure.message : String(failure),
+      code: typeof body.error === "string" && body.error ? body.error : "request_failed",
+      status: typeof refused.status === "number" ? refused.status : 0,
+    });
   }
+}
+
+/** Why an email step failed — what its failure steps read as `$error`. */
+type EmailSubmitError = { message: string; code: string; status: number };
+
+/**
+ * The same context with `$error` answered, for the failure steps and no
+ * others: a local of the step, like `$item` in a repeat, rather than a
+ * variable the design has to declare and the step has to be told about.
+ */
+function withError(ctx: ActionContext, error: EmailSubmitError): ActionContext {
+  const { state } = ctx;
+  const mine = (name: string): boolean => name === "$error";
+  return {
+    ...ctx,
+    state: {
+      ...state,
+      get: (name: string) => (mine(name) ? (error as never) : state.get(name)),
+      isSet: (name: string) => (mine(name) ? true : state.isSet(name)),
+      isEmpty: (name: string) => (mine(name) ? false : state.isEmpty(name)),
+    },
+  };
 }
 
 async function send(

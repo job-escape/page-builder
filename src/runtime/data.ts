@@ -58,11 +58,13 @@ export function pathGet(value: unknown, path: string | undefined): unknown {
  * The names a renderer answers itself, never the store.
  *
  * `$item` and `$index` inside a repeat; `$event` (and `$payment`, its name on a
- * checkout) inside a slot's trigger. They are scope, not state: nothing sets
- * them, nothing persists them, and they mean something only while the node that
- * provides them is being drawn or its trigger is running.
+ * checkout) inside a slot's trigger; `$error` inside the email step's failure
+ * steps — `{ message, code, status }`, why it failed. They are scope, not
+ * state: nothing sets them, nothing persists them, and they mean something
+ * only while the node that provides them is being drawn or its steps are
+ * running.
  */
-export const SCOPE_NAMES = ["$item", "$index", "$event", "$payment"] as const;
+export const SCOPE_NAMES = ["$item", "$index", "$event", "$payment", "$error"] as const;
 
 export type Scope = Partial<Record<(typeof SCOPE_NAMES)[number], unknown>>;
 

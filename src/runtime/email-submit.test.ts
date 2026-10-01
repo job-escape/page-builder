@@ -5,6 +5,7 @@
 import { buildManifest } from "./compiler/manifest";
 import type { SourceFunnel } from "./compiler/source";
 import { EMAIL_SUBMIT_REQUEST, run, type ActionContext } from "./interpret";
+import { RequestFailed } from "./request";
 import { createFunnelStore } from "./store";
 
 const table = {
@@ -12,6 +13,8 @@ const table = {
   userId: { name: "userId", type: "string" as const },
   typed: { name: "typed", type: "string" as const },
   problem: { name: "problem", type: "string" as const },
+  code: { name: "code", type: "string" as const },
+  status: { name: "status", type: "number" as const },
   after: { name: "after", type: "string" as const },
 };
 
@@ -30,8 +33,13 @@ const step = {
   type: "email_submit" as const,
   email: { var: "typed" },
   onSuccess: [{ type: "set" as const, variable: "after", value: "success" }],
-  onError: [{ type: "set" as const, variable: "after", value: "error" }],
-  errorInto: "problem",
+  // The failure steps read why from `$error`, which only they can see.
+  onError: [
+    { type: "set" as const, variable: "after", value: "error" },
+    { type: "set" as const, variable: "problem", from: { var: "$error", path: "message" } },
+    { type: "set" as const, variable: "code", from: { var: "$error", path: "code" } },
+    { type: "set" as const, variable: "status", from: { var: "$error", path: "status" } },
+  ],
 };
 
 describe("email_submit", () => {
@@ -61,6 +69,8 @@ describe("email_submit", () => {
     expect(state.get("email")).toBe("kept@example.com");
     expect(state.get("after")).toBe("error");
     expect(state.get("problem")).toBe("A valid email is required.");
+    expect(state.get("code")).toBe("invalid_email");
+    expect(state.get("status")).toBe(0);
   });
 
   it("sends nothing without an argument", async () => {
@@ -76,7 +86,7 @@ describe("email_submit", () => {
 
   it("keeps a valid address and runs onError when the account cannot be had", async () => {
     const req = jest.fn(async () => {
-      throw new Error("platform unavailable");
+      throw new RequestFailed("email.submit", 502, "platform unavailable", { error: "unavailable" });
     });
     const { state, ctx } = context(req as never);
     state.set("typed", "ana@example.com");
@@ -87,6 +97,26 @@ describe("email_submit", () => {
     expect(state.get("userId")).toBeNull();
     expect(state.get("after")).toBe("error");
     expect(state.get("problem")).toBe("platform unavailable");
+    expect(state.get("code")).toBe("unavailable");
+    expect(state.get("status")).toBe(502);
+  });
+
+  it("answers $error to the failure steps only", async () => {
+    const req = jest.fn(async () => ({ userId: "u-1" }));
+    const { state, ctx } = context(req as never);
+    state.set("typed", "ana@example.com");
+
+    await run(
+      [
+        {
+          ...step,
+          onSuccess: [{ type: "set", variable: "problem", from: { var: "$error", path: "message" } }],
+        },
+      ],
+      ctx,
+    );
+
+    expect(state.get("problem")).toBeNull();
   });
 });
 
