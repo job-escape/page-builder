@@ -279,6 +279,14 @@ export function PrimerCheckout({
                 "data-payment-method": method,
               }),
         ),
+        /*
+          Why a payment did not go through, in the gateway's own words and its
+          own element — it reads the checkout's state, so a refused card and a
+          refused wallet both land here. A layout of our own does not get the
+          one the default layout draws, and without it a refusal showed
+          nothing: the report below reaches the design, which may say nothing.
+        */
+        createElement("primer-error-message-container", { key: "refusal" }),
       ),
     ),
   );
