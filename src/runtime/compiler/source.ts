@@ -279,6 +279,13 @@ export type SourceAction =
   | {
       type: "email_submit";
       email: SourceValue;
+      /**
+       * Run when the request is sent — the address was valid and the account is
+       * being asked for: show a loader, disable the button. Started, not waited
+       * for: the request goes at once, and `onSuccess` or `onError` follows it
+       * whatever these are still doing. Not run for an invalid address.
+       */
+      onPending?: SourceAction[];
       onSuccess?: SourceAction[];
       onError?: SourceAction[];
     }

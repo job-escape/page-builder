@@ -447,6 +447,9 @@ async function submitEmail(
 
   try {
     ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "pending");
+    // Started and not awaited: its `set`s land before the request leaves, and
+    // anything slower — a wait, an animation — does not hold the request up.
+    if (action.onPending?.length) void run(action.onPending, ctx);
     const response = await ctx.req(EMAIL_SUBMIT_REQUEST, { email });
     const userId = pathGet(response, "userId");
     if (typeof userId === "string" && userId) ctx.state.set("userId", userId);

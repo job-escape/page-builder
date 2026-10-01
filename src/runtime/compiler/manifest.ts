@@ -180,6 +180,7 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
       if (action.type === "timer") walk(action.onEnd ?? []);
       // As is where the email step goes once it has an account, or fails to.
       if (action.type === "email_submit") {
+        walk(action.onPending ?? []);
         walk(action.onSuccess ?? []);
         walk(action.onError ?? []);
       }
@@ -326,6 +327,7 @@ function variablesInActions(actions: SourceAction[], into: Set<string>): void {
       if (action.email) namesInValue(action.email, into, new Set());
       into.add("email");
       into.add("userId");
+      variablesInActions(action.onPending ?? [], into);
       variablesInActions(action.onSuccess ?? [], into);
       variablesInActions(action.onError ?? [], into);
     }
@@ -417,6 +419,7 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
             // A request's outcomes are lists like a branch's, and a step in
             // either can ask about the visitor too.
             if (action.type === "submit" || action.type === "email_submit") {
+              if (action.type === "email_submit") walk(action.onPending ?? []);
               walk(action.onSuccess ?? []);
               walk(action.onError ?? []);
             }
