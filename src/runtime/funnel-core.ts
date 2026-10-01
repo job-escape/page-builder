@@ -20,6 +20,7 @@ import {
   PAYMENT_SESSION_ACTION,
   PAYMENT_SESSION_VARIABLE,
   PaymentSessionResponse,
+  SUBSCRIPTION_VARIABLE,
   SUBSCRIPTIONS_VARIABLE,
   planCodeOf,
 } from "./payment-session";
@@ -30,8 +31,8 @@ import type { VariableValue } from "./types";
 import { createFunnelStore, type FunnelStore } from "./store";
 import type { VariableDecl, VariableTable } from "./types";
 import type { ScreenPresentation } from "./compiler/manifest";
-import type { SourceAction, SourceValue } from "./compiler/source";
-import { run, valueOf } from "./interpret";
+import type { SourceAction } from "./compiler/source";
+import { run } from "./interpret";
 import type { ResolvedTokens } from "./style/tokens";
 import { interpolate, type CopyParams, type RichText } from "./rich-text";
 import { localizedImage } from "./locale";
@@ -100,12 +101,11 @@ export type FunnelManifest = {
   trees?: Record<string, string>;
   /**
    * The screens that need a payment session, by screen id —
-   * `ScreenIndex.payment`: `true`, or the payment form's argument — the value
-   * that says which plan. The funnel opens one when the visitor gets to such
+   * `ScreenIndex.payment`. The funnel opens one when the visitor gets to such
    * a screen. Absent means it never does, which is every design without a
    * payment form and every host written before this.
    */
-  payments?: Record<string, true | { subscription?: SourceValue }>;
+  payments?: Record<string, true>;
   /**
    * The design's palette, aliases already followed, by mode then dotted path.
    *
@@ -519,26 +519,21 @@ export function useFunnelRuntime<Ui, Component>({
   /*
     The payment session, opened when the visitor is on a screen that needs one
     — a payment form on it, or on a dialog it opens (`manifest.payments`) — so
-    the form is ready by the time it is looked at. For the plan the payment
-    form was given as its argument — the variable the design keeps the chosen
-    plan in — else the default of those offered, and the email the funnel
-    collected; put in `paymentSession`, which the form is bound to.
+    the form is ready by the time it is looked at. For the plan the design
+    chose (`subscription`), else the default of those offered, and the email
+    the funnel collected; put in `paymentSession`, which the form is bound to.
 
     One per plan and email: the same pair again is the session already open,
     and another plan chosen while here is a new one — the old is cleared first,
     so the form never offers to charge for the plan just left. Only for a
     design that declares the variable and a host that said where it answers.
   */
-  const marked = manifest.payments?.[navState.screen];
   const sells =
-    Boolean(marked) &&
+    Boolean(manifest.payments?.[navState.screen]) &&
     table[PAYMENT_SESSION_VARIABLE] !== undefined &&
     hasRoute(PAYMENT_SESSION_ACTION);
   const read = (name: string): VariableValue => (table[name] ? store.get(name) : null);
-  // The form's argument, read now: the plan in the variable it names.
-  const argument = typeof marked === "object" ? marked.subscription : undefined;
-  const chosen = sells && argument ? valueOf(argument, store) : null;
-  const planCode = sells ? planCodeOf(chosen, read(SUBSCRIPTIONS_VARIABLE)) : null;
+  const planCode = sells ? planCodeOf(read(SUBSCRIPTION_VARIABLE), read(SUBSCRIPTIONS_VARIABLE)) : null;
   const buyerEmail = sells ? read("email") : null;
   const sessionFor =
     planCode && typeof buyerEmail === "string" && buyerEmail ? `${planCode}\n${buyerEmail}` : null;
