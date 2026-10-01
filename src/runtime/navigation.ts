@@ -158,6 +158,22 @@ export function createNavigator(options: NavigatorOptions) {
   const state = (): NavigationState => snapshot;
   const canGoBack = (): boolean => overlays.length > 0 || history.length > 0;
 
+  /** The screens behind the current one, oldest first — for whoever keeps them across a reload. */
+  const past = (): readonly string[] => history;
+
+  /**
+   * Hands back a history that was lost with the page.
+   *
+   * A reload reopens the screen the visitor was on, and a navigator made fresh
+   * for it has nothing behind that screen — so its back control did nothing.
+   * Taken only while there is no history of its own, and only the screens this
+   * funnel still has; nobody is moved, so nothing is announced.
+   */
+  function restore(saved: readonly string[]): void {
+    if (history.length > 0) return;
+    history = saved.filter((id) => !known || known.has(id));
+  }
+
   function subscribe(listener: () => void): () => void {
     listeners.add(listener);
     return () => {
@@ -174,5 +190,5 @@ export function createNavigator(options: NavigatorOptions) {
     notify();
   }
 
-  return { show, close, back, state, canGoBack, subscribe, reset };
+  return { show, close, back, state, canGoBack, subscribe, reset, past, restore };
 }

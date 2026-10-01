@@ -10,6 +10,7 @@
  *
  * No JSX and no platform imports, so React Native gets it unchanged.
  */
+import { z } from "zod";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
 import type { Device } from "./device";
@@ -132,6 +133,9 @@ export type PersistProp = false | PersistAs;
  * saves nothing: answers kept without one would be restored into whatever the
  * funnel is republished as.
  */
+/** What the tab keeps of the way here — see the trail in `useFunnelRuntime`. */
+const Trail = z.object({ screen: z.string(), past: z.array(z.string()) });
+
 export function persistenceFor(
   persist: PersistProp | undefined,
   manifest: Pick<FunnelManifest, "entry" | "version">,
@@ -442,6 +446,35 @@ export function useFunnelRuntime<Ui, Component>({
   );
 
   const navState = useSyncExternalStore(navigator.subscribe, navigator.state, navigator.state);
+
+  /*
+    The screens behind this one, kept for the tab. A reload reopens the screen
+    the visitor was on (the host's `start`), but the way they came was only in
+    memory — so after a refresh the design's back control had nowhere to go.
+    `sessionStorage`, because that is exactly its life: it survives a reload
+    and ends with the tab. Read once, and only when the screen opened on is the
+    one the trail was left at; written on every arrival. A funnel that saves
+    nothing (`persist={false}`) keeps no trail either.
+  */
+  const trailKey = persist?.funnelId ? `jb_funnel_trail_${persist.funnelId}` : null;
+  const trailRead = useRef(false);
+  useEffect(() => {
+    if (!trailKey) return;
+    try {
+      if (!trailRead.current) {
+        trailRead.current = true;
+        const saved = Trail.safeParse(JSON.parse(window.sessionStorage.getItem(trailKey) ?? "null"));
+        if (saved.success && saved.data.screen === navState.screen) navigator.restore(saved.data.past);
+      }
+      window.sessionStorage.setItem(
+        trailKey,
+        JSON.stringify({ screen: navState.screen, past: navigator.past() }),
+      );
+    } catch {
+      // No storage — a private window, or a platform without one. Back simply
+      // has no memory across a reload there, as before.
+    }
+  }, [trailKey, navigator, navState.screen]);
 
   // A saved screen this funnel does not have: said once, so the host can see
   // how often a republish strands a returning visitor on the entry.

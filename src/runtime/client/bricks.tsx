@@ -1106,6 +1106,18 @@ export type ImageProps = Placement &
      * frame that does.
      */
     states?: BrickStates<ImageLook>;
+    /**
+     * A picture with steps of its own — a back arrow, a close cross. The tree
+     * hands every tappable node its `onClick`; a picture used to drop it, so
+     * an arrow drawn as an image was the one back button that did nothing.
+     */
+    onClick?: () => void;
+    disabled?: boolean;
+    role?: BrickRole;
+    ariaLabel?: string;
+    /** `false` takes it out of the tab order — see `interactionProps`. */
+    tabStop?: boolean;
+    testId?: string;
   };
 
 export function Image({
@@ -1118,20 +1130,38 @@ export function Image({
   style,
   hidden: base,
   states,
+  onClick,
+  disabled,
+  role,
+  ariaLabel,
+  tabStop,
+  testId,
   ...placement
 }: ImageProps) {
   const { at } = usePointerState(false);
   const { hidden } = withState<ImageLook>({ hidden: base }, states, at);
+  const interactive = Boolean(onClick) && !disabled;
   return (
     <img
       src={src}
       alt={alt}
+      // A tappable picture is a button to a keyboard and a screen reader,
+      // unless the design said what else it is.
+      {...interactionProps({
+        onClick,
+        disabled,
+        role: role ?? (interactive ? "button" : undefined),
+        ariaLabel,
+        tabStop,
+        testId,
+      })}
       style={{
         width: size(width),
         height,
         borderRadius: radius,
         objectFit: fit,
         display: hidden ? "none" : "block",
+        cursor: interactive ? "pointer" : undefined,
         ...placedCss(placement),
         ...style,
       }}
