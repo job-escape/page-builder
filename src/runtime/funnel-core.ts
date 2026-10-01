@@ -21,9 +21,10 @@ import {
   PAYMENT_SESSION_VARIABLE,
   PaymentSessionResponse,
   SUBSCRIPTION_VARIABLE,
+  SUBSCRIPTIONS_VARIABLE,
   planCodeOf,
 } from "./payment-session";
-import { SUBSCRIPTIONS_ACTION, SUBSCRIPTIONS_VARIABLE, SubscriptionsResponse } from "./subscriptions";
+import { matchesDeclaration } from "./persistence";
 import { openLink } from "./link";
 import { analytics, track } from "./track";
 import type { VariableValue } from "./types";
@@ -293,6 +294,12 @@ export type FunnelCoreOptions<Ui, Component> = {
    * the store. Read once, when the store is made.
    */
   initialValues?: Readonly<Record<string, VariableValue>>;
+  /**
+   * Values the host sets while the funnel runs — what it loaded itself, after
+   * the page was up. Applied whenever this object changes, so keep it the same
+   * object between renders (`useMemo`) until a value really does.
+   */
+  values?: Readonly<Record<string, VariableValue>>;
 };
 
 /**
@@ -320,6 +327,7 @@ export function useFunnelRuntime<Ui, Component>({
   onScreen,
   restoreOnMount = true,
   initialValues,
+  values,
 }: FunnelCoreOptions<Ui, Component>) {
   // Read when a store is made, through a ref: a host writing the object inline
   // must not rebuild the store — and lose every answer — on each render.
@@ -391,42 +399,21 @@ export function useFunnelRuntime<Ui, Component>({
   }, [store, restoreOnMount]);
 
   /*
-    The plans a design repeats its cards over (`subscriptions`), asked for once
-    the funnel is up — a request of its own, to the host's own route. Only for
-    a design that declares the variable, a host that said where it answers, and
-    a funnel the host did not already hand the list to. Which plans come back
-    is the host's decision; whatever does not read as the defined answer is
-    left out rather than half-read, and the cards simply are not drawn.
+    What the host sets while the funnel runs — data it loaded itself: the plans
+    it sells, a profile. Written into the store whenever the object changes, so
+    a host that fetches after the page is up hands the answer over when it has
+    it. Only declared names whose value matches the declaration are taken, as
+    with `initialValues`; a name the design does not declare is simply not this
+    design's. The funnel fetches none of it: what a product has to load is the
+    product's to know, and not every host has the same things.
   */
-  const plansAsked = useRef<unknown>(null);
   useEffect(() => {
-    if (table[SUBSCRIPTIONS_VARIABLE]?.type !== "list<object>") return;
-    if (!hasRoute(SUBSCRIPTIONS_ACTION)) return;
-    const given = store.get(SUBSCRIPTIONS_VARIABLE);
-    if (Array.isArray(given) && given.length > 0) return;
-    // Once per store — an effect run twice in development is one request.
-    if (plansAsked.current === store) return;
-    plansAsked.current = store;
-    store.setStatus(SUBSCRIPTIONS_ACTION, "pending");
-    request(SUBSCRIPTIONS_ACTION)
-      .then((answer) => {
-        const parsed = SubscriptionsResponse.safeParse(answer);
-        if (!parsed.success) {
-          store.setStatus(SUBSCRIPTIONS_ACTION, "error", "The plans could not be read.");
-          return;
-        }
-        store.set(SUBSCRIPTIONS_VARIABLE, parsed.data.subscriptions);
-        store.setStatus(SUBSCRIPTIONS_ACTION, "success");
-      })
-      .catch((failure: unknown) => {
-        // `request` has already logged it, by name.
-        store.setStatus(
-          SUBSCRIPTIONS_ACTION,
-          "error",
-          failure instanceof Error ? failure.message : String(failure),
-        );
-      });
-  }, [store, table]);
+    if (!values) return;
+    Object.entries(values).forEach(([name, value]) => {
+      const decl = table[name];
+      if (decl && !decl.formula && matchesDeclaration(decl, value)) store.set(name, value);
+    });
+  }, [values, store, table]);
 
   /*
     A running timer redraws what reads it — once per displayed second, never per

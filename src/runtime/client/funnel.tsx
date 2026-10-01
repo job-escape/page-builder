@@ -126,6 +126,12 @@ export type FunnelProps = {
    * browser, so hydration matches.
    */
   initialValues?: Readonly<Record<string, import("../types").VariableValue>>;
+  /**
+   * Values the host sets while the funnel runs — data it loaded itself, such
+   * as the plans it sells. Applied whenever this object changes: keep it the
+   * same object between renders until a value really does.
+   */
+  values?: Readonly<Record<string, import("../types").VariableValue>>;
   components?: Record<string, (props: never) => ReactNode>;
   /**
    * The copy table the artifact carries, by key.
@@ -223,6 +229,7 @@ export function Funnel({
   startScreen,
   onScreen,
   initialValues,
+  values,
   components = {},
   locale = {},
   fallbackLocale,
@@ -258,6 +265,7 @@ export function Funnel({
     start: startScreen,
     onScreen,
     initialValues,
+    values,
     // From inside the screen, once it has hydrated — see `ScreenStack`.
     restoreOnMount: false,
   });

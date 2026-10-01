@@ -35,6 +35,11 @@ export const PAYMENT_CONFIRM_ACTION = "payment.confirm";
 export const PAYMENT_SESSION_VARIABLE = "paymentSession";
 /** The plan the visitor chose, when a design keeps it — an entry of `subscriptions`. */
 export const SUBSCRIPTION_VARIABLE = "subscription";
+/**
+ * The plans on offer — a list the host loads and hands the funnel (`values`).
+ * Read here only to find the default plan when none was chosen.
+ */
+export const SUBSCRIPTIONS_VARIABLE = "subscriptions";
 
 /** What `payment.session` is sent. */
 export const PaymentSessionPayload = z.object({

@@ -89,9 +89,10 @@ const shared = (): { options: RequestOptions } => {
 /**
  * Whether the host gave this action a route of its own (`routes`).
  *
- * For a request the funnel makes by itself — the subscriptions it loads when
- * it starts — which is only worth making to a host that said it answers it: a
- * host that never heard of the action would refuse it on every page load.
+ * For a request the funnel makes by itself — the payment session it opens on
+ * a screen with a payment form — which is only worth making to a host that
+ * said it answers it: a host that never heard of the action would refuse it
+ * every time.
  */
 export function hasRoute(action: string): boolean {
   return Boolean(shared().options.routes?.[action]);
