@@ -63,8 +63,14 @@ export type ScreenIndex = {
    * dialog it opens. **Added by publish, not by this compiler**, like `tree`.
    * The funnel opens the session when the visitor gets here — see
    * `runtime/payment-session`.
+   *
+   * With `subscription`, the form's own argument: the value that says which
+   * plan the session is for — the variable the design keeps the chosen plan
+   * in — carried here because the session is opened for the *screen*, before
+   * the form (which may be in a dialog nobody has opened yet) is drawn.
+   * `true` is a form given no argument.
    */
-  payment?: boolean;
+  payment?: boolean | { subscription?: SourceValue };
   /**
    * Every variable this screen reads.
    *

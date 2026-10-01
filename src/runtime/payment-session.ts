@@ -11,11 +11,12 @@
  * taken the payment.
  *
  * **What a session is opened for.** The visitor's email (the system `email`,
- * which the email step sets) and a plan: the one in the system variable
- * `subscription` when a design puts the chosen plan there, else the plan
- * `subscriptions` marks as the default, else the first. A different plan is a
- * different session — the platform has no "change the plan of this one" — so
- * choosing another while on the screen opens a new one.
+ * which the email step sets) and a plan: the payment form's argument — the
+ * variable a design keeps the chosen plan in, the way the email step is given
+ * the variable the address is typed into — else the plan `subscriptions`
+ * marks as the default, else the first. A different plan is a different
+ * session — the platform has no "change the plan of this one" — so choosing
+ * another while on the screen opens a new one.
  *
  * The host's routes (`requests/payment-session`) answer with the same shapes,
  * declared again on their side: `src/runtime` and the rest of the package may
@@ -33,8 +34,6 @@ export const PAYMENT_CONFIRM_ACTION = "payment.confirm";
 
 /** Where the opened session is put — what a payment form is bound to. */
 export const PAYMENT_SESSION_VARIABLE = "paymentSession";
-/** The plan the visitor chose, when a design keeps it — an entry of `subscriptions`. */
-export const SUBSCRIPTION_VARIABLE = "subscription";
 /**
  * The plans on offer — a list the host loads and hands the funnel (`values`).
  * Read here only to find the default plan when none was chosen.
@@ -108,11 +107,14 @@ const record = (value: unknown): Record<string, unknown> | null =>
 /**
  * The code of the plan a session is opened for: the chosen one, else the
  * default of those offered, else the first — or null while there is none.
+ *
+ * `chosen` is what the payment form's argument holds: a plan (an entry of
+ * `subscriptions`), or its code on its own.
  */
 export function planCodeOf(chosen: unknown, offered: unknown): string | null {
   const code = (plan: unknown): string | null => {
-    const value = record(plan)?.code;
-    return typeof value === "string" && value ? value : null;
+    const value = typeof plan === "string" ? plan : record(plan)?.code;
+    return typeof value === "string" && value.trim() ? value.trim() : null;
   };
   const picked = code(chosen);
   if (picked) return picked;
