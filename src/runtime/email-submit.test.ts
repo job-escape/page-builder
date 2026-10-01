@@ -102,7 +102,7 @@ describe("email_submit", () => {
   });
 
   it("answers $error to the failure steps only", async () => {
-    const req = jest.fn(async () => ({ userId: "u-1" }));
+    const req = jest.fn(async () => ({ userId: "u-1", created: false }));
     const { state, ctx } = context(req as never);
     state.set("typed", "ana@example.com");
 

@@ -1,15 +1,13 @@
 /**
  * The email step's wire: what `email.submit` is sent, what it answers, and how
- * it refuses — written once, as schemas, and read by both ends.
+ * it refuses — as schemas the step parses with, so nothing is read off an
+ * answer by guessing at a path.
  *
- * The design's step (`runtime/interpret`) and the host's handler
- * (`requests/email-submit`) are built into different entries and run on
- * different machines. Each used to know the other's JSON by reading its code;
- * now the handler's answer is typed by `EmailSubmitResponse` and the step
- * parses with it, so a field renamed on one side is a type error on that side
- * and a failed parse on the other — not a `userId` quietly left unset.
- *
- * Nothing but schemas: no server code, no runtime code, safe in either bundle.
+ * The host's handler (`requests/email-submit`) answers with the same shapes,
+ * declared again on its side: `src/runtime` and the rest of the package may
+ * not import each other (`isolation.test`). An answer that does not match —
+ * a field renamed on one side only — fails the step's parse, and its failure
+ * steps run, rather than `userId` being quietly left unset.
  */
 import { z } from "zod";
 

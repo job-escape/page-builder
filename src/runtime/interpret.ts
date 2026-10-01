@@ -14,7 +14,11 @@
  * handful of actions, closed, so this is a switch, not a language.
  */
 
-import type { SourceAction, SourceCondition, SourceValue } from "./compiler/source";
+import type {
+  SourceAction,
+  SourceCondition,
+  SourceValue,
+} from "./compiler/source";
 import { pathGet } from "./data";
 import {
   EMAIL_SUBMIT_ACTION,
@@ -78,7 +82,11 @@ export type ConditionState = {
    * written before requests had a status still runs; without it the status
    * simply stays `idle`.
    */
-  setStatus?: (id: string, status: "idle" | "pending" | "success" | "error", error?: string) => void;
+  setStatus?: (
+    id: string,
+    status: "idle" | "pending" | "success" | "error",
+    error?: string,
+  ) => void;
   /** A request's progress, for `waitFor`. Optional like `setStatus`. */
   status?: (id: string) => "idle" | "pending" | "success" | "error";
   /**
@@ -96,7 +104,11 @@ export function valueOf(value: SourceValue, state: ConditionState): unknown {
   if ("var" in value) return pathGet(state.get(value.var), value.path);
   if ("lit" in value) return value.lit;
   if ("visitor" in value) return state.visitorValue?.(value.visitor) ?? null;
-  if ("fn" in value) return call(value.fn, value.args.map((arg) => valueOf(arg, state)));
+  if ("fn" in value)
+    return call(
+      value.fn,
+      value.args.map((arg) => valueOf(arg, state)),
+    );
   if ("timer" in value) return state.timer?.(value.timer) ?? null;
   if ("now" in value) return state.now?.() ?? Date.now();
   return null;
@@ -114,7 +126,10 @@ export function propertiesOf(
 ): AnalyticsProperties {
   const read: AnalyticsProperties = {};
   Object.entries(properties ?? {}).forEach(([name, value]) => {
-    read[name] = value !== null && typeof value === "object" ? valueOf(value, state) : (value ?? null);
+    read[name] =
+      value !== null && typeof value === "object"
+        ? valueOf(value, state)
+        : (value ?? null);
   });
   return read;
 }
@@ -138,7 +153,10 @@ export type ActionContext = {
     /** See `FunnelNav.wait`. Optional, so a host that has none still runs. */
     wait?: (seconds: number) => Promise<boolean>;
     /** See `FunnelNav.frames`. Optional: without it an `animate` still arrives, on a plain clock. */
-    frames?: (ms: number, onFrame: (progress: number) => void) => Promise<boolean>;
+    frames?: (
+      ms: number,
+      onFrame: (progress: number) => void,
+    ) => Promise<boolean>;
     /** See `FunnelNav.alive`. Optional: without it anything started detached is assumed still wanted. */
     alive?: () => () => boolean;
   };
@@ -162,7 +180,10 @@ export type ActionContext = {
  * correctly-typed literals, and a silently wrong branch in production is the
  * failure that rule exists to prevent.
  */
-export function evaluate(condition: SourceCondition, state: ConditionState): boolean {
+export function evaluate(
+  condition: SourceCondition,
+  state: ConditionState,
+): boolean {
   switch (condition.op) {
     case "has":
       return state.has(condition.variable, condition.value);
@@ -187,10 +208,14 @@ export function evaluate(condition: SourceCondition, state: ConditionState): boo
     // The same three calls the emitter writes, in the same order — see the note
     // on `visitorIsSet` above for why that is not a coincidence.
     case "visitor":
-      if (condition.cmp === "isSet") return state.visitorIsSet(condition.property);
-      if (condition.cmp === "isEmpty") return !state.visitorIsSet(condition.property);
-      if (condition.cmp === "eq") return state.visitorEq(condition.property, condition.value);
-      if (condition.cmp === "neq") return !state.visitorEq(condition.property, condition.value);
+      if (condition.cmp === "isSet")
+        return state.visitorIsSet(condition.property);
+      if (condition.cmp === "isEmpty")
+        return !state.visitorIsSet(condition.property);
+      if (condition.cmp === "eq")
+        return state.visitorEq(condition.property, condition.value);
+      if (condition.cmp === "neq")
+        return !state.visitorEq(condition.property, condition.value);
       return state.visitorHas(condition.property, condition.value);
     // The same functions the emitted module reaches through `state.check` and
     // `state.compare` — one definition, two callers. See `runtime/functions`.
@@ -200,7 +225,11 @@ export function evaluate(condition: SourceCondition, state: ConditionState): boo
         condition.args.map((arg) => valueOf(arg, state)),
       );
     case "cmp":
-      return compare(valueOf(condition.left, state), condition.cmp, valueOf(condition.right, state));
+      return compare(
+        valueOf(condition.left, state),
+        condition.cmp,
+        valueOf(condition.right, state),
+      );
     case "not":
       return !evaluate(condition.of, state);
     case "and":
@@ -244,7 +273,8 @@ export function showPresentation(link: {
   if (link.as) presentation.as = link.as;
   if (link.position) presentation.position = link.position;
   if (link.dim !== undefined) presentation.dim = link.dim;
-  if (link.closeOnOutside !== undefined) presentation.closeOnOutside = link.closeOnOutside;
+  if (link.closeOnOutside !== undefined)
+    presentation.closeOnOutside = link.closeOnOutside;
   return Object.keys(presentation).length ? presentation : undefined;
 }
 
@@ -269,7 +299,10 @@ function pause(ctx: ActionContext, seconds: number): Promise<boolean> {
  * after it, in this list and in every list around it, is left undone. That is
  * what the emitted `return` does, reached the same way.
  */
-export async function run(actions: SourceAction[], ctx: ActionContext): Promise<boolean> {
+export async function run(
+  actions: SourceAction[],
+  ctx: ActionContext,
+): Promise<boolean> {
   for (const action of actions) {
     switch (action.type) {
       case "select":
@@ -280,7 +313,9 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
         // A value read now wins over the literal — see `SourceAction`'s `set`.
         ctx.state.set(
           action.variable,
-          (action.from ? valueOf(action.from, ctx.state) : (action.value ?? null)) as VariableValue,
+          (action.from
+            ? valueOf(action.from, ctx.state)
+            : (action.value ?? null)) as VariableValue,
         );
         break;
 
@@ -390,7 +425,10 @@ export async function run(actions: SourceAction[], ctx: ActionContext): Promise<
 
       case "analytics":
         // Read now, sent without waiting — see `runtime/track`.
-        (ctx.analytics ?? analytics)(action.event, propertiesOf(action.properties, ctx.state));
+        (ctx.analytics ?? analytics)(
+          action.event,
+          propertiesOf(action.properties, ctx.state),
+        );
         break;
 
       default:
@@ -438,7 +476,11 @@ async function submitEmail(
   const typed = action.email ? valueOf(action.email, ctx.state) : null;
   const checked = EmailAddress.safeParse(typed);
   if (!checked.success) {
-    return fail({ message: "A valid email is required.", code: "invalid_email", status: 0 });
+    return fail({
+      message: "A valid email is required.",
+      code: "invalid_email",
+      status: 0,
+    });
   }
   const email = checked.data;
   ctx.state.set("email", email);
@@ -465,7 +507,11 @@ async function submitEmail(
   // account's id fails the step rather than passing with `userId` unset.
   const answer = EmailSubmitResponse.safeParse(sent);
   if (!answer.success) {
-    return fail({ message: "The account could not be read.", code: "invalid_response", status: 0 });
+    return fail({
+      message: "The account could not be read.",
+      code: "invalid_response",
+      status: 0,
+    });
   }
   ctx.state.set("userId", answer.data.userId);
   ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "success");
@@ -492,12 +538,14 @@ function withError(ctx: ActionContext, error: EmailSubmitError): ActionContext {
     "$error.code": error.code,
     "$error.status": error.status,
   };
-  const mine = (name: string): boolean => Object.prototype.hasOwnProperty.call(fields, name);
+  const mine = (name: string): boolean =>
+    Object.prototype.hasOwnProperty.call(fields, name);
   return {
     ...ctx,
     state: {
       ...state,
-      get: (name: string) => (mine(name) ? (fields[name] as never) : state.get(name)),
+      get: (name: string) =>
+        mine(name) ? (fields[name] as never) : state.get(name),
       isSet: (name: string) => (mine(name) ? true : state.isSet(name)),
       isEmpty: (name: string) => (mine(name) ? false : state.isEmpty(name)),
     },
@@ -531,7 +579,8 @@ async function send(
     if (!alive()) return false;
     return await run(action.onSuccess ?? [], ctx);
   } catch (failure) {
-    const message = failure instanceof Error ? failure.message : String(failure);
+    const message =
+      failure instanceof Error ? failure.message : String(failure);
     ctx.state.setStatus?.(requestId, "error", message);
     if (action.errorInto) {
       ctx.state.set(action.errorInto, message);
@@ -539,10 +588,19 @@ async function send(
     if (action.errorFields) {
       const refused = failure as { body?: unknown; status?: unknown };
       const body =
-        refused.body !== null && typeof refused.body === "object" ? (refused.body as Record<string, unknown>) : {};
-      const answer = { ...body, status: typeof refused.status === "number" ? refused.status : 0, message };
+        refused.body !== null && typeof refused.body === "object"
+          ? (refused.body as Record<string, unknown>)
+          : {};
+      const answer = {
+        ...body,
+        status: typeof refused.status === "number" ? refused.status : 0,
+        message,
+      };
       Object.entries(action.errorFields).forEach(([variable, field]) => {
-        ctx.state.set(variable, (pathGet(answer, field) ?? null) as VariableValue);
+        ctx.state.set(
+          variable,
+          (pathGet(answer, field) ?? null) as VariableValue,
+        );
       });
     }
     if (!alive()) return false;
@@ -552,7 +610,12 @@ async function send(
 
 /** A value read as a number, or `fallback`. */
 const numberOf = (value: unknown, fallback: number): number => {
-  const read = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  const read =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
   return Number.isFinite(read) ? read : fallback;
 };
 
@@ -562,9 +625,15 @@ const numberOf = (value: unknown, fallback: number): number => {
  * Every frame goes through `setTransient` and the arrival through `set`, so the
  * answers cookie and the host hear about one value rather than sixty a second.
  */
-async function animateValue(action: Extract<SourceAction, { type: "animate" }>, ctx: ActionContext): Promise<boolean> {
+async function animateValue(
+  action: Extract<SourceAction, { type: "animate" }>,
+  ctx: ActionContext,
+): Promise<boolean> {
   const { variable } = action;
-  const from = numberOf(action.from ? valueOf(action.from, ctx.state) : ctx.state.get(variable), 0);
+  const from = numberOf(
+    action.from ? valueOf(action.from, ctx.state) : ctx.state.get(variable),
+    0,
+  );
   const to = numberOf(valueOf(action.to, ctx.state), from);
   const ms = durationOf(action.ms);
   const frame = (progress: number): void => {
@@ -572,7 +641,9 @@ async function animateValue(action: Extract<SourceAction, { type: "animate" }>, 
     if (progress >= 1) return;
     (ctx.state.setTransient ?? ctx.state.set)(variable, value);
   };
-  const arrived = ctx.nav.frames ? await ctx.nav.frames(ms, frame) : await playFrames(ms, frame).done;
+  const arrived = ctx.nav.frames
+    ? await ctx.nav.frames(ms, frame)
+    : await playFrames(ms, frame).done;
   if (!arrived) return false;
   ctx.state.set(variable, to);
   return true;
@@ -585,13 +656,20 @@ async function animateValue(action: Extract<SourceAction, { type: "animate" }>, 
  * `onEnd` against the screen that asked, through `nav.wait`, so a countdown that
  * ends after the visitor has moved on runs nothing.
  */
-async function startTimer(action: Extract<SourceAction, { type: "timer" }>, ctx: ActionContext): Promise<void> {
+async function startTimer(
+  action: Extract<SourceAction, { type: "timer" }>,
+  ctx: ActionContext,
+): Promise<void> {
   const book = ctx.state.timers;
   if (!book || !action.id) return;
   const alive = ctx.nav.alive?.() ?? (() => true);
   await book.ready;
   if (!alive()) return;
-  book.start(action.id, { mode: action.mode, seconds: action.seconds, restart: action.restart });
+  book.start(action.id, {
+    mode: action.mode,
+    seconds: action.seconds,
+    restart: action.restart,
+  });
   ctx.state.tick?.();
   if (action.mode === "elapsed" || !action.onEnd?.length) return;
   const left = book.remainingMs(action.id) ?? 0;
@@ -607,8 +685,14 @@ async function startTimer(action: Extract<SourceAction, { type: "timer" }>, ctx:
  * without anything being written, and a tenth of a second is finer than any
  * countdown a visitor can read.
  */
-async function waitUntilTrue(action: Extract<SourceAction, { type: "waitUntil" }>, ctx: ActionContext): Promise<boolean> {
-  const limit = action.seconds === undefined ? Infinity : Math.max(0, Number(action.seconds) || 0) * 1000;
+async function waitUntilTrue(
+  action: Extract<SourceAction, { type: "waitUntil" }>,
+  ctx: ActionContext,
+): Promise<boolean> {
+  const limit =
+    action.seconds === undefined
+      ? Infinity
+      : Math.max(0, Number(action.seconds) || 0) * 1000;
   let waited = 0;
   const step = 0.1;
   while (!evaluate(action.when, ctx.state) && waited < limit) {
@@ -620,8 +704,14 @@ async function waitUntilTrue(action: Extract<SourceAction, { type: "waitUntil" }
 }
 
 /** A `waitFor` — `false` if the screen went while it was waiting. */
-async function waitForRequest(action: Extract<SourceAction, { type: "waitFor" }>, ctx: ActionContext): Promise<boolean> {
-  const limit = action.seconds === undefined ? Infinity : Math.max(0, Number(action.seconds) || 0) * 1000;
+async function waitForRequest(
+  action: Extract<SourceAction, { type: "waitFor" }>,
+  ctx: ActionContext,
+): Promise<boolean> {
+  const limit =
+    action.seconds === undefined
+      ? Infinity
+      : Math.max(0, Number(action.seconds) || 0) * 1000;
   let waited = 0;
   const step = 0.05;
   while (ctx.state.status?.(action.request) === "pending" && waited < limit) {

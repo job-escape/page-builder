@@ -8,24 +8,40 @@
  * `GetOrCreateUser`, which finds the account an email already has or makes
  * one, and answers the same account for the same email every time.
  *
- * What it is sent, answers and refuses with is `runtime/email-submit` — the
- * schemas the step parses with; the runtime writes the answer's `userId` into
- * the design's system variable of that name.
+ * The answer is `EmailSubmitResponse` — exactly what the step parses for
+ * (`runtime/email-submit`); the runtime writes its `userId` into the design's
+ * system variable of that name.
  *
  * Server-only: the platform key never leaves the host.
  */
-import {
-  EMAIL_SUBMIT_ACTION,
-  EmailSubmitPayload,
-  type EmailSubmitResponse,
-} from "../runtime/email-submit";
+import { z } from "zod";
 
 import { ActionError, silentLog, type ActionHandlers, type Log } from "./contract";
 import { createNvsClient, type NvsConfig } from "./nvs/client";
 import { readAnalyticsId, type GetOrCreateUserResponse } from "./nvs/actions";
 import { toActionError } from "./nvs/errors";
 
-export { EMAIL_SUBMIT_ACTION };
+export const EMAIL_SUBMIT_ACTION = "email.submit";
+
+/*
+  This end of the step's wire. The step parses with the schemas in
+  `runtime/email-submit`; these are the same shapes, written again because
+  `src/runtime` and the rest of the package may not import each other
+  (`runtime/isolation.test`). Change one and change the other.
+*/
+
+/** What the step sends: the address, spaces around it dropped, then checked. */
+const EmailSubmitPayload = z.object({ email: z.string().trim().pipe(z.email()) });
+
+/** What this answers — `EmailSubmitResponse` in `runtime/email-submit`. */
+export type EmailSubmitResponse = {
+  /** The account's id on the payments platform — the system variable `userId`. */
+  userId: string;
+  /** True when this email had no account until now. */
+  created: boolean;
+  /** int64 as a string; absent from platform builds that predate it. */
+  analyticsId?: string;
+};
 
 /** Handlers answering `email.submit`, to spread into a host's request route. */
 export function emailSubmitHandlers(config: NvsConfig, log: Log = config.log ?? silentLog): ActionHandlers {
