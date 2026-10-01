@@ -57,7 +57,8 @@ export function pathGet(value: unknown, path: string | undefined): unknown {
 /**
  * The names a renderer answers itself, never the store.
  *
- * `$item` and `$index` inside a repeat; `$event` (and `$payment`, its name on a
+ * `$item` and `$index` inside a repeat — and `$item` in an options group's
+ * steps, the answer of the option tapped, where no repeat is drawing; `$event` (and `$payment`, its name on a
  * checkout) inside a slot's trigger; `$error` inside the email step's failure
  * steps — `{ message, code, status }`, why it failed; `$value` inside a
  * field's typing and leaving steps — the text in the field at that moment.

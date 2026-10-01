@@ -73,6 +73,8 @@ function propsOf(
   props: ScreenProps,
   /** What the group above this node says a selection does — see `renderNode`. */
   select?: SourceAction[],
+  /** The store with `$item` answered as the option tapped — see `picked` below. */
+  asPicked?: (item: unknown) => ScreenProps["state"],
 ): Record<string, unknown> {
   const resolved: Record<string, unknown> = { ...node.props };
 
@@ -121,12 +123,23 @@ function propsOf(
     const actions = own;
     const after = reports;
     const context = { state: props.state, nav: props.nav, req: props.req };
+    /*
+      What the group's steps read as `$item`: the option that was tapped. A
+      card a repeat draws already has it — the entry it was drawn from — and
+      keeps it. An ordinary option has no entry, so it is the answer it gives:
+      the value of its own `select`.
+    */
+    const answer = actions.find((action) => action.type === "select");
+    const picked =
+      asPicked && answer?.type === "select"
+        ? { ...context, state: asPicked(answer.value) }
+        : context;
     // Fire-and-forget on purpose: React does not await a handler, and the
     // actions write through the store, which is what re-renders.
     resolved.onClick = (): void => {
       void (async () => {
         const carried = await run(actions, context);
-        if (carried && after?.length) await run(after, context);
+        if (carried && after?.length) await run(after, picked);
       })();
     };
   }
@@ -243,7 +256,15 @@ function drawNode(
     `opacity: 0` would still take its space and still take taps. The emitter
     reaches the same answer with a ternary around the same expression.
   */
-  const resolved = propsOf(node, props, select);
+  const resolved = propsOf(
+    node,
+    props,
+    select,
+    // Only where no repeat is drawing an entry: there `$item` is the entry.
+    scope?.$item === undefined
+      ? (item) => within(screen, { ...scope, $item: item }).state
+      : undefined,
+  );
 
   if (node.kind === "text") {
     const params = paramsOf(node, props);
