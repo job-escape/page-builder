@@ -16,7 +16,13 @@
  * hand-written container read.
  */
 import { ActionError, buyerCountry, silentLog, text, type ActionHandlers, type Log } from "../contract";
-import { createNvsClient, NvsApiError, type NvsConfig, type NvsRpc } from "./client";
+import {
+  createNvsClient,
+  NvsApiError,
+  type NvsConfig,
+  type NvsFetchCache,
+  type NvsRpc,
+} from "./client";
 import { checkoutErrorBody, toActionError } from "./errors";
 
 // ─── The platform's shapes ───────────────────────────────────────────────────
@@ -168,11 +174,32 @@ const STALE_MS = 24 * 60 * 60 * 1000;
 const RETRY_AFTER_FAILURE_MS = 60 * 1000;
 
 /**
- * `product-catalog.ts`: fresh for an hour, served stale up to a day while a
- * refresh fails, no retry within a minute of a failure, one refresh in flight.
- * One catalogue per client, so two hosts in one process never share one.
+ * The project's sellable products, cached.
+ *
+ * In this process's memory by default — `product-catalog.ts`: fresh for an
+ * hour, served stale up to a day while a refresh fails, no retry within a
+ * minute of a failure, one refresh in flight. One catalogue per client, so two
+ * hosts in one process never share one. Or in the host's own fetch cache,
+ * when it has one and says so — see `hostCache` below.
  */
-function createCatalog(rpc: NvsRpc, log: Log) {
+function createCatalog(rpc: NvsRpc, log: Log, hostCache?: NvsFetchCache) {
+  /*
+    A host whose `fetch` caches (`NvsConfig.catalogCache`) keeps the catalogue
+    itself: every call asks, and the host's cache answers all but the ones it
+    is due to refresh — or was told to forget. Nothing is kept here, so there
+    is nothing here to go stale after the host has invalidated it.
+  */
+  if (hostCache) {
+    return async function sellable(): Promise<PlatformProduct[]> {
+      const { products = [] } = await rpc<{ products?: PlatformProduct[] }>(
+        "/payments.v1.ServiceAccountService/ListProducts",
+        { active_only: true },
+        hostCache,
+      );
+      return products.filter((product) => product.active === true);
+    };
+  }
+
   let catalog: { products: PlatformProduct[]; loadedAt: number } | null = null;
   let inflight: Promise<{ products: PlatformProduct[]; loadedAt: number }> | null = null;
   let failedAt = 0;
@@ -237,7 +264,7 @@ export const isSubscriptionProduct = (product: PlatformProduct): boolean =>
  */
 export function nvsSubscriptions(options: NvsConfig): () => Promise<FunnelSubscription[]> {
   const log = options.log ?? silentLog;
-  const sellable = createCatalog(createNvsClient(options), log);
+  const sellable = createCatalog(createNvsClient(options), log, options.catalogCache);
   return async () => (await sellable()).filter(isSubscriptionProduct).map(toFunnelSubscription);
 }
 
@@ -265,7 +292,7 @@ export type NvsActionsOptions = NvsConfig & {
 export function nvsActions(options: NvsActionsOptions): ActionHandlers {
   const log = options.log ?? silentLog;
   const rpc = createNvsClient(options);
-  const sellable = createCatalog(rpc, log);
+  const sellable = createCatalog(rpc, log, options.catalogCache);
   const newKey = options.idempotencyKey ?? (() => crypto.randomUUID());
 
   const getOrCreateUser = (email: string, name?: string) =>

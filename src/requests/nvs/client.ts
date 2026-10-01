@@ -27,6 +27,33 @@ export type NvsConfig = {
   log?: Log;
   /** Injected in tests. */
   fetch?: typeof fetch;
+  /**
+   * How the host's `fetch` caches the product catalogue (`ListProducts`).
+   *
+   * A Next.js host hands it the framework's own:
+   *
+   *     catalogCache: { next: { revalidate: 3600, tags: ["subscriptions"] } }
+   *
+   * and the catalogue then lives in the framework's data cache rather than in
+   * this process: shared by every server instance, kept across a deploy, and
+   * thrown away on demand with `revalidateTag("subscriptions", …)`. Absent, the
+   * catalogue is kept in this process's memory for an hour, as it always was
+   * (see `createCatalog`) — the right thing for a host with no such cache.
+   *
+   * Only the catalogue is ever cached. Every other call — a user, a payment
+   * session — is a write, and goes out `no-store`.
+   */
+  catalogCache?: NvsFetchCache;
+};
+
+/**
+ * `fetch` options that say how a response is cached. Spread into the call as
+ * they are, so a host's framework reads its own keys: `cache`, and Next.js's
+ * `next: { revalidate, tags }`.
+ */
+export type NvsFetchCache = {
+  cache?: RequestCache;
+  next?: { revalidate?: number | false; tags?: string[] };
 };
 
 export type KnownNvsErrorCode =
@@ -111,13 +138,22 @@ function describe(value: unknown): unknown {
   );
 }
 
-export type NvsRpc = <TResponse>(procedure: string, body: Record<string, unknown>) => Promise<TResponse>;
+export type NvsRpc = <TResponse>(
+  procedure: string,
+  body: Record<string, unknown>,
+  /** How this one call may be cached — absent, it is not. See `NvsConfig.catalogCache`. */
+  caching?: NvsFetchCache,
+) => Promise<TResponse>;
 
 export function createNvsClient(config: NvsConfig): NvsRpc {
   const log = config.log ?? silentLog;
   const doFetch = config.fetch ?? fetch;
 
-  return async function nvsRpc<TResponse>(procedure: string, body: Record<string, unknown>): Promise<TResponse> {
+  return async function nvsRpc<TResponse>(
+    procedure: string,
+    body: Record<string, unknown>,
+    caching?: NvsFetchCache,
+  ): Promise<TResponse> {
     const url = `${config.baseUrl}${procedure}`;
     const startedAt = Date.now();
 
@@ -131,8 +167,10 @@ export function createNvsClient(config: NvsConfig): NvsRpc {
           "X-Project-Id": config.projectId,
         },
         body: JSON.stringify(body),
-        cache: "no-store",
-      });
+        // Never cached, unless the caller says how: a framework's fetch would
+        // otherwise be free to answer a write from a response it kept.
+        ...(caching ?? { cache: "no-store" as const }),
+      } as RequestInit);
     } catch (error) {
       log.error("nvs_rpc_network_error", {
         procedure,

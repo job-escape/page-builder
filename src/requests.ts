@@ -28,7 +28,7 @@ export { ACTION_NAMES, ActionError, buyerCountry, clientIp, cookie, silentLog } 
 export type { RequestRouteOptions } from "./requests/route";
 export { createRequestRoute } from "./requests/route";
 
-export type { NvsConfig, NvsRpc } from "./requests/nvs/client";
+export type { NvsConfig, NvsFetchCache, NvsRpc } from "./requests/nvs/client";
 export { NvsApiError, createNvsClient } from "./requests/nvs/client";
 export type { PaymentErrorPolicy, CheckoutFailureAction } from "./requests/nvs/errors";
 export { classifyPaymentError, checkoutErrorBody } from "./requests/nvs/errors";
