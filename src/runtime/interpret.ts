@@ -474,12 +474,22 @@ type EmailSubmitError = { message: string; code: string; status: number };
  */
 function withError(ctx: ActionContext, error: EmailSubmitError): ActionContext {
   const { state } = ctx;
-  const mine = (name: string): boolean => name === "$error";
+  /*
+    `$error` itself, and each field by its dotted name — `$error.message` — so
+    a picker that takes a variable's name and no path can still choose one.
+  */
+  const fields: Record<string, unknown> = {
+    $error: error,
+    "$error.message": error.message,
+    "$error.code": error.code,
+    "$error.status": error.status,
+  };
+  const mine = (name: string): boolean => Object.prototype.hasOwnProperty.call(fields, name);
   return {
     ...ctx,
     state: {
       ...state,
-      get: (name: string) => (mine(name) ? (error as never) : state.get(name)),
+      get: (name: string) => (mine(name) ? (fields[name] as never) : state.get(name)),
       isSet: (name: string) => (mine(name) ? true : state.isSet(name)),
       isEmpty: (name: string) => (mine(name) ? false : state.isEmpty(name)),
     },
