@@ -12,7 +12,7 @@
  *
  * **What a session is opened for.** The visitor's email (the system `email`,
  * which the email step sets) and a plan: the one in the system variable
- * `subscription` when a design puts the chosen plan there, else the plan
+ * `selectedSubscription` when a design puts the chosen plan there, else the plan
  * `subscriptions` marks as the default, else the first. A different plan is a
  * different session — the platform has no "change the plan of this one" — so
  * choosing another while on the screen opens a new one.
@@ -34,7 +34,7 @@ export const PAYMENT_CONFIRM_ACTION = "payment.confirm";
 /** Where the opened session is put — what a payment form is bound to. */
 export const PAYMENT_SESSION_VARIABLE = "paymentSession";
 /** The plan the visitor chose, when a design keeps it — an entry of `subscriptions`. */
-export const SUBSCRIPTION_VARIABLE = "subscription";
+export const SUBSCRIPTION_VARIABLE = "selectedSubscription";
 /**
  * The plans on offer — a list the host loads and hands the funnel (`values`).
  * Read here only to find the default plan when none was chosen.

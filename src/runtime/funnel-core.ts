@@ -520,7 +520,7 @@ export function useFunnelRuntime<Ui, Component>({
     The payment session, opened when the visitor is on a screen that needs one
     — a payment form on it, or on a dialog it opens (`manifest.payments`) — so
     the form is ready by the time it is looked at. For the plan the design
-    chose (`subscription`), else the default of those offered, and the email
+    chose (`selectedSubscription`), else the default of those offered, and the email
     the funnel collected; put in `paymentSession`, which the form is bound to.
 
     One per plan and email: the same pair again is the session already open,
