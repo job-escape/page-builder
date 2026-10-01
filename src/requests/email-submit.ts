@@ -30,8 +30,11 @@ export const EMAIL_SUBMIT_ACTION = "email.submit";
   (`runtime/isolation.test`). Change one and change the other.
 */
 
-/** What the step sends: the address, spaces around it dropped, then checked. */
-const EmailSubmitPayload = z.object({ email: z.string().trim().pipe(z.email()) });
+/**
+ * What the step sends: the address, spaces around it dropped, then checked —
+ * and nothing beside it. A body carrying anything else is refused.
+ */
+const EmailSubmitPayload = z.strictObject({ email: z.string().trim().pipe(z.email()) });
 
 /** What this answers — `EmailSubmitResponse` in `runtime/email-submit`. */
 export type EmailSubmitResponse = {
@@ -43,34 +46,80 @@ export type EmailSubmitResponse = {
   analyticsId?: string;
 };
 
-/** Handlers answering `email.submit`, to spread into a host's request route. */
-export function emailSubmitHandlers(config: NvsConfig, log: Log = config.log ?? silentLog): ActionHandlers {
+/** The account for a `{ email }` body — or an `ActionError` saying why not. */
+function emailSubmit(config: NvsConfig, log: Log): (payload: unknown) => Promise<EmailSubmitResponse> {
   const rpc = createNvsClient({ ...config, log });
 
-  return {
-    [EMAIL_SUBMIT_ACTION]: async (payload) => {
-      // The same check the step makes before it asks, made again here.
-      const checked = EmailSubmitPayload.safeParse(payload);
-      if (!checked.success) {
-        throw new ActionError(400, { error: "invalid_argument", message: "A valid email is required." });
+  return async (payload) => {
+    // The same check the step makes before it asks, made again here.
+    const checked = EmailSubmitPayload.safeParse(payload);
+    if (!checked.success) {
+      throw new ActionError(400, { error: "invalid_argument", message: "A valid email is required." });
+    }
+    const { email } = checked.data;
+    try {
+      const result = await rpc<GetOrCreateUserResponse>("/auth.v1.ServiceAccountService/GetOrCreateUser", {
+        email,
+      });
+      const analyticsId = readAnalyticsId(result.analyticsId);
+      if (!analyticsId) log.warn("user_analytics_id_missing", { userId: result.userId });
+      log.info("email_submitted", { userId: result.userId, created: result.created === true });
+      return {
+        userId: result.userId,
+        created: result.created === true,
+        ...(analyticsId ? { analyticsId } : {}),
+      };
+    } catch (error) {
+      return toActionError(error);
+    }
+  };
+}
+
+/**
+ * Handlers answering `email.submit` on a host's shared request route — for a
+ * host that has not given the step a route of its own (`createEmailSubmitRoute`).
+ */
+export function emailSubmitHandlers(config: NvsConfig, log: Log = config.log ?? silentLog): ActionHandlers {
+  const answer = emailSubmit(config, log);
+  return { [EMAIL_SUBMIT_ACTION]: (payload) => answer(payload) };
+}
+
+const json = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+/**
+ * The email step's own route: a `POST` whose body is `{ "email": "…" }` and
+ * nothing else, answered with `EmailSubmitResponse` — or a refusal's
+ * `{ error, message }` under its status.
+ *
+ *     // app/api/user/email/route.ts
+ *     export const POST = createEmailSubmitRoute(nvsConfig, logger);
+ *
+ * The page sends there once told where it is:
+ * `configureRequests({ routes: { "email.submit": "/api/user/email" } })`.
+ */
+export function createEmailSubmitRoute(
+  config: NvsConfig,
+  log: Log = config.log ?? silentLog,
+): (request: Request) => Promise<Response> {
+  const answer = emailSubmit(config, log);
+
+  return async (request) => {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      body = null;
+    }
+    try {
+      return json(await answer(body));
+    } catch (error) {
+      if (error instanceof ActionError) {
+        log.warn("email_submit_refused", { status: error.status, error: error.body.error });
+        return json(error.body, error.status);
       }
-      const { email } = checked.data;
-      try {
-        const result = await rpc<GetOrCreateUserResponse>("/auth.v1.ServiceAccountService/GetOrCreateUser", {
-          email,
-        });
-        const analyticsId = readAnalyticsId(result.analyticsId);
-        if (!analyticsId) log.warn("user_analytics_id_missing", { userId: result.userId });
-        log.info("email_submitted", { userId: result.userId, created: result.created === true });
-        const answer: EmailSubmitResponse = {
-          userId: result.userId,
-          created: result.created === true,
-          ...(analyticsId ? { analyticsId } : {}),
-        };
-        return answer;
-      } catch (error) {
-        return toActionError(error);
-      }
-    },
+      log.error("email_submit_failed", { error: error instanceof Error ? error.message : String(error) });
+      return json({ error: "internal", message: "Something went wrong. Please try again." }, 500);
+    }
   };
 }

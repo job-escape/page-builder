@@ -23,6 +23,14 @@
 export type RequestOptions = {
   /** Where named destinations are resolved. Set once by the host app. */
   endpoint?: string;
+  /**
+   * Actions with a route of their own, by name — `{ "email.submit": "/api/user/email" }`.
+   *
+   * Such a request is its payload and nothing else: no action name (the address
+   * says which), no context. The email step's is `{ "email": "…" }`, whole.
+   * An action not named here goes to `endpoint`, wrapped as it always was.
+   */
+  routes?: Record<string, string>;
   /** Abandoned after this. A funnel that hangs has lost the visitor anyway. */
   timeoutMs?: number;
   /**
@@ -97,7 +105,8 @@ export async function request(
   payload: Record<string, unknown> = {},
 ): Promise<Record<string, unknown>> {
   const { options } = shared();
-  const endpoint = options.endpoint;
+  const own = options.routes?.[action];
+  const endpoint = own ?? options.endpoint;
   if (!endpoint) {
     throw new RequestFailed(action, 0, "This funnel has no request endpoint configured.");
   }
@@ -109,9 +118,11 @@ export async function request(
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // The name and the data, and nothing else. The backend supplies the URL,
-      // the credentials and the decision about whether this is allowed.
-      body: JSON.stringify({ action, payload, context: options.context ?? {} }),
+      // A route of the action's own is sent the data alone. The shared one is
+      // sent the name and the data, and nothing else. Either way the backend
+      // supplies the URL, the credentials and the decision about whether this
+      // is allowed.
+      body: JSON.stringify(own ? payload : { action, payload, context: options.context ?? {} }),
       signal: controller.signal,
     });
 
