@@ -37,6 +37,8 @@ export interface PlatformProduct {
   id: string;
   code: string;
   name: string;
+  /** `PRODUCT_TYPE_RECURRING` for a subscription, `PRODUCT_TYPE_SINGLE` for a one-off. */
+  type?: string;
   price: PlatformMoney;
   billingPeriod?: string;
   frequency?: number;
@@ -96,8 +98,14 @@ function decodeInitPayload(initPayload: string): { clientToken: string; clientTo
 
 // ─── The catalogue, as a design reads it ─────────────────────────────────────
 
-/** `subscriptions-mapper.ts` — the funnel's plan shape, from a platform product. */
-export interface FunnelSubscription {
+/**
+ * `subscriptions-mapper.ts` — the funnel's plan shape, from a platform product.
+ *
+ * A type, not an interface: a list of these is handed to the funnel as a
+ * variable's value (`initialValues`), which takes plain data objects, and only
+ * a type alias is one without a cast.
+ */
+export type FunnelSubscription = {
   id: string;
   code: string;
   name: string;
@@ -116,7 +124,7 @@ export interface FunnelSubscription {
   trial_timeout_price_amount: number;
   saved_amount: number;
   is_default: boolean;
-}
+};
 
 const CURRENCY_SYMBOLS: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
 
@@ -207,6 +215,30 @@ function createCatalog(rpc: NvsRpc, log: Log) {
       throw error;
     }
   };
+}
+
+/**
+ * A product that bills again — a subscription plan, not an upsell or a pack of
+ * credits. By its type where the platform says one, else by having a period.
+ */
+export const isSubscriptionProduct = (product: PlatformProduct): boolean =>
+  product.type ? product.type === "PRODUCT_TYPE_RECURRING" : Boolean(product.billingPeriod);
+
+/**
+ * The subscription plans this project sells, as a design reads them — what a
+ * host hands the funnel as its `subscriptions` variable:
+ *
+ *     const subscriptions = nvsSubscriptions({ baseUrl, apiKey, projectId });
+ *     <Funnel initialValues={{ subscriptions: await subscriptions() }} … />
+ *
+ * Made once per process and called per page: the catalogue behind it is the
+ * same cached one the actions use — fresh for an hour, stale for a day while a
+ * refresh fails. One-off products (upsells, credit packs) are left out.
+ */
+export function nvsSubscriptions(options: NvsConfig): () => Promise<FunnelSubscription[]> {
+  const log = options.log ?? silentLog;
+  const sellable = createCatalog(createNvsClient(options), log);
+  return async () => (await sellable()).filter(isSubscriptionProduct).map(toFunnelSubscription);
 }
 
 // ─── The actions ─────────────────────────────────────────────────────────────

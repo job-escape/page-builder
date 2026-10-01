@@ -115,6 +115,15 @@ export const matchesDeclaration = (decl: VariableDecl, value: unknown): boolean 
 
 function matchesDecl(decl: VariableDecl, value: unknown): boolean {
   if (value === null) return true;
+  /*
+    Data — a plan, or the catalogue of them. Never read back from the cookie
+    (`isSaved`), so this is only ever asked of what a host hands the funnel when
+    it starts: the subscriptions it loaded on the server.
+  */
+  const record = (entry: unknown): boolean =>
+    entry !== null && typeof entry === "object" && !Array.isArray(entry);
+  if (decl.type === "object") return record(value);
+  if (decl.type === "list<object>") return Array.isArray(value) && value.every(record);
   if (isListType(decl)) {
     return Array.isArray(value) && value.every((entry) => typeof entry === "string");
   }

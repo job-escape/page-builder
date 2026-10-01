@@ -33,7 +33,14 @@ export { NvsApiError, createNvsClient } from "./requests/nvs/client";
 export type { PaymentErrorPolicy, CheckoutFailureAction } from "./requests/nvs/errors";
 export { classifyPaymentError, checkoutErrorBody } from "./requests/nvs/errors";
 export type { FunnelSubscription, NvsActionsOptions, PlatformProduct } from "./requests/nvs/actions";
-export { isPaidStatus, isPlatformUserId, nvsActions, toFunnelSubscription } from "./requests/nvs/actions";
+export {
+  isPaidStatus,
+  isPlatformUserId,
+  isSubscriptionProduct,
+  nvsActions,
+  nvsSubscriptions,
+  toFunnelSubscription,
+} from "./requests/nvs/actions";
 
 export {
   EMAIL_SUBMIT_ACTION,
