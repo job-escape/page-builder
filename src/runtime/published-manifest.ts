@@ -54,6 +54,7 @@ export function runtimeManifest(manifest: AnyManifest): FunnelManifest {
     enter: map((screen) => (screen.enter?.length ? screen.enter : undefined)),
     next: map((screen) => screen.next),
     trees: map((screen) => screen.tree || undefined),
+    payments: map((screen) => (screen.payment ? (true as const) : undefined)),
     tokens: manifest.tokens,
     defaultMode: manifest.defaultMode,
     themes: manifest.themes,

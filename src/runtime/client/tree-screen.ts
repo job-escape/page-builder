@@ -26,6 +26,7 @@ import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
 import { isCaseBinding, isValueBinding, type SourceAction } from "../compiler/source";
 import { isScopeName, type Scope } from "../data";
 import { evaluate, run, valueOf } from "../interpret";
+import { settlePayment } from "../payment-session";
 import type { CopyParams } from "../rich-text";
 import type { ScreenModule, ScreenProps } from "./funnel";
 
@@ -317,9 +318,26 @@ function drawNode(
     const triggers = node.triggers ?? {};
     return Slot(Component, {
       ...resolved,
-      trigger: (name: string, values?: Record<string, unknown>): Promise<boolean> => {
+      trigger: async (reportedAs: string, said?: Record<string, unknown>): Promise<boolean> => {
+        let name = reportedAs;
+        let values = said;
+        /*
+          A payment form's `success` is the gateway saying it took the payment;
+          the platform still has to settle it. Where the funnel opened the
+          session (`runtime/payment-session`) it settles it too, before the
+          design hears anything — so the design's `success` steps run for a
+          payment that is really taken, and one the platform refused arrives as
+          `decline` instead.
+        */
+        if (node.name === "checkout" && reportedAs === "success") {
+          const settled = await settlePayment(props.req, props.state, said ?? {});
+          if (settled) {
+            name = settled.name;
+            values = settled.report;
+          }
+        }
         const actions = triggers[name];
-        if (!actions?.length) return Promise.resolve(true);
+        if (!actions?.length) return true;
         const reported = within(screen, { ...scope, $event: values ?? {}, $payment: values ?? {} });
         return run(actions, { state: reported.state, nav: reported.nav, req: reported.req });
       },

@@ -59,6 +59,13 @@ export type ScreenIndex = {
    */
   tree?: string;
   /**
+   * This screen needs a payment session: a payment form is on it, or on a
+   * dialog it opens. **Added by publish, not by this compiler**, like `tree`.
+   * The funnel opens the session when the visitor gets here — see
+   * `runtime/payment-session`.
+   */
+  payment?: boolean;
+  /**
    * Every variable this screen reads.
    *
    * Derived here because the compiler can see it and a renderer cannot without
