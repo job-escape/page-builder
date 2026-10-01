@@ -21,8 +21,12 @@ export const EmailAddress = z.string().trim().pipe(z.email());
 export const EmailSubmitPayload = z.object({ email: EmailAddress });
 export type EmailSubmitPayload = z.infer<typeof EmailSubmitPayload>;
 
-/** What the handler answers when the account was found or made. */
-export const EmailSubmitResponse = z.object({
+/**
+ * What the handler answers when the account was found or made. These fields
+ * are the ones the step needs; an answer may carry others beside them — they
+ * are let through as they came, not refused and not dropped.
+ */
+export const EmailSubmitResponse = z.looseObject({
   /** The account's id on the payments platform — the system variable `userId`. */
   userId: z.string().min(1),
   /** True when this email had no account until now. */
