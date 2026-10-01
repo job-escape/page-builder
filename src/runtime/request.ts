@@ -86,6 +86,17 @@ const shared = (): { options: RequestOptions } => {
   return holder[SHARED];
 };
 
+/**
+ * Whether the host gave this action a route of its own (`routes`).
+ *
+ * For a request the funnel makes by itself — the subscriptions it loads when
+ * it starts — which is only worth making to a host that said it answers it: a
+ * host that never heard of the action would refuse it on every page load.
+ */
+export function hasRoute(action: string): boolean {
+  return Boolean(shared().options.routes?.[action]);
+}
+
 /** Configure once, at mount. The compiled module never sees any of this. */
 export function configureRequests(next: RequestOptions): void {
   const state = shared();

@@ -48,6 +48,13 @@ export {
   emailSubmitHandlers,
   type EmailSubmitResponse,
 } from "./requests/email-submit";
+export {
+  SUBSCRIPTIONS_ACTION,
+  createSubscriptionsRoute,
+  pickSubscriptions,
+  type SubscriptionsResponse,
+  type SubscriptionsRouteOptions,
+} from "./requests/subscriptions";
 
 export type { JobescapeActionsOptions } from "./requests/jobescape/actions";
 export { jobescapeActions, readCookieUser } from "./requests/jobescape/actions";

@@ -15,7 +15,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExtern
 
 import type { Device } from "./device";
 import { createNavigator, type NavigationState, type Presentation } from "./navigation";
-import { request } from "./request";
+import { hasRoute, request } from "./request";
+import { SUBSCRIPTIONS_ACTION, SUBSCRIPTIONS_VARIABLE, SubscriptionsResponse } from "./subscriptions";
 import { openLink } from "./link";
 import { analytics, track } from "./track";
 import type { VariableValue } from "./types";
@@ -374,6 +375,44 @@ export function useFunnelRuntime<Ui, Component>({
   useBeforePaint(() => {
     if (restoreOnMount) store.restore();
   }, [store, restoreOnMount]);
+
+  /*
+    The plans a design repeats its cards over (`subscriptions`), asked for once
+    the funnel is up — a request of its own, to the host's own route. Only for
+    a design that declares the variable, a host that said where it answers, and
+    a funnel the host did not already hand the list to. Which plans come back
+    is the host's decision; whatever does not read as the defined answer is
+    left out rather than half-read, and the cards simply are not drawn.
+  */
+  const plansAsked = useRef<unknown>(null);
+  useEffect(() => {
+    if (table[SUBSCRIPTIONS_VARIABLE]?.type !== "list<object>") return;
+    if (!hasRoute(SUBSCRIPTIONS_ACTION)) return;
+    const given = store.get(SUBSCRIPTIONS_VARIABLE);
+    if (Array.isArray(given) && given.length > 0) return;
+    // Once per store — an effect run twice in development is one request.
+    if (plansAsked.current === store) return;
+    plansAsked.current = store;
+    store.setStatus(SUBSCRIPTIONS_ACTION, "pending");
+    request(SUBSCRIPTIONS_ACTION)
+      .then((answer) => {
+        const parsed = SubscriptionsResponse.safeParse(answer);
+        if (!parsed.success) {
+          store.setStatus(SUBSCRIPTIONS_ACTION, "error", "The plans could not be read.");
+          return;
+        }
+        store.set(SUBSCRIPTIONS_VARIABLE, parsed.data.subscriptions);
+        store.setStatus(SUBSCRIPTIONS_ACTION, "success");
+      })
+      .catch((failure: unknown) => {
+        // `request` has already logged it, by name.
+        store.setStatus(
+          SUBSCRIPTIONS_ACTION,
+          "error",
+          failure instanceof Error ? failure.message : String(failure),
+        );
+      });
+  }, [store, table]);
 
   /*
     A running timer redraws what reads it — once per displayed second, never per
