@@ -8,7 +8,7 @@
  * decline. What it did after a success — confirm the order, fire pixels,
  * redirect — is the design's now.
  */
-import { createElement, useEffect, useRef, useState, type ComponentType, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactElement } from "react";
 
 import type { CheckoutMethod, CheckoutProps, CheckoutSession, PaymentReport, Trigger } from "./contract";
 
@@ -121,104 +121,115 @@ export function SolidgateCheckout({
     orderMethod.current ?? lastWallet.current ?? entityMethod(event.entity) ?? "card";
 
   const offersCard = methods.includes("card");
-  const walletSlot = (method: "applepay" | "googlepay") =>
-    createElement("div", {
-      key: method,
-      ref: method === "applepay" ? applePay : googlePay,
-      "data-payment-method": method,
-      style: { width: "100%" },
-    });
+  const walletSlot = (method: "applepay" | "googlepay") => (
+    <div
+      key={method}
+      ref={method === "applepay" ? applePay : googlePay}
+      data-payment-method={method}
+      style={{ width: "100%" }}
+    />
+  );
 
-  const form = Payment
-    ? createElement(Payment, {
-        key: "form",
-        merchantData,
-        styles: {
-          ...DEFAULT_STYLES,
-          submit_button: { ...DEFAULT_STYLES.submit_button, ...kebab(props.buttonStyle) },
-        },
-        width: "100%",
-        formParams: { submitButtonText: props.buttonLabel || "Confirm payment" },
-        ...(methods.includes("applepay")
-          ? { applePayButtonParams: { color: "black", type: props.applePayType ?? "buy" }, applePayContainerRef: applePay }
-          : {}),
-        ...(methods.includes("googlepay")
-          ? { googlePayButtonParams: { color: "black", type: props.googlePayType ?? "buy" }, googlePayContainerRef: googlePay }
-          : {}),
-        onInteraction: (event: SdkEvent) => {
-          const { name, interaction } = event.target ?? {};
-          const wallet = name === "applePay" ? "applepay" : name === "googlePay" ? "googlepay" : null;
-          if (wallet && interaction === "click") {
-            lastWallet.current = wallet;
-            report("click", { method: wallet });
-          } else if (wallet && interaction === "pageClose") {
-            if (lastWallet.current === wallet) lastWallet.current = null;
-            report("cancel", { method: wallet });
-          } else if (interaction === "click") {
-            lastWallet.current = null;
-          }
-        },
-        onOrderStatus: (event: SdkEvent) => {
-          const method = solidgateMethod(event.response?.order?.method) ?? entityMethod(event.entity) ?? lastWallet.current;
-          if (method) orderMethod.current = method;
-          if (method && method !== "card" && !walletSubmitted.current) {
-            walletSubmitted.current = true;
-            report("purchase_click", { method });
-          }
-        },
-        onSubmit: (event: SdkEvent) => {
-          const method = methodOf(event);
-          if (method !== "card") return;
-          report("purchase_click", { method });
-        },
-        onSuccess: (event: SdkEvent) => {
-          if (processed.current) return;
-          const method = methodOf(event);
-          const orderId = event.order?.order_id;
-          lastWallet.current = null;
-          orderMethod.current = null;
-          walletSubmitted.current = false;
-          if (!orderId) {
-            report("error", { method, message: "Something went wrong. Please try again." });
-            return;
-          }
-          processed.current = true;
-          report("success", { method, orderId });
-        },
-        onFail: (event: SdkEvent) => {
-          if (processed.current) return;
-          const method = methodOf(event);
-          const code = event.code === undefined || event.code === null ? undefined : String(event.code);
-          if ((method === "applepay" || method === "googlepay") && code === "3.13") return;
-          lastWallet.current = null;
-          orderMethod.current = null;
-          walletSubmitted.current = false;
-          report("decline", {
-            method,
-            message: event.message || "Your payment did not go through. Please try again.",
-            ...(code ? { code } : {}),
-          });
-        },
-        onError: () => {
-          if (processed.current) return;
-          report("error", { method: "card", message: "Something went wrong. Please try again." });
-        },
-      })
-    : null;
+  // What Solidgate's form is given: the session, its look, and the reports.
+  const formProps = {
+    merchantData,
+    styles: {
+      ...DEFAULT_STYLES,
+      submit_button: { ...DEFAULT_STYLES.submit_button, ...kebab(props.buttonStyle) },
+    },
+    width: "100%",
+    formParams: { submitButtonText: props.buttonLabel || "Confirm payment" },
+    ...(methods.includes("applepay")
+      ? { applePayButtonParams: { color: "black", type: props.applePayType ?? "buy" }, applePayContainerRef: applePay }
+      : {}),
+    ...(methods.includes("googlepay")
+      ? { googlePayButtonParams: { color: "black", type: props.googlePayType ?? "buy" }, googlePayContainerRef: googlePay }
+      : {}),
+    onInteraction: (event: SdkEvent) => {
+      const { name, interaction } = event.target ?? {};
+      const wallet = name === "applePay" ? "applepay" : name === "googlePay" ? "googlepay" : null;
+      if (wallet && interaction === "click") {
+        lastWallet.current = wallet;
+        report("click", { method: wallet });
+      } else if (wallet && interaction === "pageClose") {
+        if (lastWallet.current === wallet) lastWallet.current = null;
+        report("cancel", { method: wallet });
+      } else if (interaction === "click") {
+        lastWallet.current = null;
+      }
+    },
+    onOrderStatus: (event: SdkEvent) => {
+      const method = solidgateMethod(event.response?.order?.method) ?? entityMethod(event.entity) ?? lastWallet.current;
+      if (method) orderMethod.current = method;
+      if (method && method !== "card" && !walletSubmitted.current) {
+        walletSubmitted.current = true;
+        report("purchase_click", { method });
+      }
+    },
+    onSubmit: (event: SdkEvent) => {
+      const method = methodOf(event);
+      if (method !== "card") return;
+      report("purchase_click", { method });
+    },
+    onSuccess: (event: SdkEvent) => {
+      if (processed.current) return;
+      const method = methodOf(event);
+      const orderId = event.order?.order_id;
+      lastWallet.current = null;
+      orderMethod.current = null;
+      walletSubmitted.current = false;
+      if (!orderId) {
+        report("error", { method, message: "Something went wrong. Please try again." });
+        return;
+      }
+      processed.current = true;
+      report("success", { method, orderId });
+    },
+    onFail: (event: SdkEvent) => {
+      if (processed.current) return;
+      const method = methodOf(event);
+      const code = event.code === undefined || event.code === null ? undefined : String(event.code);
+      if ((method === "applepay" || method === "googlepay") && code === "3.13") return;
+      lastWallet.current = null;
+      orderMethod.current = null;
+      walletSubmitted.current = false;
+      report("decline", {
+        method,
+        message: event.message || "Your payment did not go through. Please try again.",
+        ...(code ? { code } : {}),
+      });
+    },
+    onError: () => {
+      if (processed.current) return;
+      report("error", { method: "card", message: "Something went wrong. Please try again." });
+    },
+  };
+  const form = Payment ? <Payment key="form" {...formProps} /> : null;
 
   const slots = methods.filter((method): method is "applepay" | "googlepay" => method === "applepay" || method === "googlepay");
 
-  return createElement(
-    "div",
-    { "data-checkout": "solidgate", style: { position: "relative", display: "flex", flexDirection: "column", gap: 12 } },
-    ...methods.flatMap((method) => {
-      if (method === "card") {
-        return [createElement("div", { key: "card", "data-payment-method": "card" }, form)];
-      }
-      return method === "applepay" || method === "googlepay" ? [walletSlot(method)] : [];
-    }),
-    // Without a card, the form still has to mount for the wallets to: kept
-    // measurable off-screen, since Solidgate skips init inside display:none.
-    !offersCard && slots.length ? createElement("div", { key: "form", style: OFFSCREEN }, form) : null,
+  return (
+    <div
+      data-checkout="solidgate"
+      style={{ position: "relative", display: "flex", flexDirection: "column", gap: 12 }}
+    >
+      {methods.flatMap((method) => {
+        if (method === "card") {
+          return [
+            <div key="card" data-payment-method="card">
+              {form}
+            </div>,
+          ];
+        }
+        return method === "applepay" || method === "googlepay" ? [walletSlot(method)] : [];
+      })}
+      {/* Without a card, the form still has to mount for the wallets to: kept
+          measurable off-screen, since Solidgate skips init inside display:none. */}
+      {!offersCard && slots.length ? (
+        <div key="form" style={OFFSCREEN}>
+          {form}
+        </div>
+      ) : null}
+    </div>
   );
 }

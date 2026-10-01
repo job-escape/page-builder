@@ -12,7 +12,7 @@
  *     });
  *     <Funnel components={{ checkout: Checkout }} … />
  */
-import { createElement, useEffect, useRef, type ReactElement } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 
 import { methodsOf, sessionOf, type CheckoutProps, type Trigger } from "./contract";
 import { PaypalCheckout } from "./paypal";
@@ -47,40 +47,48 @@ export function createCheckout(loaders: CheckoutLoaders): (props: CheckoutProps)
     }, [missing, session?.gateway]);
 
     if (!session) {
-      return createElement("div", {
-        "data-checkout": "pending",
-        "aria-busy": true,
-        style: { width: "100%", minHeight: props.placeholderHeight ?? 52 },
-      });
+      return (
+        <div
+          data-checkout="pending"
+          aria-busy
+          style={{ width: "100%", minHeight: props.placeholderHeight ?? 52 }}
+        />
+      );
     }
     if (missing) return null;
 
     if (session.gateway === "primer" && loaders.primer && session.clientToken) {
-      return createElement(PrimerCheckout, {
-        load: loaders.primer,
-        clientToken: session.clientToken,
-        methods,
-        props,
-        trigger,
-      });
+      return (
+        <PrimerCheckout
+          load={loaders.primer}
+          clientToken={session.clientToken}
+          methods={methods}
+          props={props}
+          trigger={trigger}
+        />
+      );
     }
     if (session.gateway === "solidgate" && loaders.solidgate && session.merchantData) {
-      return createElement(SolidgateCheckout, {
-        load: loaders.solidgate,
-        merchantData: session.merchantData,
-        // Solidgate's PayPal is its own session (`gateway: "paypal"`).
-        methods: methods.filter((method) => method !== "paypal"),
-        props,
-        trigger,
-      });
+      return (
+        <SolidgateCheckout
+          load={loaders.solidgate}
+          merchantData={session.merchantData}
+          // Solidgate's PayPal is its own session (`gateway: "paypal"`).
+          methods={methods.filter((method) => method !== "paypal")}
+          props={props}
+          trigger={trigger}
+        />
+      );
     }
     if (session.gateway === "paypal" && session.scriptUrl) {
-      return createElement(PaypalCheckout, {
-        scriptUrl: session.scriptUrl,
-        orderId: session.orderId,
-        style: props.paypalStyle,
-        trigger,
-      });
+      return (
+        <PaypalCheckout
+          scriptUrl={session.scriptUrl}
+          orderId={session.orderId}
+          style={props.paypalStyle}
+          trigger={trigger}
+        />
+      );
     }
     return null;
   }

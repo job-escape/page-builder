@@ -8,7 +8,7 @@
  * freezes before it paints, near-certainly on a warm reload. A same-origin
  * frame is a realm of its own, and removing it tears the whole SDK down.
  */
-import { createElement, useEffect, useRef, type ReactElement } from "react";
+import { useEffect, useRef, type ReactElement } from "react";
 
 import type { PaypalStyle, PaymentReport, Trigger } from "./contract";
 
@@ -116,5 +116,5 @@ export function PaypalCheckout({
     };
   }, [scriptUrl, trigger]);
 
-  return createElement("div", { ref: container, "data-checkout": "paypal", "data-payment-method": "paypal" });
+  return <div ref={container} data-checkout="paypal" data-payment-method="paypal" />;
 }

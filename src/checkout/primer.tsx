@@ -19,9 +19,11 @@
  * design has heard how it ended — which, for a payment the gateway took,
  * includes the platform settling it (`runtime/payment-session`).
  */
-import { createElement, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import type { CheckoutMethod, CheckoutProps, PaymentReport, Trigger } from "./contract";
+// The tags below are Primer's; this is what lets them be written as tags.
+import type { PrimerCheckoutElement } from "./primer-elements";
 
 /** The host's `() => import("@primer-io/primer-js")`. */
 export type PrimerLoader = () => Promise<{ loadPrimer: () => unknown }>;
@@ -92,7 +94,7 @@ export function PrimerCheckout({
   props: CheckoutProps;
   trigger: { current: Trigger };
 }): ReactElement {
-  const element = useRef<HTMLElement | null>(null);
+  const element = useRef<PrimerCheckoutElement | null>(null);
   const idempotencyKey = useRef(newKey());
   /** A payment is on its way: submitted, and its end not yet told to the design. */
   const [paying, setPaying] = useState(false);
@@ -127,8 +129,7 @@ export function PrimerCheckout({
   }, [load, trigger]);
 
   useEffect(() => {
-    const node = element.current as (HTMLElement & { options?: unknown }) | null;
-    if (node) node.options = options;
+    if (element.current) element.current.options = options;
   }, [options]);
 
   useEffect(() => {
@@ -246,36 +247,29 @@ export function PrimerCheckout({
     return () => listeners.forEach(([name, listener]) => checkout.removeEventListener(name, listener));
   }, [clientToken, trigger]);
 
-  const cardForm = createElement(
-    "primer-card-form",
-    {
-      key: "card",
-      "data-payment-method": "card",
-      "should-show-cardholder-name": cardholderName ? "true" : undefined,
-      "should-require-cardholder-name": cardholderName ? "true" : undefined,
-    },
-    createElement(
-      "div",
-      { slot: "card-form-content", style: { display: "flex", flexDirection: "column", gap: 16 } },
-      createElement("primer-input-card-number"),
-      createElement(
-        "div",
-        { style: { display: "flex", gap: 16 } },
-        createElement("primer-input-card-expiry"),
-        createElement("primer-input-cvv"),
-      ),
-      cardholderName ? createElement("primer-input-card-holder-name") : null,
-      billingAddress ? createElement("primer-billing-address") : null,
-      createElement(
-        "button",
-        {
-          type: "submit",
-          "data-button-type": "pay",
+  const cardForm = (
+    <primer-card-form
+      key="card"
+      data-payment-method="card"
+      should-show-cardholder-name={cardholderName ? "true" : undefined}
+      should-require-cardholder-name={cardholderName ? "true" : undefined}
+    >
+      <div slot="card-form-content" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <primer-input-card-number />
+        <div style={{ display: "flex", gap: 16 }}>
+          <primer-input-card-expiry />
+          <primer-input-cvv />
+        </div>
+        {cardholderName ? <primer-input-card-holder-name /> : null}
+        {billingAddress ? <primer-billing-address /> : null}
+        <button
+          type="submit"
+          data-button-type="pay"
           // Not pressable twice: a second press would be a second payment.
-          disabled: paying,
-          "aria-busy": paying ? "true" : undefined,
-          "data-paying": paying ? "" : undefined,
-          style: {
+          disabled={paying}
+          aria-busy={paying || undefined}
+          data-paying={paying ? "" : undefined}
+          style={{
             width: "100%",
             minHeight: 52,
             border: 0,
@@ -290,13 +284,12 @@ export function PrimerCheckout({
             gap: 10,
             ...props.buttonStyle,
             ...(paying ? { opacity: 0.85 } : {}),
-          },
-        },
-        paying
-          ? createElement("span", {
-              key: "spinner",
-              "aria-hidden": true,
-              style: {
+          }}
+        >
+          {paying ? (
+            <span
+              aria-hidden
+              style={{
                 width: 18,
                 height: 18,
                 flex: "none",
@@ -304,52 +297,50 @@ export function PrimerCheckout({
                 border: "2px solid currentColor",
                 borderRightColor: "transparent",
                 animation: `${SPIN} 0.7s linear infinite`,
-              },
-            })
-          : null,
-        props.buttonLabel || "Complete payment",
-      ),
-      paying ? createElement("style", { key: "spin" }, SPIN_CSS) : null,
-    ),
+              }}
+            />
+          ) : null}
+          {props.buttonLabel || "Complete payment"}
+        </button>
+        {paying ? <style>{SPIN_CSS}</style> : null}
+      </div>
+    </primer-card-form>
   );
 
-  return createElement(
-    "primer-checkout",
-    {
+  return (
+    <primer-checkout
       // A new token is a new session: the element is rebuilt rather than
       // re-pointed, so nothing from the previous plan's session survives.
-      key: clientToken,
-      ref: (node: HTMLElement | null) => {
+      key={clientToken}
+      ref={(node) => {
         element.current = node;
-        if (node) (node as HTMLElement & { options?: unknown }).options = optionsRef.current;
-      },
-      "client-token": clientToken,
-      "data-checkout": "primer",
-    },
-    createElement(
-      "primer-main",
-      { slot: "main" },
-      createElement(
-        "div",
-        { slot: "payments", style: { display: "flex", flexDirection: "column", gap: 12 } },
-        methods.map((method) =>
-          method === "card"
-            ? cardForm
-            : createElement("primer-payment-method-container", {
-                key: method,
-                include: CONTAINER_OF[method],
-                "data-payment-method": method,
-              }),
-        ),
-        /*
-          Why a payment did not go through, in the gateway's own words and its
-          own element — it reads the checkout's state, so a refused card and a
-          refused wallet both land here. A layout of our own does not get the
-          one the default layout draws, and without it a refusal showed
-          nothing: the report below reaches the design, which may say nothing.
-        */
-        createElement("primer-error-message-container", { key: "refusal" }),
-      ),
-    ),
+        if (node) node.options = optionsRef.current;
+      }}
+      client-token={clientToken}
+      data-checkout="primer"
+    >
+      <primer-main slot="main">
+        <div slot="payments" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {methods.map((method) =>
+            method === "card" ? (
+              cardForm
+            ) : (
+              <primer-payment-method-container
+                key={method}
+                include={CONTAINER_OF[method]}
+                data-payment-method={method}
+              />
+            ),
+          )}
+          {/* Why a payment did not go through, in the gateway's own words and
+              its own element — it reads the checkout's state, so a refused card
+              and a refused wallet both land here. A layout of our own does not
+              get the one the default layout draws, and without it a refusal
+              showed nothing: the report reaches the design, which may say
+              nothing. */}
+          <primer-error-message-container />
+        </div>
+      </primer-main>
+    </primer-checkout>
   );
 }
