@@ -13,8 +13,13 @@
  * - a closed PayPal popup is a `cancel`, never a `decline`;
  * - every attempt carries an idempotency key, rotated after a decline so the
  *   retry is a new payment rather than the refused one again.
+ *
+ * The card form's button is ours, so its waiting is ours to draw too: it spins
+ * and cannot be pressed from the moment a payment is submitted until the
+ * design has heard how it ended — which, for a payment the gateway took,
+ * includes the platform settling it (`runtime/payment-session`).
  */
-import { createElement, useEffect, useMemo, useRef, type ReactElement } from "react";
+import { createElement, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import type { CheckoutMethod, CheckoutProps, PaymentReport, Trigger } from "./contract";
 
@@ -57,6 +62,10 @@ function boot(load: PrimerLoader): Promise<unknown> {
   return loading;
 }
 
+/** The spinner's turn. Light DOM — the button is slotted, not in a shadow root. */
+const SPIN = "pb-checkout-spin";
+const SPIN_CSS = `@keyframes ${SPIN}{to{transform:rotate(360deg)}}`;
+
 const newKey = (): string =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
@@ -85,6 +94,8 @@ export function PrimerCheckout({
 }): ReactElement {
   const element = useRef<HTMLElement | null>(null);
   const idempotencyKey = useRef(newKey());
+  /** A payment is on its way: submitted, and its end not yet told to the design. */
+  const [paying, setPaying] = useState(false);
 
   const { cardholderName = false, billingAddress = false, applePayType = "buy", googlePayType = "buy" } = props;
   const paypal = props.paypalStyle;
@@ -128,7 +139,22 @@ export function PrimerCheckout({
     let wasProcessing = false;
     let lastPaypalCancelAt = 0;
     const report = (name: Parameters<Trigger>[0], values: Omit<PaymentReport, "gateway">) =>
-      void trigger.current(name, { gateway: "primer", ...values });
+      trigger.current(name, { gateway: "primer", ...values });
+    /*
+      Settling outlives the gateway's own processing: `success` is answered
+      only after the platform confirmed the payment and the design's steps
+      ran. Until then the gateway going quiet must not release the button.
+    */
+    let settling = false;
+    const settled = (told: ReturnType<Trigger>) => {
+      settling = true;
+      void Promise.resolve(told)
+        .catch(() => undefined)
+        .then(() => {
+          settling = false;
+          setPaying(false);
+        });
+    };
 
     const flushPendingWallet = () => {
       if (!pendingWallet) return;
@@ -147,6 +173,10 @@ export function PrimerCheckout({
     const onStateChange = (event: Event) => {
       const isProcessing = Boolean((event as PrimerEvent).detail?.isProcessing);
       if (isProcessing && !wasProcessing && pendingWallet !== "PAYPAL") flushPendingWallet();
+      // Released only when the gateway *stops* working — another change of
+      // its state, between the press and the work starting, is not the end.
+      if (isProcessing) setPaying(true);
+      else if (wasProcessing && !settling) setPaying(false);
       wasProcessing = isProcessing;
     };
 
@@ -158,6 +188,8 @@ export function PrimerCheckout({
         pendingWallet = paymentMethodType;
       } else {
         report("purchase_click", { method: METHOD_OF[paymentMethodType] ?? "card" });
+        // The card's button was pressed: before the gateway says it is working.
+        setPaying(true);
       }
       continuePaymentCreation?.({ idempotencyKey: idempotencyKey.current });
     };
@@ -165,14 +197,18 @@ export function PrimerCheckout({
     const onSuccess = (event: Event) => {
       const { payment, paymentMethodType = "" } = (event as PrimerEvent).detail ?? {};
       flushPendingWallet();
-      report("success", {
-        method: METHOD_OF[paymentMethodType] ?? "card",
-        ...(payment?.id ? { orderId: payment.id, paymentId: payment.id } : {}),
-      });
+      setPaying(true);
+      settled(
+        report("success", {
+          method: METHOD_OF[paymentMethodType] ?? "card",
+          ...(payment?.id ? { orderId: payment.id, paymentId: payment.id } : {}),
+        }),
+      );
     };
 
     const onFailure = (event: Event) => {
       const { error, paymentMethodType, payment } = (event as PrimerEvent).detail ?? {};
+      setPaying(false);
       if (isPaypalUserAbort(paymentMethodType, error)) {
         pendingWallet = null;
         cancelPaypalOnce();
@@ -191,6 +227,7 @@ export function PrimerCheckout({
     const onCancel = (event: Event) => {
       const type = (event as PrimerEvent).detail?.paymentMethodType;
       pendingWallet = null;
+      setPaying(false);
       if (type === "PAYPAL") cancelPaypalOnce();
       else if (type === "APPLE_PAY" || type === "GOOGLE_PAY") report("cancel", { method: METHOD_OF[type] ?? "card" });
     };
@@ -234,6 +271,10 @@ export function PrimerCheckout({
         {
           type: "submit",
           "data-button-type": "pay",
+          // Not pressable twice: a second press would be a second payment.
+          disabled: paying,
+          "aria-busy": paying ? "true" : undefined,
+          "data-paying": paying ? "" : undefined,
           style: {
             width: "100%",
             minHeight: 52,
@@ -242,12 +283,33 @@ export function PrimerCheckout({
             background: "#2563EB",
             color: "#FFFFFF",
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: paying ? "default" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
             ...props.buttonStyle,
+            ...(paying ? { opacity: 0.85 } : {}),
           },
         },
+        paying
+          ? createElement("span", {
+              key: "spinner",
+              "aria-hidden": true,
+              style: {
+                width: 18,
+                height: 18,
+                flex: "none",
+                borderRadius: "50%",
+                border: "2px solid currentColor",
+                borderRightColor: "transparent",
+                animation: `${SPIN} 0.7s linear infinite`,
+              },
+            })
+          : null,
         props.buttonLabel || "Complete payment",
       ),
+      paying ? createElement("style", { key: "spin" }, SPIN_CSS) : null,
     ),
   );
 
