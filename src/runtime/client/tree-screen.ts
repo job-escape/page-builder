@@ -26,7 +26,7 @@ import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
 import { isCaseBinding, isValueBinding, type SourceAction } from "../compiler/source";
 import { isScopeName, type Scope } from "../data";
 import { evaluate, run, valueOf } from "../interpret";
-import { settlePayment } from "../payment-session";
+import { PAYMENT_SESSION_VARIABLE, settlePayment } from "../payment-session";
 import type { CopyParams } from "../rich-text";
 import type { ScreenModule, ScreenProps } from "./funnel";
 
@@ -316,8 +316,20 @@ function drawNode(
     const Slot = (props.ui as { Slot?: SlotFactory }).Slot;
     if (!Component || !Slot) return null;
     const triggers = node.triggers ?? {};
+    /*
+      A payment form with no session of its own reads the one the funnel opened
+      (`runtime/payment-session`). A form drawn with the tool is bound to it
+      already; one wired by hand, to a variable nothing fills any more, would
+      otherwise sit empty on a screen the funnel has just opened a session for.
+    */
+    const bound = (resolved as { session?: unknown }).session;
+    const session =
+      node.name === "checkout" && (bound === null || bound === undefined || bound === "")
+        ? props.state.get(PAYMENT_SESSION_VARIABLE)
+        : bound;
     return Slot(Component, {
       ...resolved,
+      ...(node.name === "checkout" ? { session } : {}),
       trigger: async (reportedAs: string, said?: Record<string, unknown>): Promise<boolean> => {
         let name = reportedAs;
         let values = said;
