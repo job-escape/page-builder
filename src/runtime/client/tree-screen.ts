@@ -270,8 +270,17 @@ function drawNode(
 
   if (node.kind === "input") {
     const { variable } = node;
-    const context = { state: props.state, nav: props.nav, req: props.req };
     const { onChange, onLeave } = node;
+    /*
+      The field's steps, with `$value` answered: the text in the field at that
+      moment. So a typing step can say "set typed_email to $value" without
+      knowing which variable the field saves into — the interaction's own
+      local, as `$item` is a repeat's.
+    */
+    const contextWith = (value: string) => {
+      const typing = within(screen, { ...scope, $value: value });
+      return { state: typing.state, nav: typing.nav, req: typing.req };
+    };
     return props.ui.Input({
       ...resolved,
       // Bound both ways to the declared variable: what the visitor sees is what
@@ -281,9 +290,14 @@ function drawNode(
       // what was just typed rather than the keystroke before it.
       onValue: (next: string) => {
         props.state.set(variable, next);
-        if (onChange?.length) void run(onChange, context);
+        if (onChange?.length) void run(onChange, contextWith(next));
       },
-      ...(onLeave?.length ? { onLeave: (): void => void run(onLeave, context) } : {}),
+      ...(onLeave?.length
+        ? {
+            onLeave: (): void =>
+              void run(onLeave, contextWith(String(props.state.get(variable) ?? ""))),
+          }
+        : {}),
     } as never);
   }
 
