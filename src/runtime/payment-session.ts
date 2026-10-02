@@ -149,7 +149,7 @@ export async function settlePayment(
   report: Report;
   /**
    * Where the host sends the buyer once the design's steps have run. Beside
-   * the report rather than in it: the address may carry a session, and the
+   * the report rather than in it: the address carries the buyer's token, and the
    * report is what a design's steps read and send on (`$payment`).
    */
   redirectUrl?: string;

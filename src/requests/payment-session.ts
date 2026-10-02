@@ -43,7 +43,7 @@ const PaymentConfirmPayload = z.strictObject({
   userId: z.string().min(1).optional(),
 });
 
-/** With whatever the action added to the response — the cookie a session is noted in. */
+/** With whatever the action added to the response. */
 const json = (body: unknown, status = 200, added?: Headers): Response => {
   const headers = new Headers(added);
   headers.set("Content-Type", "application/json");
