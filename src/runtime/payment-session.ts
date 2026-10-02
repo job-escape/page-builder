@@ -85,6 +85,8 @@ export const PaymentConfirmResponse = z.looseObject({
   code: z.string().optional(),
   /** What the sale was reported as being worth, for the browser's own pixel. */
   ltv: z.number().optional(),
+  /** Where the buyer goes next, when the host hands them on — an address, filled in. */
+  redirectUrl: z.string().min(1).optional(),
 });
 export type PaymentConfirmResponse = z.infer<typeof PaymentConfirmResponse>;
 
@@ -142,7 +144,16 @@ export async function settlePayment(
   req: (action: string, payload?: Record<string, unknown>) => Promise<Record<string, unknown>>,
   state: { get: (name: string) => unknown },
   report: Report,
-): Promise<{ name: "success" | "decline" | "error"; report: Report } | null> {
+): Promise<{
+  name: "success" | "decline" | "error";
+  report: Report;
+  /**
+   * Where the host sends the buyer once the design's steps have run. Beside
+   * the report rather than in it: the address may carry a session, and the
+   * report is what a design's steps read and send on (`$payment`).
+   */
+  redirectUrl?: string;
+} | null> {
   if (!hasRoute(PAYMENT_CONFIRM_ACTION)) return null;
   const session = record(state.get(PAYMENT_SESSION_VARIABLE));
   const attempt = session?.checkoutAttemptId;
@@ -177,12 +188,13 @@ export async function settlePayment(
         report: { ...report, message: "The payment could not be confirmed.", code: "invalid_response" },
       };
     }
-    const { status, message, code, ltv } = answer.data;
+    const { status, message, code, ltv, redirectUrl } = answer.data;
     const outcome = paymentOutcome(answer.data);
     if (outcome === "paid") {
       return {
         name: "success",
         report: { ...report, status, checkoutAttemptId: attempt, ...(ltv === undefined ? {} : { ltv }) },
+        ...(redirectUrl ? { redirectUrl } : {}),
       };
     }
     if (outcome === "refused") {

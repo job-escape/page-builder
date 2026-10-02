@@ -115,6 +115,32 @@ const refused = (name: string, url: string, cause?: unknown) => {
   console.error(name, { url, ...(cause === undefined ? {} : { cause }) });
 };
 
+/**
+ * Leave the funnel for an address — in this tab, not a new one.
+ *
+ * What a host does with a buyer once they have paid (`runtime/payment-session`):
+ * the funnel is finished with, so there is nothing to keep open behind the
+ * address, and a new tab opened this long after the tap is one a browser
+ * refuses. Where there is no page to navigate — a phone — the host's opener
+ * takes it.
+ *
+ * Only http(s), and the address is never logged: it may carry a session.
+ */
+export function leaveFor(url: string): void {
+  if (!/^https?:\/\//i.test(url)) {
+    console.error("pb.link.refused", { reason: "not_http" });
+    return;
+  }
+  const { location } = globalThis as { location?: { assign?: (to: string) => void } };
+  if (typeof location?.assign === "function") {
+    location.assign(url);
+    return;
+  }
+  const open = shared().options.open ?? shared().fallback;
+  if (open) open(url, "tab");
+  else console.error("pb.link.no_opener", {});
+}
+
 /** How often a tab this page opened is asked whether it has been closed. */
 const TAB_POLL_MS = 500;
 

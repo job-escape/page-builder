@@ -43,8 +43,12 @@ const PaymentConfirmPayload = z.strictObject({
   userId: z.string().min(1).optional(),
 });
 
-const json = (body: unknown, status = 200): Response =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+/** With whatever the action added to the response — the cookie a session is noted in. */
+const json = (body: unknown, status = 200, added?: Headers): Response => {
+  const headers = new Headers(added);
+  headers.set("Content-Type", "application/json");
+  return new Response(JSON.stringify(body), { status, headers });
+};
 
 /** A route around one platform action: the body checked, the action's answer or its refusal sent back. */
 function routeFor(
@@ -68,11 +72,11 @@ function routeFor(
     // return links, and its headers, for the buyer's country.
     const context: RequestContext = { request, responseHeaders: new Headers() };
     try {
-      return json(await handler(checked.data, context));
+      return json(await handler(checked.data, context), 200, context.responseHeaders);
     } catch (error) {
       if (error instanceof ActionError) {
         log.warn("payment_request_refused", { name, status: error.status, error: error.body.error });
-        return json(error.body, error.status);
+        return json(error.body, error.status, context.responseHeaders);
       }
       log.error("payment_request_failed", {
         name,

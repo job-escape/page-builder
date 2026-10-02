@@ -24,6 +24,7 @@ import {
   type NvsRpc,
 } from "./client";
 import { checkoutErrorBody, toActionError } from "./errors";
+import { buyerCookie, buyerOf, handOffAddress } from "./hand-off";
 
 // ─── The platform's shapes ───────────────────────────────────────────────────
 
@@ -72,6 +73,11 @@ export interface ConfirmPaymentSessionResponse {
   code?: string;
   threeDsStatus?: string;
   mid?: string;
+}
+
+/** A session for one account: what the app the buyer is handed to signs them in with. */
+export interface IssueUserTokensResponse {
+  tokens?: { accessToken?: string; refreshToken?: string };
 }
 
 /** Statuses that mean the buyer has paid — `payment-status.ts`. */
@@ -285,6 +291,14 @@ export type NvsActionsOptions = NvsConfig & {
     mid?: string;
     userId?: string;
   }) => Promise<number | undefined>;
+  /**
+   * Where the buyer goes once the payment is settled — an address with the
+   * buyer written into it as `{userId}`, `{token}` and `{refreshToken}`
+   * (`nvs/hand-off`), or nothing to keep them in the funnel. Asked when a
+   * payment is confirmed as paid, so a host can read it from a feature flag
+   * for this visitor. The filled address is answered as `redirectUrl`.
+   */
+  redirectTo?: (paid: { request: Request; userId?: string }) => Promise<string | null | undefined>;
   /** Injected in tests. */
   idempotencyKey?: () => string;
 };
@@ -297,6 +311,69 @@ export function nvsActions(options: NvsActionsOptions): ActionHandlers {
 
   const getOrCreateUser = (email: string, name?: string) =>
     rpc<GetOrCreateUserResponse>("/auth.v1.ServiceAccountService/GetOrCreateUser", { email, name });
+
+  /**
+   * The address a paid buyer is sent to, filled in — or nothing: the host
+   * names none, or names one that cannot be gone to. Never throws: the payment
+   * is taken either way, and a hand-off that failed leaves the buyer in the
+   * funnel, where the design's own steps still run.
+   *
+   * A session is issued only for the account the server noted when it opened
+   * this attempt. The `userId` the page sent names the buyer in the address —
+   * it is not a credential — but is never what a session is issued for.
+   */
+  async function handOff(
+    request: Request,
+    checkoutAttemptId: string,
+    claimedUserId: string | undefined,
+  ): Promise<string | undefined> {
+    if (!options.redirectTo) return undefined;
+    try {
+      const buyer = await buyerOf(options.apiKey, checkoutAttemptId, request);
+      const template = await options.redirectTo({ request, userId: buyer ?? claimedUserId });
+      if (!template) return undefined;
+
+      let tokens: IssueUserTokensResponse["tokens"];
+      if (buyer) {
+        try {
+          ({ tokens } = await rpc<IssueUserTokensResponse>(
+            "/auth.v1.ServiceAccountService/IssueUserTokens",
+            { user_id: buyer },
+          ));
+          // The tokens are credentials and are never written down.
+          log.info("user_tokens_issued", {
+            userId: buyer,
+            checkoutAttemptId,
+            hasAccessToken: Boolean(tokens?.accessToken),
+            hasRefreshToken: Boolean(tokens?.refreshToken),
+          });
+        } catch (error) {
+          log.error("user_tokens_failed", {
+            userId: buyer,
+            checkoutAttemptId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      } else {
+        log.warn("hand_off_buyer_unproven", { checkoutAttemptId, claimedUserId });
+      }
+
+      const address = handOffAddress(template, {
+        userId: buyer ?? claimedUserId,
+        token: tokens?.accessToken,
+        refreshToken: tokens?.refreshToken,
+      });
+      // Not the address itself, filled or not: it may carry a session.
+      if (!address) log.error("hand_off_address_invalid", { checkoutAttemptId });
+      return address ?? undefined;
+    } catch (error) {
+      log.error("hand_off_failed", {
+        checkoutAttemptId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
+  }
 
   return {
     /** `/api/user`: an email in, the platform's identity out. */
@@ -430,6 +507,14 @@ export function nvsActions(options: NvsActionsOptions): ActionHandlers {
           },
         );
         log.info("payment_session_created", { userId, productId, checkoutAttemptId: session.checkoutAttemptId });
+        // Who this session was opened for, noted where the page cannot write
+        // it: confirming hands a session only to that account (`hand-off`).
+        if (userId && options.redirectTo) {
+          context.responseHeaders.append(
+            "Set-Cookie",
+            await buyerCookie(options.apiKey, session.checkoutAttemptId, userId, context.request),
+          );
+        }
 
         if (session.redirectUrl) {
           return { checkoutAttemptId: session.checkoutAttemptId, redirectUrl: session.redirectUrl, userId };
@@ -478,25 +563,34 @@ export function nvsActions(options: NvsActionsOptions): ActionHandlers {
       });
 
       const paid = isPaidStatus(result.status);
-      if (!paid || !options.onPaid) return { ...result, paid };
+      if (!paid) return { ...result, paid };
 
       let ltv: number | undefined;
-      try {
-        ltv = await options.onPaid({
-          request: context.request,
-          checkoutAttemptId,
-          gatewayPaymentId,
-          productCode: text(payload, "productCode"),
-          mid: result.mid,
-          userId: sessionUserId,
-        });
-      } catch (error) {
-        log.error("conversion_report_failed", {
-          checkoutAttemptId,
-          error: error instanceof Error ? error.message : String(error),
-        });
+      if (options.onPaid) {
+        try {
+          ltv = await options.onPaid({
+            request: context.request,
+            checkoutAttemptId,
+            gatewayPaymentId,
+            productCode: text(payload, "productCode"),
+            mid: result.mid,
+            userId: sessionUserId,
+          });
+        } catch (error) {
+          log.error("conversion_report_failed", {
+            checkoutAttemptId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
-      return ltv === undefined ? { ...result, paid } : { ...result, paid, ltv };
+
+      const redirectUrl = await handOff(context.request, checkoutAttemptId, sessionUserId);
+      return {
+        ...result,
+        paid,
+        ...(ltv === undefined ? {} : { ltv }),
+        ...(redirectUrl ? { redirectUrl } : {}),
+      };
     },
   };
 }

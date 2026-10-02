@@ -26,6 +26,7 @@ import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
 import { isCaseBinding, isValueBinding, type SourceAction } from "../compiler/source";
 import { isScopeName, type Scope } from "../data";
 import { evaluate, run, valueOf } from "../interpret";
+import { leaveFor } from "../link";
 import { PAYMENT_SESSION_VARIABLE, settlePayment } from "../payment-session";
 import type { CopyParams } from "../rich-text";
 import type { ScreenModule, ScreenProps } from "./funnel";
@@ -354,6 +355,7 @@ function drawNode(
       trigger: async (reportedAs: string, said?: Record<string, unknown>): Promise<boolean> => {
         let name = reportedAs;
         let values = said;
+        let leaveTo: string | undefined;
         /*
           A payment form's `success` is the gateway saying it took the payment;
           the platform still has to settle it. Where the funnel opened the
@@ -367,12 +369,23 @@ function drawNode(
           if (settled) {
             name = settled.name;
             values = settled.report;
+            leaveTo = settled.redirectUrl;
           }
         }
         const actions = triggers[name];
-        if (!actions?.length) return true;
-        const reported = within(screen, { ...scope, $event: values ?? {}, $payment: values ?? {} });
-        return run(actions, { state: reported.state, nav: reported.nav, req: reported.req });
+        let carried = true;
+        if (actions?.length) {
+          const reported = within(screen, { ...scope, $event: values ?? {}, $payment: values ?? {} });
+          carried = await run(actions, { state: reported.state, nav: reported.nav, req: reported.req });
+        }
+        /*
+          The host hands the buyer on: after the design's steps, so its
+          analytics and pixels are sent from the page that made the sale, and
+          whether or not it has any — a paid buyer is not left on a paywall
+          for want of a step.
+        */
+        if (leaveTo) leaveFor(leaveTo);
+        return carried;
       },
     });
   }
