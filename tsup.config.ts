@@ -105,6 +105,19 @@ export default defineConfig([
     external,
     banner: { js: `"use client";` },
   },
+  // Beta client entry — the carousel a design's `swiper` slot draws. Imports no
+  // carousel library (the host passes a loader) and nothing from the runtime.
+  {
+    entry: { swiper: "src/swiper.ts" },
+    format: ["esm", "cjs"],
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: false,
+    splitting: false,
+    target: "es2020",
+    external,
+    banner: { js: `"use client";` },
+  },
   // Beta native entry — the React Native half. Its own build for the same reason
   // the others have theirs: nothing resolving `.` or `./client` may pull
   // `react-native` in, and nothing here may drag the DOM bricks onto a phone.

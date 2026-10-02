@@ -20,7 +20,15 @@
  * **Schema 1.3 is tree-only.** Repeats, text params, value bindings and slots
  * are drawn here and not by the JavaScript emitter, which no host reads.
  */
-import { cloneElement, createElement, isValidElement, useEffect, useRef, type ReactNode } from "react";
+import {
+  cloneElement,
+  createElement,
+  Fragment,
+  isValidElement,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 
 import type { CompiledTree, ScreenTree, TreeNode } from "../compiler/tree";
 import { isCaseBinding, isValueBinding, type SourceAction } from "../compiler/source";
@@ -349,8 +357,19 @@ function drawNode(
       node.name === "checkout" && (bound === null || bound === undefined || bound === "")
         ? props.state.get(PAYMENT_SESSION_VARIABLE)
         : bound;
+    /*
+      What is drawn inside the slot — a swiper's slides — is the design's, so
+      it is drawn here and handed over. Keyed by the frame each came from: the
+      component gets a list, and a list wants keys.
+    */
+    const inside = node.children?.length
+      ? node.children.map((child) =>
+          createElement(Fragment, { key: child.id }, renderNode(child, screen, scope, select)),
+        )
+      : undefined;
     return Slot(Component, {
       ...resolved,
+      ...(inside ? { children: inside } : {}),
       ...(node.name === "checkout" ? { session } : {}),
       trigger: async (reportedAs: string, said?: Record<string, unknown>): Promise<boolean> => {
         let name = reportedAs;

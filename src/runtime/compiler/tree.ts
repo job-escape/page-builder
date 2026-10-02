@@ -152,6 +152,12 @@ export type TreeNode =
       name: string;
       /** What runs when the component reports, by report name. */
       triggers?: Record<string, SourceAction[]>;
+      /**
+       * The frames drawn inside the slot, for a component that holds some — a
+       * swiper's slides. Drawn by the runtime and handed to the component as
+       * its `children`; absent for one that holds none, like a checkout.
+       */
+      children?: TreeNode[];
     });
 
 export type ScreenTree = {
@@ -233,11 +239,13 @@ function nodeOf(frame: SourceFrame, all: SourceFrame[]): TreeNode {
       if (own.has(event)) return;
       triggers[event] = [...(triggers[event] ?? []), ...interaction.do];
     });
+    const inside = childrenOf(frame, all).map((child) => nodeOf(child, all));
     return {
       ...base,
       kind: "slot",
       name: frame.slot ?? "",
       ...(Object.keys(triggers).length ? { triggers } : {}),
+      ...(inside.length ? { children: inside } : {}),
     };
   }
   if (frame.kind === "image") return { ...base, kind: "image", src: frame.src ?? "" };

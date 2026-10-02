@@ -38,6 +38,11 @@
       "import": "./dist/checkout.mjs",
       "require": "./dist/checkout.js"
     },
+    "./swiper": {
+      "types": "./dist/swiper.d.ts",
+      "import": "./dist/swiper.mjs",
+      "require": "./dist/swiper.js"
+    },
     "./requests": {
       "types": "./dist/requests.d.ts",
       "import": "./dist/requests.mjs",
