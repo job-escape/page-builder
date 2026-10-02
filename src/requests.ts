@@ -49,6 +49,12 @@ export {
   type EmailSubmitResponse,
 } from "./requests/email-submit";
 export {
+  NAME_SUBMIT_ACTION,
+  createNameSubmitRoute,
+  nameSubmitHandlers,
+  type NameSubmitResponse,
+} from "./requests/name-submit";
+export {
   PAYMENT_CONFIRM_ACTION,
   PAYMENT_SESSION_ACTION,
   createPaymentRoutes,

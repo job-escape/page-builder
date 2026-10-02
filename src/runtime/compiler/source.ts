@@ -292,6 +292,29 @@ export type SourceAction =
       onError?: SourceAction[];
     }
   /**
+   * The name step: what the visitor is called, saved to their account.
+   *
+   * The email step's twin, and it reads the same way. `name` is the step's
+   * argument: where the typed name is read from — the name field's own
+   * variable. Trimmed and checked to be something; a name is written into the
+   * system variable `name` and sent to the funnel's server (`name.submit` —
+   * `UpdateUserProfile` on the payments platform) with the account the email
+   * step put in `userId`. Then `onSuccess`, or `onError` — for an empty name
+   * too, with nothing sent — whose steps read why from `$error`: `message`,
+   * `code` (`invalid_name`, `no_user` when there is no account yet, or the
+   * server's) and `status`.
+   *
+   * `$req.name_submit.status` is `pending` while it runs. Tree only.
+   */
+  | {
+      type: "name_submit";
+      name: SourceValue;
+      /** Run when the request is sent. Started, not waited for — as the email step's. */
+      onPending?: SourceAction[];
+      onSuccess?: SourceAction[];
+      onError?: SourceAction[];
+    }
+  /**
    * Move a number variable to a value over time — a loader's 0 → 100, a bar
    * filling, a price counting up.
    *

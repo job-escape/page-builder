@@ -27,6 +27,7 @@ import {
   EmailSubmitResponse,
 } from "./email-submit";
 import { call, check, compare } from "./functions";
+import { NAME_SUBMIT_ACTION, NameSubmitResponse, PersonName } from "./name-submit";
 import { openLink } from "./link";
 import { durationOf, ease, playFrames } from "./motion";
 import type { TimerBook } from "./timers";
@@ -387,6 +388,12 @@ export async function run(
         break;
       }
 
+      case "name_submit": {
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await submitName(action, ctx))) return false;
+        break;
+      }
+
       case "animate": {
         const moving = animateValue(action, ctx);
         if (action.wait === false) {
@@ -517,6 +524,71 @@ async function submitEmail(
   }
   ctx.state.set("userId", answer.data.userId);
   ctx.state.setStatus?.(EMAIL_SUBMIT_ID, "success");
+  return run(action.onSuccess ?? [], ctx);
+}
+
+/** The request `name_submit` makes — answered by the host's `name.submit` handler. */
+export const NAME_SUBMIT_REQUEST = NAME_SUBMIT_ACTION;
+
+/** What `$req.<id>` a name step is known by in conditions. */
+const NAME_SUBMIT_ID = "name_submit";
+
+/**
+ * The name step — see `SourceAction`'s `name_submit`. The email step's shape:
+ * what was typed is checked first, an empty name runs `onError` with nothing
+ * sent, and a name is written to the system `name` before asking, so the rest
+ * of the funnel has it even when it could not be saved.
+ */
+async function submitName(
+  action: Extract<SourceAction, { type: "name_submit" }>,
+  ctx: ActionContext,
+): Promise<boolean> {
+  const fail = async (error: EmailSubmitError): Promise<boolean> => {
+    ctx.state.setStatus?.(NAME_SUBMIT_ID, "error", error.message);
+    return run(action.onError ?? [], withError(ctx, error));
+  };
+
+  const typed = action.name ? valueOf(action.name, ctx.state) : null;
+  const checked = PersonName.safeParse(typed);
+  if (!checked.success) {
+    return fail({ message: "A name is required.", code: "invalid_name", status: 0 });
+  }
+  const name = checked.data;
+  ctx.state.set("name", name);
+
+  ctx.state.setStatus?.(NAME_SUBMIT_ID, "pending");
+  // Started and not awaited, as the email step's are.
+  if (action.onPending?.length) void run(action.onPending, ctx);
+
+  const userId = ctx.state.get("userId");
+  let sent: unknown;
+  try {
+    sent = await ctx.req(NAME_SUBMIT_ACTION, {
+      name,
+      ...(typeof userId === "string" && userId ? { userId } : {}),
+    });
+  } catch (failure) {
+    // A refusal has the email step's shape: the route's `{ error, message }`.
+    const refused = EmailSubmitFailure.safeParse(failure);
+    return fail({
+      message: failure instanceof Error ? failure.message : String(failure),
+      code: refused.data?.body?.error ?? "request_failed",
+      status: refused.data?.status ?? 0,
+    });
+  }
+
+  const answer = NameSubmitResponse.safeParse(sent);
+  if (!answer.success) {
+    return fail({ message: "The name could not be saved.", code: "invalid_response", status: 0 });
+  }
+  if (!answer.data.saved) {
+    return fail({
+      message: "There is no account to save the name to yet.",
+      code: answer.data.reason ?? "not_saved",
+      status: 0,
+    });
+  }
+  ctx.state.setStatus?.(NAME_SUBMIT_ID, "success");
   return run(action.onSuccess ?? [], ctx);
 }
 

@@ -186,7 +186,7 @@ function reachable(screen: SourceScreen): { next: string[]; overlays: string[] }
       // Where a countdown sends somebody when it ends is somewhere they can go.
       if (action.type === "timer") walk(action.onEnd ?? []);
       // As is where the email step goes once it has an account, or fails to.
-      if (action.type === "email_submit") {
+      if (action.type === "email_submit" || action.type === "name_submit") {
         walk(action.onPending ?? []);
         walk(action.onSuccess ?? []);
         walk(action.onError ?? []);
@@ -338,6 +338,15 @@ function variablesInActions(actions: SourceAction[], into: Set<string>): void {
       variablesInActions(action.onSuccess ?? [], into);
       variablesInActions(action.onError ?? [], into);
     }
+    if (action.type === "name_submit") {
+      // Reads its argument and the account, and writes `name` for what follows.
+      if (action.name) namesInValue(action.name, into, new Set());
+      into.add("name");
+      into.add("userId");
+      variablesInActions(action.onPending ?? [], into);
+      variablesInActions(action.onSuccess ?? [], into);
+      variablesInActions(action.onError ?? [], into);
+    }
     if (action.type === "analytics") {
       // What it sends is read from the store as it runs, like a payload.
       propertyValues(action).forEach((value) => namesInValue(value, into, new Set()));
@@ -425,8 +434,12 @@ export function visitorFactsOf(funnel: SourceFunnel): string[] {
             }
             // A request's outcomes are lists like a branch's, and a step in
             // either can ask about the visitor too.
-            if (action.type === "submit" || action.type === "email_submit") {
-              if (action.type === "email_submit") walk(action.onPending ?? []);
+            if (
+              action.type === "submit" ||
+              action.type === "email_submit" ||
+              action.type === "name_submit"
+            ) {
+              if (action.type !== "submit") walk(action.onPending ?? []);
               walk(action.onSuccess ?? []);
               walk(action.onError ?? []);
             }
