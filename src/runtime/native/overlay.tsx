@@ -56,6 +56,7 @@ export function Overlay({
         onDismiss={onDismiss}
         dismissible={presentation.closeOnOutside !== false}
         dim={presentation.dim !== false}
+        backdrop={presentation.backdrop}
       >
         {children}
       </DrawerSheet>
@@ -87,11 +88,14 @@ function DrawerSheet({
   onDismiss,
   dismissible,
   dim,
+  backdrop,
   children,
 }: {
   onDismiss: () => void;
   dismissible: boolean;
   dim: boolean;
+  /** The backdrop's own colour, when the design drew one — it wins over `dim`. */
+  backdrop?: string;
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
@@ -142,7 +146,7 @@ function DrawerSheet({
         style={[
           { flex: 1, justifyContent: "flex-end" },
           declared ? { direction: declared } : null,
-          dim ? { backgroundColor: "#00000080" } : null,
+          backdrop ? { backgroundColor: backdrop } : dim ? { backgroundColor: "#00000080" } : null,
         ]}
       >
         {dismissible ? (
@@ -222,7 +226,11 @@ function PanelOverlay({
           position === "center" && !fullSurface
             ? { paddingTop: insets.top, paddingBottom: insets.bottom }
             : null,
-          dim ? { backgroundColor: "#00000080" } : null,
+          presentation.backdrop
+            ? { backgroundColor: presentation.backdrop }
+            : dim
+              ? { backgroundColor: "#00000080" }
+              : null,
         ]}
       >
         {closeOnOutside ? (

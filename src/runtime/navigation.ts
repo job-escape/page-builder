@@ -40,6 +40,15 @@ export type Presentation = {
    */
   position?: "center" | "bottom" | "top" | "side" | "fill" | "drawer";
   dim?: boolean;
+  /**
+   * What is painted behind the frame, as a CSS colour — `#0f172a73`.
+   *
+   * The dim is a fixed colour, and a designer who draws the backdrop — an
+   * Overlay frame, with a dialog or a drawer inside it — has chosen another:
+   * this is that fill, carried by the step that opens it. It wins over `dim`;
+   * absent, `dim` decides as it always did.
+   */
+  backdrop?: string;
   closeOnOutside?: boolean;
 };
 

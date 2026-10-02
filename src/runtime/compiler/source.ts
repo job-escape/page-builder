@@ -177,6 +177,8 @@ export type SourceAction =
       as?: "replace" | "overlay";
       position?: "center" | "bottom" | "top" | "side";
       dim?: boolean;
+      /** The backdrop's colour, when the design draws its own — see `Presentation.backdrop`. */
+      backdrop?: string;
       closeOnOutside?: boolean;
     }
   | { type: "close" }

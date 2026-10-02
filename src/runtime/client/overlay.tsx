@@ -57,6 +57,8 @@ export type DrawerHostProps = {
   dismissible: boolean;
   /** Whether the backdrop dims the screen beneath. */
   dim: boolean;
+  /** The backdrop's own colour, when the design drew one — it wins over `dim`. */
+  backdrop?: string;
   children: ReactNode;
 };
 
@@ -90,12 +92,13 @@ export function Overlay({
     const Host = hostDrawer;
     // The sheet meets the bottom edge square — see `docked`.
     const sheet = <DockedEdge.Provider value="bottom">{children}</DockedEdge.Provider>;
+    const { backdrop } = presentation;
     return Host ? (
-      <Host onDismiss={onDismiss} dismissible={dismissible} dim={dim}>
+      <Host onDismiss={onDismiss} dismissible={dismissible} dim={dim} backdrop={backdrop}>
         {sheet}
       </Host>
     ) : (
-      <DrawerSheet onDismiss={onDismiss} dismissible={dismissible} dim={dim}>
+      <DrawerSheet onDismiss={onDismiss} dismissible={dismissible} dim={dim} backdrop={backdrop}>
         {sheet}
       </DrawerSheet>
     );
@@ -122,7 +125,7 @@ const SLIDE_MS = 240;
  * and fields are pressed, not dragged, and a sheet scrolled into its content
  * scrolls rather than closes.
  */
-function DrawerSheet({ onDismiss, dismissible, dim, children }: DrawerHostProps) {
+function DrawerSheet({ onDismiss, dismissible, dim, backdrop, children }: DrawerHostProps) {
   const panel = useRef<HTMLDivElement | null>(null);
   const [shown, setShown] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -184,7 +187,7 @@ function DrawerSheet({ onDismiss, dismissible, dim, children }: DrawerHostProps)
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
-        background: dim ? "rgba(15,23,42,0.45)" : "transparent",
+        background: backdrop ?? (dim ? "rgba(15,23,42,0.45)" : "transparent"),
         opacity: leaving || !shown ? 0 : 1,
         transition: `opacity ${SLIDE_MS}ms ease`,
       }}
@@ -251,7 +254,9 @@ function PanelOverlay({
         position: "fixed",
         inset: 0,
         display: "flex",
-        background: presentation.dim === false ? "transparent" : "rgba(15,23,42,0.45)",
+        background:
+          presentation.backdrop ??
+          (presentation.dim === false ? "transparent" : "rgba(15,23,42,0.45)"),
         zIndex: 1000,
         ...PLACEMENT[position],
       }}

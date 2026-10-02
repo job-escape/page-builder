@@ -126,6 +126,7 @@ function emitAction(action: SourceAction, indent: string): string {
       if (action.as) presentation.as = action.as;
       if (action.position) presentation.position = action.position;
       if (action.dim !== undefined) presentation.dim = action.dim;
+      if (action.backdrop) presentation.backdrop = action.backdrop;
       if (action.closeOnOutside !== undefined) presentation.closeOnOutside = action.closeOnOutside;
       const options = Object.keys(presentation).length ? `, ${lit(presentation)}` : "";
       return `${indent}nav.show(${lit(action.target)}${options});`;

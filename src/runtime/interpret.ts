@@ -267,12 +267,14 @@ export function showPresentation(link: {
   as?: "replace" | "overlay";
   position?: "center" | "bottom" | "top" | "side" | "fill" | "drawer";
   dim?: boolean;
+  backdrop?: string;
   closeOnOutside?: boolean;
 }): Record<string, unknown> | undefined {
   const presentation: Record<string, unknown> = {};
   if (link.as) presentation.as = link.as;
   if (link.position) presentation.position = link.position;
   if (link.dim !== undefined) presentation.dim = link.dim;
+  if (link.backdrop) presentation.backdrop = link.backdrop;
   if (link.closeOnOutside !== undefined)
     presentation.closeOnOutside = link.closeOnOutside;
   return Object.keys(presentation).length ? presentation : undefined;
