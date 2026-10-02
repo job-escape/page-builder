@@ -293,8 +293,16 @@ export function Funnel({
    * button and full-screen from the sentence above it.
    */
   const follow = useCallback(
-    (link: TextLink) => navigator.show(link.target, showPresentation(link)),
-    [navigator],
+    (link: TextLink) => {
+      // An address rather than a screen: opened as the Open link step opens
+      // one, its `{name}`s read from the funnel's own values.
+      if (link.url) {
+        services.link(link.url, "tab", (name) => services.state.get(name));
+        return;
+      }
+      navigator.show(link.target, showPresentation(link));
+    },
+    [navigator, services],
   );
 
   const body = (

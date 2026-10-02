@@ -38,8 +38,20 @@
  * `runtime/interpret` reads both through `showPresentation`.
  */
 export type TextLink = {
-  /** The screen id. Unknown ids are reported, not navigated to. */
+  /**
+   * The screen id. Unknown ids are reported, not navigated to. Empty for a
+   * link that goes to an address — see `url`.
+   */
   target: string;
+  /**
+   * An address instead of a screen — the terms, the privacy policy: pages a
+   * funnel links to and does not hold. A template, as the Open link step's
+   * is: `{name}` reads a variable, so a design writes `{termsUrl}` and the
+   * host says where that is. Opened the way that step opens one (`runtime/link`)
+   * — a new tab on the web — and only http(s), `mailto:` and `tel:` are.
+   * When set, it is where the link goes and `target` is not read.
+   */
+  url?: string;
   as?: "replace" | "overlay";
   position?: "center" | "bottom" | "top" | "side";
   dim?: boolean;
@@ -183,6 +195,7 @@ function sameMarks(a: TextRun, b: TextRun): boolean {
   if (!one || !two) return one === two;
   return (
     one.target === two.target &&
+    one.url === two.url &&
     one.as === two.as &&
     one.position === two.position &&
     one.dim === two.dim &&
