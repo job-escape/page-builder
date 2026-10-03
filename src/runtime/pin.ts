@@ -12,16 +12,20 @@
  *   end beside it rather than under it. A bar does; a floating badge does not.
  *   Absent, a frame stretched edge to edge reserves and anything else floats.
  *
- * **Only a frame directly inside a screen's root.** Lifted out of anything
- * deeper it would lose the padding and layout it was drawn in, so a pin there
- * is ignored and the frame is drawn in place. A reader that does not know this
- * key draws it in place too — the artifact stays readable by an older app,
- * which shows the frame where the designer put it in the flow.
+ * **Anywhere on a screen but inside a repeat or a slot** — a button in a
+ * footer as well as a bar at the top level. The insets are measured from the
+ * screen, not from the frame it sits in, so what its parent's padding gave it
+ * is already in the numbers. Lifted out, it keeps what decided whether it was
+ * drawn at all: its ancestors' conditions, and their being hidden. Inside a
+ * repeat it would lose the entry it draws, so a pin there is ignored and the
+ * frame is drawn in place. A reader that does not know this key draws it in
+ * place too — the artifact stays readable by an older app.
  *
  * The rule is read here once and drawn by each platform its own way: a sticky
  * layer in the browser (`client/pins`), a layer over the scroll view on a
  * phone (`native/pins`). The tree walk only finds them — see `splitPinned`.
  */
+import type { SourceBinding, SourceCondition } from "./compiler/source";
 import type { TreeNode } from "./compiler/tree";
 
 export type Pin = {
@@ -87,32 +91,78 @@ export type PinnedNode = { node: TreeNode; pin: Pin };
 /** The keys a pinned frame's own box no longer answers — see `splitPinned`. */
 const PLACED_KEYS = ["pin", "x", "y"] as const;
 
+/** What the frames above a pinned one said about whether it is drawn. */
+type Above = {
+  conditions: SourceCondition[];
+  /** An ancestor is never drawn. */
+  hidden: boolean;
+  /** The nearest ancestor's `hidden` decided per render — a device's layout. */
+  hiddenBinding?: SourceBinding;
+};
+
+function below(node: TreeNode, above: Above): Above {
+  const binding = node.bindings?.hidden;
+  return {
+    conditions: node.when ? [...above.conditions, node.when] : above.conditions,
+    hidden: above.hidden || node.props?.hidden === true,
+    hiddenBinding: binding ?? above.hiddenBinding,
+  };
+}
+
+/** A pinned frame as it is drawn on its own: unplaced, and only where it was. */
+function lifted(node: TreeNode, pin: Pin, above: Above): TreeNode {
+  const props: Record<string, unknown> = { ...node.props };
+  PLACED_KEYS.forEach((key) => delete props[key]);
+  if (stretches(pin)) props.width = "fill";
+  if (above.hidden) props.hidden = true;
+  const conditions = node.when ? [...above.conditions, node.when] : above.conditions;
+  const bindings =
+    above.hiddenBinding && !node.bindings?.hidden
+      ? { ...node.bindings, hidden: above.hiddenBinding }
+      : node.bindings;
+  return {
+    ...node,
+    props,
+    ...(bindings ? { bindings } : {}),
+    ...(conditions.length === 0
+      ? {}
+      : { when: conditions.length === 1 ? conditions[0]! : { op: "and" as const, of: conditions } }),
+  };
+}
+
 /**
- * A screen's roots with their pinned children taken out, and those children.
+ * A screen's roots with their pinned frames taken out, and those frames.
  *
  * Done once per screen tree, not per render: which frames are pinned is a
- * fact of the artifact. The pinned frame loses `x` and `y` — where it sat on
- * the artboard is what the pin now says — and, stretched between both sides,
- * fills the room the pin gives it whatever width it was drawn at.
+ * fact of the artifact. A pinned frame loses `x` and `y` — where it sat is
+ * what the pin now says — and, stretched between both sides, fills the room
+ * the pin gives it whatever width it was drawn at. Not looked for inside a
+ * repeat, whose entries it would leave behind, nor inside a slot.
  */
 export function splitPinned(roots: readonly TreeNode[]): {
   roots: TreeNode[];
   pinned: PinnedNode[];
 } {
   const pinned: PinnedNode[] = [];
-  const kept = roots.map((root) => {
-    if (root.kind !== "frame" || root.repeat) return root;
-    const children = root.children.filter((child) => {
+  const walk = (node: TreeNode, above: Above): TreeNode => {
+    if (node.kind !== "frame" || node.repeat) return node;
+    const inside = below(node, above);
+    let changed = false;
+    const children: TreeNode[] = [];
+    node.children.forEach((child) => {
       const pin = pinOf(child.props);
-      if (!pin) return true;
-      const props = { ...child.props };
-      PLACED_KEYS.forEach((key) => delete props[key]);
-      if (stretches(pin)) props.width = "fill";
-      pinned.push({ node: { ...child, props }, pin });
-      return false;
+      if (pin) {
+        pinned.push({ node: lifted(child, pin, inside), pin });
+        changed = true;
+        return;
+      }
+      const kept = walk(child, inside);
+      if (kept !== child) changed = true;
+      children.push(kept);
     });
-    return children.length === root.children.length ? root : { ...root, children };
-  });
+    return changed ? { ...node, children } : node;
+  };
+  const kept = roots.map((root) => walk(root, { conditions: [], hidden: false }));
   return { roots: kept, pinned };
 }
 
