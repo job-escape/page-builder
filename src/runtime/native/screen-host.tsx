@@ -15,7 +15,7 @@
  * own background at the notch and leave a white band above every coloured header
  * — which no designer asked for and none can see in the canvas.
  */
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Animated,
   Easing,
@@ -32,6 +32,7 @@ import type { ScreenPresentation } from "../compiler/manifest";
 import type { ScreenTransition } from "../compiler/source";
 import { HeightContext } from "./bricks";
 import { PinLayer, PinOutlet, usePinOutlet } from "./pins";
+import { scrollerFor } from "./scroll-anchor";
 import { useDeclaredDirection } from "./direction";
 import { resolveHost, type HostConfig } from "./host-config";
 
@@ -133,6 +134,8 @@ export function ScreenHost({
   const edges = config.insetEdges;
   // The screen's pinned frames, drawn over its scroll view — see `pins`.
   const { outlet, held } = usePinOutlet();
+  // What a Scroll into view step scrolls — see `scroll-anchor`.
+  const [scroller] = useState(scrollerFor);
 
   // A bleeding screen puts its content under the chrome deliberately — a splash,
   // a full-height image. Everything else clears it.
@@ -155,6 +158,8 @@ export function ScreenHost({
 
   const scrolling = (
     <ScrollView
+      ref={scroller.ref}
+      onLayout={scroller.onLayout}
       style={{ flex: 1 }}
       // Short content still fills the viewport, so a screen with a button at the
       // bottom keeps it there; tall content scrolls. This is what makes a phone

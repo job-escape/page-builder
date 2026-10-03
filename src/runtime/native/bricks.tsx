@@ -60,6 +60,7 @@ function mirrorAlign(
 import { DockedEdge } from "../docked";
 import { FlowContext, HeightContext } from "./flow-context";
 import { Pins } from "./pins";
+import { anchorRef } from "./scroll-anchor";
 import type { DrawnPin, ReserveReport } from "../pin";
 import { cropBox, type CropBox } from "../image-crop";
 import { isRuns, withLineBreaks, plainOf, runsOf, type RichText, type TextRun } from "../rich-text";
@@ -383,6 +384,8 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
   // The look in force — the `press` layer over the authored one, as the web's
   // `withState` does. Everything below is drawn from this.
   const props = pressedLook({ ...authored, states }, pressed) as typeof authored;
+  // A frame a step scrolls to registers its view — see `scroll-anchor`.
+  const anchored = anchorRef((props as FrameProps).anchor);
   // The frame this one sits in — what its own `fill` is measured along.
   const flow = useContext(FlowContext);
   // And whether that frame's height is a definite one — what `fill` means here.
@@ -501,6 +504,7 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
           style={moving}
           contentContainerStyle={content as ViewStyle}
           testID={props.testId}
+          ref={anchored as never}
         >
           {onClick ? (
             <Pressable
@@ -530,13 +534,15 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
           disabled={disabled}
           {...a11y({ ...props, disabled })}
           testID={props.testId}
+          ref={anchored as never}
         >
           {inner}
         </AnimatedPressable>
       );
     }
     return (
-      <Animated.View style={moving} testID={props.testId}>
+      <Animated.View style={moving} testID={props.testId}
+          ref={anchored as never}>
         {inner}
       </Animated.View>
     );
@@ -548,6 +554,7 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
         style={view as ViewStyle}
         contentContainerStyle={content as ViewStyle}
         testID={props.testId}
+          ref={anchored as never}
       >
         {/* Pressable inside, never outside: a Pressable wrapping a ScrollView
             swallows the drag and the surface stops scrolling. */}
@@ -589,6 +596,7 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
         disabled={disabled}
         {...a11y({ ...props, disabled })}
         testID={props.testId}
+          ref={anchored as never}
       >
         {inner}
       </Pressable>
@@ -596,7 +604,8 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
   }
 
   return (
-    <View style={view as ViewStyle} testID={props.testId}>
+    <View style={view as ViewStyle} testID={props.testId}
+          ref={anchored as never}>
       {inner}
     </View>
   );

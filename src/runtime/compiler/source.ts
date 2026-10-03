@@ -364,6 +364,13 @@ export type SourceAction =
    */
   | { type: "waitFor"; request: string; seconds?: number }
   /**
+   * Bring a frame on this screen into view — `start` puts it at the top of the
+   * window, `center` in the middle, `end` at the bottom. Never blocks; a frame
+   * that is not drawn right now is not scrolled to. See `runtime/scroll-anchor`.
+   * Schema 1.6.
+   */
+  | { type: "scrollTo"; target: string; align?: "start" | "center" | "end" }
+  /**
    * Hold the rest of this list until a condition holds — `offerLeft <= 0` — or
    * `seconds` have passed. Checked as the funnel's values change and as the
    * clock moves; leaving the screen ends it like `wait`. A condition already

@@ -284,6 +284,8 @@ export type FrameProps = FrameLook & {
   /** `false` takes this brick out of the tab order — see `interactionProps`. */
   tabStop?: boolean;
   testId?: string;
+  /** Set by the compiler on a frame a step scrolls to — see `runtime/scroll-anchor`. */
+  anchor?: string;
   /**
    * How it is drawn while the pointer is on it — sparse, over the base above.
    *
@@ -356,6 +358,7 @@ const PAGE_MIN_HEIGHT: CSSProperties = { minHeight: "100dvh" };
  * had no copy at all, and its `onClick` went nowhere.
  */
 function interactionProps({
+  anchor,
   onClick,
   disabled,
   role,
@@ -371,6 +374,8 @@ function interactionProps({
   ariaChecked?: boolean;
   tabStop?: boolean;
   testId?: string;
+  /** A frame a step scrolls to — see `runtime/scroll-anchor`. */
+  anchor?: string;
 }) {
   const interactive = Boolean(onClick) && !disabled;
 
@@ -406,6 +411,7 @@ function interactionProps({
     "aria-checked": ariaChecked,
     "aria-disabled": disabled || undefined,
     "data-testid": testId,
+    "data-anchor": anchor,
   };
 }
 
@@ -628,6 +634,7 @@ export function Frame(props: FrameProps) {
    * arrows and leaves Enter and Space to the activation handler behind it.
    */
   const interaction = interactionProps({
+    anchor: props.anchor,
     onClick,
     disabled,
     role,
@@ -825,6 +832,8 @@ export type TextProps = Placement & {
   ariaChecked?: boolean;
   tabStop?: boolean;
   testId?: string;
+  /** Set by the compiler on a text a step scrolls to — see `runtime/scroll-anchor`. */
+  anchor?: string;
   style?: CSSProperties;
   /** How the words are drawn while the pointer is on them, or on their frame. */
   states?: BrickStates<TextLook>;
@@ -983,7 +992,16 @@ export function Text(props: TextProps) {
       }}
       data-pb-motion={textMotion.animation ? "" : undefined}
       {...handlers}
-      {...interactionProps({ onClick, disabled, role, ariaLabel, ariaChecked, tabStop, testId })}
+      {...interactionProps({
+        anchor: props.anchor,
+        onClick,
+        disabled,
+        role,
+        ariaLabel,
+        ariaChecked,
+        tabStop,
+        testId,
+      })}
     >
       {spans ? spans.map((run, at) => runElement(run, at, follow)) : children}
     </span>

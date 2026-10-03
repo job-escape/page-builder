@@ -34,6 +34,7 @@ import type {
   SourceScreen,
   SourceValue,
 } from "./source";
+import { markAnchors, scrollTargetsIn } from "../scroll-anchor";
 
 /**
  * The format version, and it is not `manifest.version`.
@@ -69,7 +70,9 @@ import type {
 
   1.6 — `pin` on a frame directly inside a screen's root: fixed to the screen
   while the rest scrolls (`runtime/pin`). Additive: a 1.5 reader ignores the
-  prop and draws the frame where it sits in the flow.
+  prop and draws the frame where it sits in the flow. And the `scrollTo` step,
+  with `anchor` on the frames it names (`runtime/scroll-anchor`): a 1.5 reader
+  skips the step.
 */
 export const TREE_SCHEMA = "1.6";
 
@@ -268,7 +271,16 @@ export function emitScreenTree(screen: SourceScreen): ScreenTree {
     .filter((frame) => frame.parent === null)
     .sort((a, b) => (a.pos ?? "").localeCompare(b.pos ?? ""));
 
-  return { id: screen.id, roots: roots.map((frame) => nodeOf(frame, screen.frames)) };
+  // The frames a step on this screen scrolls to, marked so a platform can find them.
+  const targets = new Set<string>();
+  screen.frames.forEach((frame) => scrollTargetsIn(frame.interactions, targets));
+  return {
+    id: screen.id,
+    roots: markAnchors(
+      roots.map((frame) => nodeOf(frame, screen.frames)),
+      targets,
+    ),
+  };
 }
 
 export function compileToTree(funnel: SourceFunnel): CompiledTree {

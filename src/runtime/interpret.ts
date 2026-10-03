@@ -34,6 +34,7 @@ import type { TimerBook } from "./timers";
 import type { VariableValue } from "./types";
 import type { request } from "./request";
 import { analytics, track, type AnalyticsProperties } from "./track";
+import { scrollToAnchor } from "./scroll-anchor";
 
 /** The reading half of the store — everything a condition can ask. */
 export type ConditionState = {
@@ -408,6 +409,11 @@ export async function run(
       case "timer":
         // Never blocks — see `SourceAction`'s `timer`.
         void startTimer(action, ctx);
+        break;
+
+      case "scrollTo":
+        // Never blocks — see `runtime/scroll-anchor`.
+        scrollToAnchor(action.target, action.align ?? "start");
         break;
 
       case "waitFor": {
