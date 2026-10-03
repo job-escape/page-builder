@@ -66,8 +66,12 @@ import type {
   `motionKey` props with sizes in percent. All additive: a 1.4 reader skips a
   step it does not know, reads an unknown value as nothing and ignores the props
   — so an older app draws the funnel still, only without its motion.
+
+  1.6 — `pin` on a frame directly inside a screen's root: fixed to the screen
+  while the rest scrolls (`runtime/pin`). Additive: a 1.5 reader ignores the
+  prop and draws the frame where it sits in the flow.
 */
-export const TREE_SCHEMA = "1.5";
+export const TREE_SCHEMA = "1.6";
 
 type TreeNodeBase = {
   id: string;

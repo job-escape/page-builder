@@ -25,6 +25,9 @@ import type { FrameMotion, FrameTransition } from "../motion";
 import { isRuns, withLineBreaks, runsOf, type RichText, type TextRun } from "../rich-text";
 import { DockedEdge, dockedRadius } from "../docked";
 import { frameBackground } from "../image-crop";
+import { Parent, type ParentFlow } from "./parent-flow";
+import { Pins } from "./pins";
+import type { DrawnPin, ReserveReport } from "../pin";
 import { motionCss, transitionCss, useWebMotion } from "./motion-css";
 
 export type FrameLayout = "none" | "row" | "column";
@@ -299,22 +302,6 @@ const size = (value: FrameProps["width"] | TextProps["width"]): string | number 
   return value;
 };
 
-/**
- * How the frame above this one lays its children out — `null` for a screen's
- * root, which has no frame above it at all.
- *
- * The web half of native's `FlowContext`, and it answers the same two questions
- * that one does:
- *
- * - **Am I the root?** `null`. A `fill` height means something different at the
- *   top of a screen than anywhere else: inside a frame it is a share of a parent
- *   that has a height, and at the top it is a claim on the viewport, which no
- *   ancestor here has a height for.
- * - **Does my parent place me?** Only a parent with no auto-layout does. Two
- *   points on a brick mean nothing inside a row or a column — see `placedCss`.
- */
-type ParentFlow = "none" | "row" | "column";
-const Parent = createContext<ParentFlow | null>(null);
 
 /** A radius as CSS: one number, or four corners clockwise from the top left. */
 const radiusCss = (radius: number | readonly number[] | string | undefined) =>
@@ -1214,11 +1201,14 @@ export const ui: {
    * Created here rather than called, so the component keeps its own hooks.
    */
   Slot: (component: unknown, props: Record<string, unknown>) => ReactNode;
+  /** A screen's frames fixed to it, around its content — see `runtime/pin`. */
+  Pins: (props: { pins: DrawnPin[]; onReserve: ReserveReport }, children: ReactNode[]) => ReactNode;
 } = {
   Slot: (component, props) =>
     createElement(component as (props: Record<string, unknown>) => ReactNode, props),
   Frame: (props, children) =>
     createElement(Frame, props as FrameProps, ...spread(children)),
+  Pins: (props, children) => createElement(Pins, props, children),
   /**
    * Rich copy becomes a prop; everything else stays positional children.
    *

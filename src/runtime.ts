@@ -153,6 +153,10 @@ export { isPublishedManifest, runtimeManifest } from "./runtime/published-manife
 export type { CompiledTree, ScreenTree, TreeNode } from "./runtime/compiler/tree";
 export { TREE_SCHEMA, compileToTree, emitScreenTree } from "./runtime/compiler/tree";
 
+// A frame fixed to the screen — see `runtime/pin`.
+export { pinOf, edgeOf, insetOf, reservesRoom, stretches } from "./runtime/pin";
+export type { Pin, PinEdge } from "./runtime/pin";
+
 /**
  * Reading a tree: the same conditions and actions the emitter writes as
  * JavaScript, evaluated instead. No React and no DOM — a native runtime gets

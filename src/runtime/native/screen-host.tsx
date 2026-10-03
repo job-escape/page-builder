@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ScreenPresentation } from "../compiler/manifest";
 import type { ScreenTransition } from "../compiler/source";
 import { HeightContext } from "./bricks";
+import { PinLayer, PinOutlet, usePinOutlet } from "./pins";
 import { useDeclaredDirection } from "./direction";
 import { resolveHost, type HostConfig } from "./host-config";
 
@@ -130,6 +131,8 @@ export function ScreenHost({
   const config = resolveHost(host);
   const insets = useSafeAreaInsets();
   const edges = config.insetEdges;
+  // The screen's pinned frames, drawn over its scroll view — see `pins`.
+  const { outlet, held } = usePinOutlet();
 
   // A bleeding screen puts its content under the chrome deliberately — a splash,
   // a full-height image. Everything else clears it.
@@ -167,21 +170,43 @@ export function ScreenHost({
     </ScrollView>
   );
 
+  /*
+    The pins sit inside the same insets the content is padded by, and inside the
+    keyboard-avoiding view, so a bar at the bottom clears the home indicator and
+    rises with the keyboard. Nothing extra is drawn for a screen without any.
+  */
+  const body = (
+    <>
+      {presentation.scroll ? scrolling : surface}
+      <PinLayer
+        held={held}
+        insets={{
+          top: (padding.paddingTop as number | undefined) ?? 0,
+          bottom: (padding.paddingBottom as number | undefined) ?? 0,
+          left: (padding.paddingLeft as number | undefined) ?? 0,
+          right: (padding.paddingRight as number | undefined) ?? 0,
+        }}
+      />
+    </>
+  );
+
   return (
     // Full bleed by construction: the background paints to every edge, and only
     // the content is inset. Animated only when the screen has an entrance.
-    <Animated.View style={entrance ? [{ flex: 1 }, entrance] : { flex: 1 }}>
-      <StatusBar barStyle={statusBarStyle(presentation, background)} />
-      {presentation.keyboard ? (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={config.keyboardBehaviour}>
-          {presentation.scroll ? scrolling : surface}
-        </KeyboardAvoidingView>
-      ) : (
-        // No field on this screen, so nothing has to move out of a keyboard's
-        // way — and an avoiding view that never avoids anything is a layout pass
-        // per frame for nothing.
-        presentation.scroll ? scrolling : surface
-      )}
-    </Animated.View>
+    <PinOutlet.Provider value={outlet}>
+      <Animated.View style={entrance ? [{ flex: 1 }, entrance] : { flex: 1 }}>
+        <StatusBar barStyle={statusBarStyle(presentation, background)} />
+        {presentation.keyboard ? (
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={config.keyboardBehaviour}>
+            {body}
+          </KeyboardAvoidingView>
+        ) : (
+          // No field on this screen, so nothing has to move out of a keyboard's
+          // way — and an avoiding view that never avoids anything is a layout
+          // pass per frame for nothing.
+          body
+        )}
+      </Animated.View>
+    </PinOutlet.Provider>
   );
 }

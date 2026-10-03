@@ -25,8 +25,10 @@ import {
   createElement,
   Fragment,
   isValidElement,
+  useCallback,
   useEffect,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 
@@ -36,6 +38,17 @@ import { isScopeName, type Scope } from "../data";
 import { evaluate, run, valueOf } from "../interpret";
 import { leaveFor } from "../link";
 import { PAYMENT_SESSION_VARIABLE, settlePayment } from "../payment-session";
+import {
+  edgeOf,
+  estimatedReserve,
+  insetOf,
+  reservesRoom,
+  splitPinned,
+  type DrawnPin,
+  type PinEdge,
+  type PinnedNode,
+  type ReserveReport,
+} from "../pin";
 import type { CopyParams } from "../rich-text";
 import type { ScreenModule, ScreenProps } from "./funnel";
 
@@ -435,19 +448,100 @@ function drawNode(
   );
 }
 
+/*
+  A screen is the list of its top-level frames, and a list React draws needs
+  keys — without them every screen of every funnel warned, in the console and
+  in a host's dev overlay. Keyed by frame id, which is unique on a screen, on
+  the element itself rather than a wrapper around it: what a screen returns
+  stays exactly what its `ui` drew.
+*/
+function keyed(drawn: ReactNode, id: string): ReactNode {
+  return isValidElement(drawn) && drawn.key == null ? cloneElement(drawn, { key: id }) : drawn;
+}
+
+/** How a platform draws a screen's pinned frames — `ui.Pins`. See `runtime/pin`. */
+export type PinsFactory = (
+  props: { pins: DrawnPin[]; onReserve: ReserveReport },
+  children: ReactNode[],
+) => ReactNode;
+
+/**
+ * Room kept at a root's edge for the pins that reserve it — an empty frame as
+ * its first or last child, so the root's own background runs under the pin and
+ * what scrolls ends beside it. Less the root's gap, which the spacer brings.
+ */
+function withRoom(root: TreeNode, room: Record<PinEdge, number>): TreeNode {
+  if (root.kind !== "frame" || root.repeat || (room.top <= 0 && room.bottom <= 0)) return root;
+  const gap = typeof root.props?.gap === "number" ? root.props.gap : 0;
+  const spacer = (edge: PinEdge): TreeNode => ({
+    id: `${root.id}~pin-${edge}`,
+    kind: "frame",
+    props: { width: "fill", height: Math.max(0, room[edge] - gap) },
+    children: [],
+  });
+  return {
+    ...root,
+    children: [
+      ...(room.top > 0 ? [spacer("top")] : []),
+      ...root.children,
+      ...(room.bottom > 0 ? [spacer("bottom")] : []),
+    ],
+  };
+}
+
+/**
+ * A screen with frames fixed to it.
+ *
+ * The pinned frames are drawn by the same walk as everything else and handed
+ * to the platform's `Pins`, which puts them where the platform can hold them
+ * still: a sticky layer in a browser, a layer over the scroll view on a phone.
+ * What it measures comes back as the room each edge keeps.
+ *
+ * A catalogue with no `Pins` draws the screen as it was authored, pins in
+ * place — the same thing a reader that has never heard of them draws.
+ */
+function PinnedScreen({
+  screen,
+  tree,
+  roots,
+  pinned,
+}: {
+  screen: ScreenProps;
+  tree: ScreenTree;
+  roots: TreeNode[];
+  pinned: PinnedNode[];
+}): ReactNode {
+  const [room, setRoom] = useState(() => estimatedReserve(pinned));
+  const onReserve = useCallback<ReserveReport>((edge, size) => {
+    const next = Math.max(0, Math.round(size));
+    setRoom((held) => (held[edge] === next ? held : { ...held, [edge]: next }));
+  }, []);
+  const Pins = (screen.ui as { Pins?: PinsFactory }).Pins;
+  if (!Pins) return tree.roots.map((root) => keyed(renderNode(root, screen), root.id));
+
+  const pins = pinned.map(
+    ({ node, pin }): DrawnPin => ({
+      id: node.id,
+      pin,
+      edge: edgeOf(pin),
+      inset: insetOf(pin),
+      reserves: reservesRoom(pin),
+      element: renderNode(node, screen),
+    }),
+  );
+  return Pins(
+    { pins, onReserve },
+    roots.map((root) => keyed(renderNode(withRoom(root, room), screen), root.id)),
+  );
+}
+
 export function screenFromTree(tree: ScreenTree): ScreenModule {
-  /*
-    A screen is the list of its top-level frames, and a list React draws needs
-    keys — without them every screen of every funnel warned, in the console
-    and in a host's dev overlay. Keyed by frame id, which is unique on a screen,
-    on the element itself rather than a wrapper around it: what a screen
-    returns stays exactly what its `ui` drew.
-  */
-  return (props: ScreenProps) =>
-    tree.roots.map((root) => {
-      const drawn = renderNode(root, props);
-      return isValidElement(drawn) && drawn.key == null ? cloneElement(drawn, { key: root.id }) : drawn;
-    });
+  // Which frames are pinned is a fact of the artifact, so it is found once.
+  const { roots, pinned } = splitPinned(tree.roots);
+  if (pinned.length > 0) {
+    return (props: ScreenProps) => createElement(PinnedScreen, { screen: props, tree, roots, pinned });
+  }
+  return (props: ScreenProps) => tree.roots.map((root) => keyed(renderNode(root, props), root.id));
 }
 
 /** Every screen of a compiled tree, keyed the way `<Funnel>` wants them. */
