@@ -31,6 +31,7 @@ import {
   useMemo,
   useState,
   type ComponentType,
+  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -66,7 +67,31 @@ export type SwiperProps = {
   autoplay?: boolean | string;
   /** The active slide sits in the middle rather than at the start. */
   centeredSlides?: boolean | string;
+  /**
+   * How wide the carousel is — the frame's own width. A number caps it and
+   * centres it in the room it has (a desktop's 576 on a wide page); `fill`,
+   * or nothing, is the full width, as it always was.
+   */
+  width?: number | "fill" | "hug";
+  /** The frame's padding, around the slides: `[top, right, bottom, left]` or one number. */
+  padding?: number | readonly number[];
 };
+
+/** The frame's box — its width and padding — as the carousel's own. */
+function boxOf(props: SwiperProps): CSSProperties {
+  const { width, padding } = props;
+  const capped = typeof width === "number" && width > 0;
+  const around = Array.isArray(padding)
+    ? padding.map((side) => `${Number(side) || 0}px`).join(" ")
+    : typeof padding === "number"
+      ? `${padding}px`
+      : undefined;
+  return {
+    width: "100%",
+    ...(capped ? { maxWidth: width, marginInline: "auto", alignSelf: "center" } : {}),
+    ...(around ? { padding: around, boxSizing: "border-box" } : {}),
+  };
+}
 
 const flag = (value: unknown): boolean => value === true || value === "true" || value === "1";
 
@@ -127,7 +152,7 @@ export function createSwiper(load: SwiperLoader): (props: SwiperProps) => ReactE
       return (
         <div
           data-swiper="pending"
-          style={{ display: "flex", gap: spaceBetween, width: "100%", overflow: "hidden" }}
+          style={{ display: "flex", gap: spaceBetween, overflow: "hidden", ...boxOf(props) }}
         >
           {slides.slice(0, shown + 1).map((slide, index) => (
             // The authored order is what identifies a slide; nothing reorders them.
@@ -144,7 +169,7 @@ export function createSwiper(load: SwiperLoader): (props: SwiperProps) => ReactE
     return (
       <Carousel
         data-swiper="ready"
-        style={{ width: "100%" }}
+        style={boxOf(props)}
         autoplay={autoplay}
         loop={loop}
         centeredSlides={centeredSlides}
