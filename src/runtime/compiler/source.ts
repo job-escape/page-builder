@@ -429,7 +429,20 @@ export type SourceAction =
  * `submit` is a field's: Enter pressed in it (the keyboard's Go on a phone) —
  * what a visitor does instead of reaching for the button under it.
  */
-export type SourceEvent = "click" | "change" | "leave" | "load" | "select" | "submit";
+export type SourceEvent =
+  | "click"
+  | "change"
+  | "leave"
+  | "load"
+  | "select"
+  | "submit"
+  /**
+   * The frame came into view, or left it, as the page was scrolled — and once
+   * when the screen opens, for whichever it is then. What a button fixed to the
+   * screen follows to step aside while the thing it scrolls to is on show.
+   */
+  | "visible"
+  | "hidden";
 
 /**
  * A slot's own triggers — whatever the component in it reports.

@@ -110,6 +110,9 @@ type TreeNodeBase = {
   onLeave?: SourceAction[];
   /** A field's Enter — see `SourceEvent`. */
   onSubmit?: SourceAction[];
+  /** The frame came into view, and left it — see `SourceEvent`. */
+  onVisible?: SourceAction[];
+  onHidden?: SourceAction[];
   /**
    * What this node does when it *appears* — a `load` on something nested.
    *
@@ -202,6 +205,8 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
   const change = actionsFor(frame, "change");
   const leave = actionsFor(frame, "leave");
   const submit = actionsFor(frame, "submit");
+  const visible = actionsFor(frame, "visible");
+  const hidden = actionsFor(frame, "hidden");
   const select = actionsFor(frame, "select");
   /*
     Only what is nested. A top-level frame's `load` is the screen's own, read
@@ -219,6 +224,8 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
     ...(change.length ? { onChange: change } : {}),
     ...(leave.length ? { onLeave: leave } : {}),
     ...(submit.length ? { onSubmit: submit } : {}),
+    ...(visible.length ? { onVisible: visible } : {}),
+    ...(hidden.length ? { onHidden: hidden } : {}),
     ...(load.length ? { onLoad: load } : {}),
     ...(select.length ? { onSelect: select } : {}),
   };
@@ -243,7 +250,7 @@ function nodeOf(frame: SourceFrame, all: SourceFrame[]): TreeNode {
   if (frame.kind === "slot") {
     // Every interaction that is not one of a frame's own events is a report
     // the component makes, run by name.
-    const own = new Set(["click", "change", "leave", "load", "submit"]);
+    const own = new Set(["click", "change", "leave", "load", "submit", "visible", "hidden"]);
     const triggers: Record<string, SourceAction[]> = {};
     (frame.interactions ?? []).forEach((interaction) => {
       const event = interaction.on?.event ?? "click";
@@ -278,6 +285,13 @@ export function emitScreenTree(screen: SourceScreen): ScreenTree {
   // The frames a step on this screen scrolls to, marked so a platform can find them.
   const targets = new Set<string>();
   screen.frames.forEach((frame) => scrollTargetsIn(frame.interactions, targets));
+  // And the frames watched for coming into view: found the same way.
+  screen.frames.forEach((frame) => {
+    const watched = frame.interactions?.some(
+      (interaction) => interaction.on?.event === "visible" || interaction.on?.event === "hidden",
+    );
+    if (watched) targets.add(frame.id);
+  });
   return {
     id: screen.id,
     roots: markAnchors(

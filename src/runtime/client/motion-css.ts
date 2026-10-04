@@ -33,6 +33,8 @@ function stopCss(stop: (typeof MOTION_PRESETS)[MotionPreset]["stops"][number]): 
   const transforms: string[] = [];
   if (stop.translateY !== undefined) transforms.push(`translateY(${stop.translateY}px)`);
   if (stop.scale !== undefined) transforms.push(`scale(${stop.scale})`);
+  if (stop.scaleX !== undefined) transforms.push(`scaleX(${stop.scaleX})`);
+  if (stop.scaleY !== undefined) transforms.push(`scaleY(${stop.scaleY})`);
   if (stop.rotate !== undefined) transforms.push(`rotate(${stop.rotate}deg)`);
   const parts: string[] = [];
   if (stop.opacity !== undefined) parts.push(`opacity: ${stop.opacity}`);

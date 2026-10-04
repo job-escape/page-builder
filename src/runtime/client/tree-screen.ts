@@ -246,12 +246,65 @@ function renderNode(
   if (node.when && !evaluate(node.when, props.state)) return null;
 
   const drawn = drawNode(node, screen, scope, select);
-  if (!node.onLoad?.length) return drawn;
-  return createElement(Appeared, {
-    actions: node.onLoad,
-    doing: { state: props.state, nav: props.nav, req: props.req },
-    children: drawn,
-  });
+  const doing = { state: props.state, nav: props.nav, req: props.req };
+  const watched =
+    node.onVisible?.length || node.onHidden?.length
+      ? createElement(InView, {
+          anchor: node.id,
+          onVisible: node.onVisible,
+          onHidden: node.onHidden,
+          doing,
+          children: drawn,
+        })
+      : drawn;
+  if (!node.onLoad?.length) return watched;
+  return createElement(Appeared, { actions: node.onLoad, doing, children: watched });
+}
+
+/**
+ * Tells a node when it comes into view and when it leaves it.
+ *
+ * Found by the anchor the compiler put on it (`data-anchor`, as a scroll
+ * target is) and watched with the browser's own observer, which also says
+ * which it is when the screen opens — so the design hears one of the two
+ * straight away and then each change. Draws nothing of its own. Where there is
+ * no document — a phone — it does nothing: the steps are a web page's.
+ */
+function InView({
+  anchor,
+  onVisible,
+  onHidden,
+  doing,
+  children,
+}: {
+  anchor: string;
+  onVisible?: SourceAction[];
+  onHidden?: SourceAction[];
+  doing: Doing;
+  children: ReactNode;
+}): ReactNode {
+  const latest = useRef({ doing, onVisible, onHidden });
+  latest.current = { doing, onVisible, onHidden };
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof IntersectionObserver === "undefined") {
+      return undefined;
+    }
+    const escaped = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(anchor) : anchor;
+    const element = document.querySelector(`[data-anchor="${escaped}"]`);
+    if (!element) return undefined;
+    let last: boolean | null = null;
+    const observer = new IntersectionObserver((entries) => {
+      const shown = entries[entries.length - 1]?.isIntersecting ?? false;
+      if (shown === last) return;
+      last = shown;
+      const now = latest.current;
+      const steps = shown ? now.onVisible : now.onHidden;
+      if (steps?.length) void run(steps, now.doing);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [anchor]);
+  return children;
 }
 
 function drawNode(

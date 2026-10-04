@@ -75,9 +75,11 @@ function useTween(
 function presetStyle(preset: MotionPreset, progress: Animated.Value): NativeStyle {
   const { stops } = MOTION_PRESETS[preset];
   const inputRange = stops.map((stop) => stop.at);
-  const channel = <K extends "opacity" | "translateY" | "scale" | "rotate">(name: K) => {
+  const channel = <K extends "opacity" | "translateY" | "scale" | "scaleX" | "scaleY" | "rotate">(
+    name: K,
+  ) => {
     if (!stops.some((stop) => stop[name] !== undefined)) return null;
-    const outputRange = stops.map((stop) => stop[name] ?? (name === "scale" || name === "opacity" ? 1 : 0));
+    const outputRange = stops.map((stop) => stop[name] ?? (name === "translateY" || name === "rotate" ? 0 : 1));
     return progress.interpolate({
       inputRange,
       outputRange: name === "rotate" ? outputRange.map((degrees) => `${degrees}deg`) : outputRange,
@@ -91,6 +93,10 @@ function presetStyle(preset: MotionPreset, progress: Animated.Value): NativeStyl
   if (translateY) transform.push({ translateY });
   const scale = channel("scale");
   if (scale) transform.push({ scale });
+  const scaleX = channel("scaleX");
+  if (scaleX) transform.push({ scaleX });
+  const scaleY = channel("scaleY");
+  if (scaleY) transform.push({ scaleY });
   const rotate = channel("rotate");
   if (rotate) transform.push({ rotate });
   if (transform.length) style.transform = transform;

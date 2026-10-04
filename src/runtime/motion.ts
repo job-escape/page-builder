@@ -166,7 +166,7 @@ export type FrameTransition = {
  * something loads, an entrance. A closed list, so the phone and the browser
  * play the same frames: every preset is defined once, below, by numbers.
  */
-export type MotionPreset = "spin" | "pulse" | "shimmer" | "fadeIn" | "slideUp";
+export type MotionPreset = "spin" | "pulse" | "ping" | "shimmer" | "fadeIn" | "slideUp";
 
 export type FrameMotion = {
   preset: MotionPreset;
@@ -182,9 +182,18 @@ type PresetSpec = {
   easing: MotionEasing;
   /**
    * The keyframes, as stops through one cycle. Each is the look at that point —
-   * `opacity`, `translateY` in points, `scale`, `rotate` in degrees.
+   * `opacity`, `translateY` in points, `scale` (or `scaleX` and `scaleY`, for
+   * a look that grows more one way than the other), `rotate` in degrees.
    */
-  stops: Array<{ at: number; opacity?: number; translateY?: number; scale?: number; rotate?: number }>;
+  stops: Array<{
+    at: number;
+    opacity?: number;
+    translateY?: number;
+    scale?: number;
+    scaleX?: number;
+    scaleY?: number;
+    rotate?: number;
+  }>;
 };
 
 export const MOTION_PRESETS: Record<MotionPreset, PresetSpec> = {
@@ -205,6 +214,22 @@ export const MOTION_PRESETS: Record<MotionPreset, PresetSpec> = {
       { at: 0, scale: 1, opacity: 1 },
       { at: 0.5, scale: 1.06, opacity: 0.85 },
       { at: 1, scale: 1, opacity: 1 },
+    ],
+  },
+  /*
+    A ring that leaves a button: a copy of the button's shape behind it grows
+    past its edges — more up and down than sideways, as a pill does — and is
+    gone by three quarters of the way, then waits out the beat. What draws the
+    eye to the one button a page is for.
+  */
+  ping: {
+    duration: 1000,
+    repeat: "infinite",
+    easing: "ease-out",
+    stops: [
+      { at: 0, scaleX: 1, scaleY: 1, opacity: 1 },
+      { at: 0.75, scaleX: 1.05, scaleY: 1.3, opacity: 0 },
+      { at: 1, scaleX: 1.05, scaleY: 1.3, opacity: 0 },
     ],
   },
   shimmer: {
