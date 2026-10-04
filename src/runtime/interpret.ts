@@ -494,6 +494,10 @@ async function submitEmail(
     return run(action.onError ?? [], withError(ctx, error));
   };
 
+  // One at a time: a second tap while the first is still on its way sends
+  // nothing — the visitor is waiting on the answer already asked for.
+  if (ctx.state.status?.(EMAIL_SUBMIT_ID) === "pending") return false;
+
   const typed = action.email ? valueOf(action.email, ctx.state) : null;
   const checked = EmailAddress.safeParse(typed);
   if (!checked.success) {
@@ -559,6 +563,10 @@ async function submitName(
     ctx.state.setStatus?.(NAME_SUBMIT_ID, "error", error.message);
     return run(action.onError ?? [], withError(ctx, error));
   };
+
+  // One at a time: a second tap while the first is still on its way sends
+  // nothing — the visitor is waiting on the answer already asked for.
+  if (ctx.state.status?.(NAME_SUBMIT_ID) === "pending") return false;
 
   const typed = action.name ? valueOf(action.name, ctx.state) : null;
   const checked = PersonName.safeParse(typed);
@@ -644,6 +652,8 @@ async function send(
   alive: () => boolean,
 ): Promise<boolean> {
   const requestId = action.id ?? action.action;
+  // One at a time, as the email step is: a tap while this is on its way sends nothing.
+  if (ctx.state.status?.(requestId) === "pending") return false;
   try {
     const payload: Record<string, unknown> = {};
     Object.entries(action.fields ?? {}).forEach(([key, variable]) => {

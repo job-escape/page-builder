@@ -314,7 +314,7 @@ function drawNode(
 
   if (node.kind === "input") {
     const { variable } = node;
-    const { onChange, onLeave } = node;
+    const { onChange, onLeave, onSubmit } = node;
     /*
       The field's steps, with `$value` answered: the text in the field at that
       moment. So a typing step can say "set typed_email to $value" without
@@ -340,6 +340,12 @@ function drawNode(
         ? {
             onLeave: (): void =>
               void run(onLeave, contextWith(String(props.state.get(variable) ?? ""))),
+          }
+        : {}),
+      ...(onSubmit?.length
+        ? {
+            onSubmit: (): void =>
+              void run(onSubmit, contextWith(String(props.state.get(variable) ?? ""))),
           }
         : {}),
     } as never);

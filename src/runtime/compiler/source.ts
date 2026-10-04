@@ -425,7 +425,11 @@ export type SourceAction =
  * reason it is its own event rather than a tap on the group: a tap reaches a
  * group by bubbling, and one of the two renderers has no such thing.
  */
-export type SourceEvent = "click" | "change" | "leave" | "load" | "select";
+/**
+ * `submit` is a field's: Enter pressed in it (the keyboard's Go on a phone) —
+ * what a visitor does instead of reaching for the button under it.
+ */
+export type SourceEvent = "click" | "change" | "leave" | "load" | "select" | "submit";
 
 /**
  * A slot's own triggers — whatever the component in it reports.

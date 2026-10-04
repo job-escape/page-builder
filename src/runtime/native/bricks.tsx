@@ -848,6 +848,7 @@ export function Input({
   value,
   onValue,
   onLeave,
+  onSubmit,
   placeholder,
   type = "text",
   invalid,
@@ -871,6 +872,8 @@ export function Input({
       value={value}
       onChangeText={onValue}
       onBlur={onLeave}
+      onSubmitEditing={onSubmit}
+      returnKeyType={onSubmit ? "go" : undefined}
       placeholder={placeholder}
       keyboardType={KEYBOARDS[type]}
       autoCapitalize={type === "email" ? "none" : "sentences"}

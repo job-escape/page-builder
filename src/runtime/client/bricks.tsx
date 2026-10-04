@@ -1044,6 +1044,8 @@ export type InputProps = Placement & {
   onValue?: (next: string) => void;
   /** The visitor moved on from the field — when a form checks what was typed. */
   onLeave?: () => void;
+  /** Enter was pressed in the field — the keyboard's way to press the button under it. */
+  onSubmit?: () => void;
   placeholder?: string;
   /**
    * Chooses the keyboard on a phone as much as the validation — `email` gets an
@@ -1076,6 +1078,7 @@ export function Input({
   value = "",
   onValue,
   onLeave,
+  onSubmit,
   placeholder,
   type = "text",
   invalid,
@@ -1097,6 +1100,17 @@ export function Input({
       value={value}
       onChange={(event) => onValue?.(event.target.value)}
       onBlur={onLeave}
+      onKeyDown={
+        onSubmit
+          ? (event) => {
+              // Not while a word is still being composed — an IME's Enter picks a candidate.
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              onSubmit();
+            }
+          : undefined
+      }
+      enterKeyHint={onSubmit ? "go" : undefined}
       placeholder={placeholder}
       type={type}
       // Announced, because the placeholder disappears the moment anyone types

@@ -108,6 +108,8 @@ type TreeNodeBase = {
    */
   onChange?: SourceAction[];
   onLeave?: SourceAction[];
+  /** A field's Enter — see `SourceEvent`. */
+  onSubmit?: SourceAction[];
   /**
    * What this node does when it *appears* — a `load` on something nested.
    *
@@ -199,6 +201,7 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
   const actions = actionsFor(frame, "click");
   const change = actionsFor(frame, "change");
   const leave = actionsFor(frame, "leave");
+  const submit = actionsFor(frame, "submit");
   const select = actionsFor(frame, "select");
   /*
     Only what is nested. A top-level frame's `load` is the screen's own, read
@@ -215,6 +218,7 @@ function baseOf(frame: SourceFrame): TreeNodeBase {
     ...(actions.length ? { on: actions } : {}),
     ...(change.length ? { onChange: change } : {}),
     ...(leave.length ? { onLeave: leave } : {}),
+    ...(submit.length ? { onSubmit: submit } : {}),
     ...(load.length ? { onLoad: load } : {}),
     ...(select.length ? { onSelect: select } : {}),
   };
@@ -239,7 +243,7 @@ function nodeOf(frame: SourceFrame, all: SourceFrame[]): TreeNode {
   if (frame.kind === "slot") {
     // Every interaction that is not one of a frame's own events is a report
     // the component makes, run by name.
-    const own = new Set(["click", "change", "leave", "load"]);
+    const own = new Set(["click", "change", "leave", "load", "submit"]);
     const triggers: Record<string, SourceAction[]> = {};
     (frame.interactions ?? []).forEach((interaction) => {
       const event = interaction.on?.event ?? "click";
