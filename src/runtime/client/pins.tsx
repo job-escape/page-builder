@@ -30,6 +30,11 @@ const PINNED_LAYER = 30;
 
 /** Across the screen: between both sides, at one of them, or centred. */
 function acrossOf(pin: DrawnPin["pin"]): CSSProperties {
+  if (pin.left !== undefined && pin.right !== undefined && pin.maxWidth !== undefined) {
+    // Stretched up to a width, then centred in what is left: with both sides
+    // set and a cap, the browser shares the leftover between the auto margins.
+    return { left: pin.left, right: pin.right, maxWidth: pin.maxWidth, marginLeft: "auto", marginRight: "auto" };
+  }
   if (pin.left !== undefined || pin.right !== undefined) return { left: pin.left, right: pin.right };
   // Centred: the box spans the screen to centre what it holds, and lets a tap
   // beside the frame through to whatever is under it.

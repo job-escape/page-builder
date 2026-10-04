@@ -49,6 +49,10 @@ export function usePinOutlet(): { outlet: Outlet; held: ReactNode } {
 
 /** Across the screen: between both sides, at one of them, or centred. */
 function acrossOf(pin: DrawnPin["pin"]): ViewStyle {
+  if (pin.left !== undefined && pin.right !== undefined && pin.maxWidth !== undefined) {
+    // Stretched up to a width, then centred — see `PinBox`, which caps the frame.
+    return { left: pin.left, right: pin.right, alignItems: "center" };
+  }
   if (pin.left !== undefined || pin.right !== undefined) return { left: pin.left, right: pin.right };
   return { left: 0, right: 0, alignItems: "center" };
 }
@@ -71,7 +75,13 @@ function PinBox({
       {/* Laid out as a column's child, and measured against nothing: no frame
           holds it, and its height is its own. */}
       <FlowContext.Provider value="column">
-        <HeightContext.Provider value={false}>{drawn.element as ReactNode}</HeightContext.Provider>
+        <HeightContext.Provider value={false}>
+          {drawn.pin.maxWidth !== undefined && drawn.pin.left !== undefined && drawn.pin.right !== undefined ? (
+            <View style={{ width: "100%", maxWidth: drawn.pin.maxWidth }}>{drawn.element as ReactNode}</View>
+          ) : (
+            (drawn.element as ReactNode)
+          )}
+        </HeightContext.Provider>
       </FlowContext.Provider>
     </View>
   );

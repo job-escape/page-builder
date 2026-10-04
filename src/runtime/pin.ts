@@ -8,6 +8,8 @@
  *   a pinned frame keeps its own height.
  * - `left` and `right` together stretch it between them; one of them anchors
  *   it to that side at its own width; neither centres it.
+ * - `maxWidth` caps a stretched frame and centres it in the room that leaves —
+ *   a button edge to edge on a phone, and no wider than its column on a desk.
  * - `reserve` says whether the screen keeps room for it, so content scrolls to
  *   end beside it rather than under it. A bar does; a floating badge does not.
  *   Absent, a frame stretched edge to edge reserves and anything else floats.
@@ -33,6 +35,8 @@ export type Pin = {
   bottom?: number;
   left?: number;
   right?: number;
+  /** The most a stretched frame grows to; past it, it is centred. */
+  maxWidth?: number;
   reserve?: boolean;
 };
 
@@ -73,6 +77,8 @@ export function pinOf(props: Record<string, unknown> | undefined): Pin | null {
   else pin.bottom = 0;
   if (left !== undefined) pin.left = left;
   if (right !== undefined) pin.right = right;
+  const maxWidth = numberOr(held.maxWidth);
+  if (maxWidth !== undefined && maxWidth > 0) pin.maxWidth = maxWidth;
   if (typeof held.reserve === "boolean") pin.reserve = held.reserve;
   return pin;
 }
