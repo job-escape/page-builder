@@ -1125,6 +1125,13 @@ export type ImageProps = Placement &
     height?: number;
     radius?: number;
     fit?: "cover" | "contain";
+    /**
+     * Paint the picture in one colour — an icon. The picture is used as a
+     * mask and this is what shows through it, so a line icon takes a token
+     * (`var(--text-primary)`) and follows the theme, where a picture's own
+     * pixels are black in light and dark alike.
+     */
+    tint?: string;
     style?: CSSProperties;
     /**
      * Shown or not while the pointer is on the frame above it — see
@@ -1153,6 +1160,7 @@ export function Image({
   height,
   radius,
   fit = "cover",
+  tint,
   style,
   hidden: base,
   states,
@@ -1167,6 +1175,37 @@ export function Image({
   const { at } = usePointerState(false);
   const { hidden } = withState<ImageLook>({ hidden: base }, states, at);
   const interactive = Boolean(onClick) && !disabled;
+  if (tint) {
+    // The picture as a mask over the tint — see `ImageProps.tint`.
+    const mask = `url("${src.replace(/"/g, "%22")}") center / ${fit} no-repeat`;
+    return (
+      <span
+        aria-hidden={alt || interactive ? undefined : true}
+        {...interactionProps({
+          onClick,
+          disabled,
+          role: role ?? (interactive ? "button" : undefined),
+          ariaLabel: ariaLabel ?? (alt || undefined),
+          tabStop,
+          testId,
+        })}
+        {...(alt && !interactive && !role ? { role: "img" } : {})}
+        style={{
+          width: size(width),
+          height,
+          flexShrink: typeof width === "number" ? 0 : undefined,
+          borderRadius: radius,
+          display: hidden ? "none" : "block",
+          cursor: interactive ? "pointer" : undefined,
+          backgroundColor: tint,
+          mask,
+          WebkitMask: mask,
+          ...placedCss(placement),
+          ...style,
+        }}
+      />
+    );
+  }
   return (
     <img
       src={src}

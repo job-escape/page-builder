@@ -798,6 +798,7 @@ function DrawnImage({
   height,
   radius,
   fit,
+  tint,
   hidden: _hidden,
   states: _states,
   ...placement
@@ -824,6 +825,8 @@ function DrawnImage({
     ...(nativeSize(height, "height", flow, definite) as ImageStyle),
     ...(radius === undefined ? {} : (nativeRadius(radius) as ImageStyle)),
     resizeMode: fit ?? "cover",
+    // An icon's one colour — see `ImageProps.tint`.
+    ...(tint ? { tintColor: nativeColor(tint, lookup) } : {}),
   };
 
   return <RNImage source={{ uri: src }} style={style} accessibilityLabel={alt} accessible={!!alt} />;
