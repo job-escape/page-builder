@@ -313,15 +313,21 @@ export async function run(
         ctx.state.select(action.variable, action.value);
         break;
 
-      case "set":
+      case "set": {
         // A value read now wins over the literal — see `SourceAction`'s `set`.
+        // And a `value` that is itself a value tree — `{ lit: 60 }`, which is
+        // how the editor's "Set variable … to 60" has been publishing a number —
+        // is read as one: stored as it was, the object was refused by a number
+        // variable and a funnel's progress never moved.
+        const given = action.from ?? (action.value as unknown);
         ctx.state.set(
           action.variable,
-          (action.from
-            ? valueOf(action.from, ctx.state)
-            : (action.value ?? null)) as VariableValue,
+          (given !== null && typeof given === "object"
+            ? valueOf(given as SourceValue, ctx.state)
+            : (given ?? null)) as VariableValue,
         );
         break;
+      }
 
       case "close":
         ctx.nav.close();
