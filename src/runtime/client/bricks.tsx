@@ -21,6 +21,7 @@ import {
 } from "react";
 
 import { useFollowLink, type FollowLink } from "../link-context";
+import { fontStack, useWebFont } from "./web-font";
 import type { FrameMotion, FrameTransition } from "../motion";
 import { isRuns, withLineBreaks, runsOf, type RichText, type TextRun } from "../rich-text";
 import { DockedEdge, dockedRadius } from "../docked";
@@ -809,6 +810,12 @@ export type TextProps = Placement & {
   size?: number;
   weight?: number;
   color?: string;
+  /**
+   * The typeface, by family name — `Poppins`. The web fetches it the first
+   * time a text names it (`web-font`); a phone draws with it when the app
+   * bundles a face of that name. Absent, the words are in the host's own face.
+   */
+  fontFamily?: string;
   align?: "left" | "center" | "right";
   lineHeight?: number;
   /**
@@ -946,6 +953,7 @@ export function Text(props: TextProps) {
   // there are runs to draw — React's rule, and the reason this is not inside the
   // branch below.
   const follow = useFollowLink();
+  useWebFont(props.fontFamily);
   const spans = runs ? runsOf(runs) : null;
   useWebMotion({ motion: props.motion, transition: undefined, motionKey: undefined, look: {} });
   const textMotion = motionCss(props.motion);
@@ -960,6 +968,7 @@ export function Text(props: TextProps) {
       style={{
         fontSize,
         fontWeight: weight,
+        fontFamily: fontStack(props.fontFamily),
         color,
         /**
          * Logical, not physical — `start` and `end` rather than `left` and

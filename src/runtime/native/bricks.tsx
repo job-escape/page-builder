@@ -712,6 +712,8 @@ function DrawnText({
     ...(nativeSize(height, "height", flow, definite) as TextStyle),
     ...(grow || (flow === undefined && flexForSize(width).grow) ? { flexGrow: 1 } : {}),
     ...(weight === undefined ? {} : { fontWeight: String(weight) as TextStyle["fontWeight"] }),
+    // The family as named — drawn in it when the app bundles a face of that name.
+    ...(props.fontFamily ? { fontFamily: props.fontFamily } : {}),
     ...(color ? { color: nativeColor(color, lookup) } : {}),
     /**
      * The same logical alignment the web brick does, spelled the way React
