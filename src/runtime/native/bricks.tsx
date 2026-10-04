@@ -392,6 +392,12 @@ function DrawnFrame({ children, onClick, disabled, scroll, states, ...authored }
   const definite = useContext(HeightContext);
   const box = nativeBox(boxFromProps(props as Record<string, unknown>), lookup, flow, definite);
   const style = { ...box.style, ...layoutOf(props as FrameProps, flow) };
+  // With a ratio the width decides and the height follows it — as on web.
+  const ratio = (props as FrameProps).aspectRatio;
+  if (typeof ratio === "number" && ratio > 0) {
+    style.aspectRatio = ratio;
+    delete style.height;
+  }
   /**
    * Whether this frame's own height is a definite one — a number, or a `fill`
    * of a parent that has one.

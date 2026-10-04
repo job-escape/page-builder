@@ -287,6 +287,12 @@ export type FrameProps = FrameLook & {
   /** Set by the compiler on a frame a step scrolls to — see `runtime/scroll-anchor`. */
   anchor?: string;
   /**
+   * Width over height — `1` is a square. The width is what the layout gives
+   * the frame and the height follows it, whatever height it was drawn at: a
+   * row of scale options that stay square as the row grows.
+   */
+  aspectRatio?: number;
+  /**
    * How it is drawn while the pointer is on it — sparse, over the base above.
    *
    * Absent for nearly every frame, which is what makes it free: no layer, no
@@ -552,6 +558,8 @@ export function Frame(props: FrameProps) {
 
   const parentFlow = useContext(Parent);
   const root = parentFlow === null;
+  const aspectRatio =
+    typeof props.aspectRatio === "number" && props.aspectRatio > 0 ? props.aspectRatio : 0;
   const rootFill = root && (shown.height as FrameProps["height"]) === "fill";
   /**
    * A `fill` along the parent's flow grows into the parent's room, as well as
@@ -601,7 +609,9 @@ export function Frame(props: FrameProps) {
     padding: pad(padding),
     width: size(shown.width as FrameProps["width"]),
     ...(root ? PAGE_MIN_HEIGHT : {}),
-    height: rootFill ? undefined : size(shown.height as FrameProps["height"]),
+    // With a ratio the width decides and the height follows it.
+    height: rootFill || aspectRatio ? undefined : size(shown.height as FrameProps["height"]),
+    aspectRatio: aspectRatio || undefined,
     alignItems: align ? ALIGN[align] : undefined,
     justifyContent: justify ? JUSTIFY[justify] : undefined,
     background,
@@ -610,6 +620,17 @@ export function Frame(props: FrameProps) {
     opacity: shown.opacity as number | undefined,
     boxShadow: shadow,
     flexGrow: grow || fillsFlow ? 1 : undefined,
+    /*
+      A size stated as a number is that size. A flex row shrinks its items to
+      fit by default, so a 24px radio beside a long label came out 21px wide
+      and no longer round — where React Native, whose items do not shrink,
+      drew the circle. Along the parent's flow only: across it nothing shrinks.
+    */
+    flexShrink:
+      (parentFlow === "row" && typeof shown.width === "number") ||
+      (parentFlow === "column" && typeof shown.height === "number")
+        ? 0
+        : undefined,
     overflowY: scroll ? "auto" : undefined,
     boxSizing: "border-box",
     // What its children are placed against, and where it is placed itself —
@@ -1163,6 +1184,8 @@ export function Image({
       style={{
         width: size(width),
         height,
+        // A picture drawn at a number keeps it — see the note on `Frame`.
+        flexShrink: typeof width === "number" ? 0 : undefined,
         borderRadius: radius,
         objectFit: fit,
         display: hidden ? "none" : "block",
