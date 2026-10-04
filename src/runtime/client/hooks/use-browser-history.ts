@@ -98,7 +98,10 @@ export function useBrowserHistory(
       const entry = entryOf(event.state);
       if (!entry) return;
       const current = navigator.state();
-      if (entry.pbIndex < index.current && current.overlays.length > 0) {
+      // One the visitor can dismiss, that is: an overlay that cannot be closed
+      // goes with its screen — see `navigator.back`.
+      const top = current.overlays[current.overlays.length - 1];
+      if (entry.pbIndex < index.current && top && top.presentation.closeOnOutside !== false) {
         // Something is open over the screen: Back closes it, and the entry the
         // browser just left is put back — the visitor has not moved.
         navigator.close();

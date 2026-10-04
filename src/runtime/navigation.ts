@@ -153,7 +153,18 @@ export function createNavigator(options: NavigatorOptions) {
    * designer's back control. Overlays first, then history.
    */
   function back(): boolean {
-    if (close()) return true;
+    /*
+      An overlay the visitor cannot dismiss — `closeOnOutside: false`, a
+      question a screen is waiting on — is part of its screen, not something
+      over it: closing it alone would leave that screen waiting for an answer
+      nobody can give any more. Back leaves the screen, and it goes too.
+    */
+    const held = overlays.length > 0 && overlays[overlays.length - 1].presentation.closeOnOutside === false;
+    if (held && history.length > 0) {
+      overlays = [];
+    } else if (close()) {
+      return true;
+    }
     if (history.length === 0) return false;
 
     onLeaveScreen?.(screen);
