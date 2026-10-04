@@ -25,6 +25,19 @@ import type { CheckoutMethod, CheckoutProps, PaymentReport, Trigger } from "./co
 // The tags below are Primer's; this is what lets them be written as tags.
 import type { PrimerCheckoutElement } from "./primer-elements";
 
+/** Whether the visitor's system asks for dark — what the funnel's palette follows. */
+function useSystemDark(): boolean {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    const read = () => setDark(query.matches);
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  }, []);
+  return dark;
+}
+
 /** The host's `() => import("@primer-io/primer-js")`. */
 export type PrimerLoader = () => Promise<{ loadPrimer: () => unknown }>;
 
@@ -98,6 +111,16 @@ export function PrimerCheckout({
   const idempotencyKey = useRef(newKey());
   /** A payment is on its way: submitted, and its end not yet told to the design. */
   const [paying, setPaying] = useState(false);
+  /*
+    The gateway's own dark theme where the visitor's system asks for dark — the
+    funnel around it is painted for that mode, and the form's labels were dark
+    words on a dark sheet. On the element itself, by hand: a class on a custom
+    element is not something every React writes the same way.
+  */
+  const dark = useSystemDark();
+  useEffect(() => {
+    element.current?.classList.toggle("primer-dark-theme", dark);
+  });
 
   const { cardholderName = false, billingAddress = false, applePayType = "buy", googlePayType = "buy" } = props;
   const paypal = props.paypalStyle;
