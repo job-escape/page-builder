@@ -130,8 +130,33 @@ function Opening({
   services: ScreenProps;
   screen: string;
 }): null {
-  useOpeningSteps(enter, services, screen);
+  useOpeningSteps(enter, services, screen, afterPaint);
   return null;
+}
+
+/**
+ * After the frame that painted the screen: two animation frames, since the
+ * first runs before that paint. Falls back to a timer where frames are not
+ * being produced — a background tab — so the steps are late, never lost.
+ */
+function afterPaint(run: () => void): () => void {
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    run();
+  };
+  let second = 0;
+  const first = requestAnimationFrame(() => {
+    second = requestAnimationFrame(once);
+  });
+  const timer = setTimeout(once, 250);
+  return () => {
+    done = true;
+    cancelAnimationFrame(first);
+    cancelAnimationFrame(second);
+    clearTimeout(timer);
+  };
 }
 
 function Restore({ state }: { state: ScreenProps["state"] }): null {
