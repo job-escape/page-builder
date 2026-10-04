@@ -268,6 +268,12 @@ export type FunnelCoreOptions<Ui, Component> = {
    */
   restoreOnMount?: boolean;
   /**
+   * Run a screen's opening steps from the funnel's own effect. A host that
+   * draws on a server passes `false` and runs them from inside the screen, once
+   * it has hydrated — see `Opening` in `client/screen-stack`.
+   */
+  openOnMount?: boolean;
+  /**
    * Values the host already knows when the funnel starts — see `initial` in
    * the store. Read once, when the store is made.
    */

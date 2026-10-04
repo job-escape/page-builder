@@ -72,6 +72,7 @@ export function useFunnelRuntime<Ui, Component>({
   start,
   onScreen,
   restoreOnMount = true,
+  openOnMount = true,
   initialValues,
   values,
 }: FunnelCoreOptions<Ui, Component>) {
@@ -114,7 +115,9 @@ export function useFunnelRuntime<Ui, Component>({
     [ui, components, copy, store, nav],
   );
 
-  useOpeningSteps(manifest.enter, services, navState.screen);
+  // A host that draws on a server runs them from inside the screen instead,
+  // once it has hydrated — see `openOnMount`.
+  useOpeningSteps(openOnMount ? manifest.enter : undefined, services, navState.screen);
 
   return { services, navState, navigator };
 }

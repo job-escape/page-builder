@@ -5,6 +5,8 @@
 import type { ReactNode } from "react";
 
 import { useBeforePaint } from "../funnel-core";
+import { useOpeningSteps } from "../hooks/use-opening-steps";
+import type { SourceAction } from "../compiler/source";
 
 import type { ScreenPresentation } from "../compiler/manifest";
 import type { NavigationState } from "../navigation";
@@ -19,6 +21,7 @@ export function ScreenStack({
   ahead,
   prerender,
   presentations,
+  enter,
   services,
   onDismiss,
 }: {
@@ -29,6 +32,8 @@ export function ScreenStack({
   ahead: readonly string[];
   prerender: number;
   presentations?: Record<string, ScreenPresentation>;
+  /** Each screen's opening steps — run from inside it, see `Opening`. */
+  enter?: Record<string, SourceAction[]>;
   services: ScreenProps;
   onDismiss: () => void;
 }): ReactNode {
@@ -65,6 +70,7 @@ export function ScreenStack({
               >
                 {Module ? <Module {...services} /> : null}
                 {current ? <Restore state={services.state} /> : null}
+                {current ? <Opening enter={enter} services={services} screen={id} /> : null}
               </ScreenHost>
             </Screens>
           );
@@ -79,6 +85,7 @@ export function ScreenStack({
         >
           {Current ? <Current {...services} /> : null}
           <Restore state={services.state} />
+          <Opening enter={enter} services={services} screen={navState.screen} />
         </ScreenHost>
       )}
       {navState.overlays.map((overlay) => {
@@ -104,6 +111,29 @@ export function ScreenStack({
  * screen has matched the server's HTML before the answers arrive. Before
  * paint, so a funnel drawn only in the browser never shows its defaults.
  */
+/**
+ * Runs a screen's opening steps, once the screen it sits in has hydrated.
+ *
+ * Inside the screen for the reason `Restore` is: the funnel's own effects fire
+ * before React has hydrated the screen, so a step that sets a value — a
+ * question's progress — changed the store first, the screen then hydrated with
+ * a value the server never drew, and React leaves an attribute that differs at
+ * hydration as the server wrote it: the header's bar stayed at 0% for good.
+ * After `Restore` (a layout effect), so the steps run over what was saved.
+ */
+function Opening({
+  enter,
+  services,
+  screen,
+}: {
+  enter?: Record<string, SourceAction[]>;
+  services: ScreenProps;
+  screen: string;
+}): null {
+  useOpeningSteps(enter, services, screen);
+  return null;
+}
+
 function Restore({ state }: { state: ScreenProps["state"] }): null {
   useBeforePaint(() => {
     state.restore();

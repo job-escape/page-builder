@@ -268,6 +268,7 @@ export function Funnel({
     values,
     // From inside the screen, once it has hydrated — see `ScreenStack`.
     restoreOnMount: false,
+    openOnMount: false,
   });
   useDismissOnEscape(navigator);
 
@@ -314,6 +315,7 @@ export function Funnel({
           ahead={ahead}
           prerender={prerender}
           presentations={manifest.screens}
+          enter={manifest.enter}
           services={services}
           onDismiss={navigator.close}
         />
