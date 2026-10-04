@@ -36,6 +36,7 @@ import { webTimerStorage, type TimerStorage } from "../timers";
 import { ui, type Ui } from "./bricks";
 import { FunnelContext } from "./funnel-context";
 import { useAppearance } from "./hooks/use-appearance";
+import { useBrowserHistory } from "./hooks/use-browser-history";
 import { useDismissOnEscape } from "./hooks/use-dismiss-on-escape";
 import { useWindowDevice } from "./hooks/media";
 import { useScreenSource, useScreensAhead } from "./hooks/use-screens";
@@ -117,6 +118,13 @@ export type FunnelProps = {
    * Not called for the screen the funnel opened on, nor for overlays.
    */
   onScreen?: (screen: string) => void;
+  /**
+   * Make the browser's Back and Forward move through the funnel: each screen
+   * arrived on becomes a history entry at the address this returns for it.
+   * Absent, the funnel leaves the browser's history alone, as it always did.
+   * See `hooks/use-browser-history`.
+   */
+  browserHistory?: (screen: string) => string;
   /**
    * Values the host already knows when the funnel starts — the visitor's email
    * and account id, kept by the host between visits. Over the declared
@@ -228,6 +236,7 @@ export function Funnel({
   prerender = 0,
   startScreen,
   onScreen,
+  browserHistory,
   initialValues,
   values,
   components = {},
@@ -271,6 +280,7 @@ export function Funnel({
     openOnMount: false,
   });
   useDismissOnEscape(navigator);
+  useBrowserHistory(browserHistory, navigator, navState);
 
   const { ahead, loaded } = useScreensAhead({ manifest, navState, prerender, screens, load });
   const paletteStyle = useAppearance({
