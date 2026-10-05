@@ -18,7 +18,7 @@ export function useNavigation({
   onUnknown,
   store,
 }: {
-  manifest: Pick<FunnelManifest, "entry" | "overlayDefaults">;
+  manifest: Pick<FunnelManifest, "entry" | "overlayDefaults" | "next">;
   known: ReadonlySet<string>;
   start: string | undefined;
   onUnknown: OnUnknown | undefined;
@@ -36,12 +36,38 @@ export function useNavigation({
   const opensOn =
     startAt.current && known.has(startAt.current) ? startAt.current : manifest.entry;
 
+  /*
+    The page before each page, as the funnel is laid out: the one a visitor
+    walking from the entry reaches it from first. Breadth first, so a loop back
+    to an early question ("change my answers") is not taken for the way there.
+  */
+  const before = useMemo(() => {
+    const prior = new Map<string, string>();
+    const next = manifest.next;
+    if (!next) return prior;
+    const seen = new Set([manifest.entry]);
+    const queue = [manifest.entry];
+    for (let at = 0; at < queue.length; at += 1) {
+      for (const target of next[queue[at]] ?? []) {
+        if (seen.has(target)) continue;
+        seen.add(target);
+        prior.set(target, queue[at]);
+        queue.push(target);
+      }
+    }
+    return prior;
+  }, [manifest.entry, manifest.next]);
+
   const navigator = useMemo(
     () =>
       createNavigator({
         entry: opensOn,
         defaults: manifest.overlayDefaults,
         known,
+        before: (screen) => {
+          const prior = before.get(screen);
+          return prior !== undefined && known.has(prior) ? prior : undefined;
+        },
         onUnknown: (target) => onUnknown?.("target", target),
         onLeaveScreen: (screen) => {
           // Anything the outgoing screen started stops here, before it can write
@@ -53,7 +79,7 @@ export function useNavigation({
           store.forgetScreen(screen);
         },
       }),
-    [opensOn, manifest.overlayDefaults, known, onUnknown, store],
+    [opensOn, manifest.overlayDefaults, known, onUnknown, store, before],
   );
 
   const navState = useSyncExternalStore(navigator.subscribe, navigator.state, navigator.state);

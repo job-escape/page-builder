@@ -76,12 +76,19 @@ export type NavigatorOptions = {
   onUnknown?: (target: string) => void;
   /** Known frame ids. Absent skips the check — preview may render one frame. */
   known?: ReadonlySet<string>;
+  /**
+   * The screen the funnel puts before this one, for a visitor with nothing
+   * behind them: a page opened by its address, a tab that lost its trail. So
+   * the back control leads to the previous page of the quiz wherever the
+   * visitor came in.
+   */
+  before?: (screen: string) => string | undefined;
 };
 
 export type Navigator = ReturnType<typeof createNavigator>;
 
 export function createNavigator(options: NavigatorOptions) {
-  const { entry, defaults = {}, onLeaveScreen, onUnknown, known } = options;
+  const { entry, defaults = {}, onLeaveScreen, onUnknown, known, before } = options;
 
   let screen = entry;
   let overlays: OverlayFrame[] = [];
@@ -165,10 +172,12 @@ export function createNavigator(options: NavigatorOptions) {
     } else if (close()) {
       return true;
     }
-    if (history.length === 0) return false;
+    // Nothing walked: the page the funnel puts before this one.
+    const prior = history.length > 0 ? history[history.length - 1] : before?.(screen);
+    if (prior === undefined) return false;
 
     onLeaveScreen?.(screen);
-    screen = history[history.length - 1];
+    screen = prior;
     history = history.slice(0, -1);
     direction = "back";
     notify();
@@ -176,7 +185,8 @@ export function createNavigator(options: NavigatorOptions) {
   }
 
   const state = (): NavigationState => snapshot;
-  const canGoBack = (): boolean => overlays.length > 0 || history.length > 0;
+  const canGoBack = (): boolean =>
+    overlays.length > 0 || history.length > 0 || before?.(screen) !== undefined;
 
   /** The screens behind the current one, oldest first — for whoever keeps them across a reload. */
   const past = (): readonly string[] => history;

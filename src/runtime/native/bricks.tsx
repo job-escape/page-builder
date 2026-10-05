@@ -22,6 +22,7 @@
 import { createContext, createElement, useContext, useState, type ReactNode } from "react";
 import {
   Animated,
+  I18nManager,
   Image as RNImage,
   Pressable,
   ScrollView,
@@ -803,6 +804,7 @@ function DrawnImage({
   radius,
   fit,
   tint,
+  mirror,
   hidden: _hidden,
   states: _states,
   ...placement
@@ -831,6 +833,8 @@ function DrawnImage({
     resizeMode: fit ?? "cover",
     // An icon's one colour — see `ImageProps.tint`.
     ...(tint ? { tintColor: nativeColor(tint, lookup) } : {}),
+    // A chevron or an arrow points the other way — see `ImageProps.mirror`.
+    ...(mirror && I18nManager.isRTL ? { transform: [{ scaleX: -1 }] } : {}),
   };
 
   return <RNImage source={{ uri: src }} style={style} accessibilityLabel={alt} accessible={!!alt} />;

@@ -8,8 +8,9 @@
  * - **Going on** pushes an entry at the screen's address.
  * - **The browser's Back** goes back in the funnel — or closes what is open
  *   over the screen, as the funnel's own back does, and stays where it is.
- * - **The design's own back** — a chevron in a header — takes the browser's
- *   entry off with it, so the two never disagree about where the visitor is.
+ * - **The design's own back** — a chevron in a header — is a move of its own:
+ *   it opens the quiz's previous page and pushes an entry for it, and never
+ *   steps the browser's history. It works the same whatever the browser holds.
  * - **The browser's Forward** opens the screen that entry was for.
  *
  * Entries are told apart by a counter kept in `history.state`, which is what
@@ -25,6 +26,7 @@ type Navigator = {
   back: () => boolean;
   close: () => boolean;
   state: () => NavigationState;
+  past?: () => readonly string[];
 };
 
 type Entry = { pbIndex: number; pbScreen: string };
@@ -50,8 +52,6 @@ export function useBrowserHistory(
   const shown = useRef(navState.screen);
   /** The next arrival was the browser's doing — its entry is already current. */
   const fromBrowser = useRef(false);
-  /** The next `popstate` is ours — the design's back taking its entry off. */
-  const ownPop = useRef(false);
 
   // The entry the page opened on: marked, and counted from where it already was.
   useEffect(() => {
@@ -71,15 +71,12 @@ export function useBrowserHistory(
       fromBrowser.current = false;
       return;
     }
-    if (navState.direction === "back") {
-      // The design's own back: the browser's entry goes with it.
-      if (index.current > 0) {
-        index.current -= 1;
-        ownPop.current = true;
-        window.history.back();
-      }
-      return;
-    }
+    /*
+      The design's own back is a move like any other, and is recorded as one:
+      it never steps the browser's history. Stepping it tied the control to
+      whatever the browser happened to hold: nothing, for a page opened by its
+      address, and entries that no longer matched after a reload.
+    */
     index.current += 1;
     window.history.pushState(
       { pbIndex: index.current, pbScreen: navState.screen },
@@ -91,10 +88,6 @@ export function useBrowserHistory(
   useEffect(() => {
     if (!enabled) return undefined;
     const onPop = (event: PopStateEvent) => {
-      if (ownPop.current) {
-        ownPop.current = false;
-        return;
-      }
       const entry = entryOf(event.state);
       if (!entry) return;
       const current = navigator.state();
@@ -116,9 +109,11 @@ export function useBrowserHistory(
       index.current = entry.pbIndex;
       if (entry.pbScreen === current.screen) return;
       fromBrowser.current = true;
-      // Back through the funnel's own history when it has one — the entrance
-      // plays the other way — and straight to the screen when it has not.
-      if (back && navigator.back() && navigator.state().screen === entry.pbScreen) return;
+      // Back through the funnel's own history when that is where it leads —
+      // the entrance plays the other way — and straight to the screen when it
+      // is not: once the design's back has been used the two no longer line up.
+      const trail = navigator.past?.() ?? [];
+      if (back && trail[trail.length - 1] === entry.pbScreen && navigator.back()) return;
       navigator.show(entry.pbScreen, { as: "replace" });
     };
     window.addEventListener("popstate", onPop);

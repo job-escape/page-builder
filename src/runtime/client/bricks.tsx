@@ -1168,6 +1168,11 @@ export type ImageProps = Placement &
      * pixels are black in light and dark alike.
      */
     tint?: string;
+    /**
+     * Turn it round in a right-to-left language: a back chevron, an arrow —
+     * a picture that points along the reading direction. Not a lock or a tick.
+     */
+    mirror?: boolean;
     style?: CSSProperties;
     /**
      * Shown or not while the pointer is on the frame above it — see
@@ -1189,6 +1194,12 @@ export type ImageProps = Placement &
     testId?: string;
   };
 
+/**
+ * The host's `dir` decides, as it decides every logical property; `scale`
+ * rather than `transform`, which a placed or moving picture already uses.
+ */
+const MIRROR_CSS = '[dir="rtl"] [data-pb-mirror] { scale: -1 1 }';
+
 export function Image({
   src,
   alt = "",
@@ -1197,6 +1208,7 @@ export function Image({
   radius,
   fit = "cover",
   tint,
+  mirror,
   style,
   hidden: base,
   states,
@@ -1211,64 +1223,74 @@ export function Image({
   const { at } = usePointerState(false);
   const { hidden } = withState<ImageLook>({ hidden: base }, states, at);
   const interactive = Boolean(onClick) && !disabled;
+  // Said beside the picture it is for, so it holds on a screen with no entrance.
+  const turn = mirror ? <style>{MIRROR_CSS}</style> : null;
   if (tint) {
     // The picture as a mask over the tint — see `ImageProps.tint`.
     const mask = `url("${src.replace(/"/g, "%22")}") center / ${fit} no-repeat`;
     return (
-      <span
-        aria-hidden={alt || interactive ? undefined : true}
+      <>
+        {turn}
+        <span
+          data-pb-mirror={mirror ? "" : undefined}
+          aria-hidden={alt || interactive ? undefined : true}
+          {...interactionProps({
+            onClick,
+            disabled,
+            role: role ?? (interactive ? "button" : undefined),
+            ariaLabel: ariaLabel ?? (alt || undefined),
+            tabStop,
+            testId,
+          })}
+          {...(alt && !interactive && !role ? { role: "img" } : {})}
+          style={{
+            width: size(width),
+            height,
+            flexShrink: typeof width === "number" ? 0 : undefined,
+            borderRadius: radius,
+            display: hidden ? "none" : "block",
+            cursor: interactive ? "pointer" : undefined,
+            backgroundColor: tint,
+            mask,
+            WebkitMask: mask,
+            ...placedCss(placement),
+            ...style,
+          }}
+        />
+      </>
+    );
+  }
+  return (
+    <>
+      {turn}
+      <img
+        data-pb-mirror={mirror ? "" : undefined}
+        src={src}
+        alt={alt}
+        // A tappable picture is a button to a keyboard and a screen reader,
+        // unless the design said what else it is.
         {...interactionProps({
           onClick,
           disabled,
           role: role ?? (interactive ? "button" : undefined),
-          ariaLabel: ariaLabel ?? (alt || undefined),
+          ariaLabel,
           tabStop,
           testId,
         })}
-        {...(alt && !interactive && !role ? { role: "img" } : {})}
         style={{
           width: size(width),
           height,
+          // A picture drawn at a number keeps it — see the note on `Frame`.
           flexShrink: typeof width === "number" ? 0 : undefined,
           borderRadius: radius,
+          objectFit: fit,
           display: hidden ? "none" : "block",
           cursor: interactive ? "pointer" : undefined,
-          backgroundColor: tint,
-          mask,
-          WebkitMask: mask,
           ...placedCss(placement),
           ...style,
         }}
       />
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt={alt}
-      // A tappable picture is a button to a keyboard and a screen reader,
-      // unless the design said what else it is.
-      {...interactionProps({
-        onClick,
-        disabled,
-        role: role ?? (interactive ? "button" : undefined),
-        ariaLabel,
-        tabStop,
-        testId,
-      })}
-      style={{
-        width: size(width),
-        height,
-        // A picture drawn at a number keeps it — see the note on `Frame`.
-        flexShrink: typeof width === "number" ? 0 : undefined,
-        borderRadius: radius,
-        objectFit: fit,
-        display: hidden ? "none" : "block",
-        cursor: interactive ? "pointer" : undefined,
-        ...placedCss(placement),
-        ...style,
-      }}
-    />
+    </>
   );
 }
 
