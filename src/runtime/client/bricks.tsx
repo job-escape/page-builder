@@ -491,10 +491,16 @@ function pressScale(
   };
 }
 
-const pad = (value: FrameProps["padding"]): string | number | undefined => {
-  if (value === undefined) return undefined;
+const pad = (value: FrameProps["padding"] | null): string | number | undefined => {
+  /*
+    Null as well as undefined. A state layer says "this look has no padding" by
+    handing over the absent value, and a published tree spells absent as null —
+    a card whose picked variant drops its frame's padding crashed the screen it
+    was on the moment it was picked.
+  */
+  if (value === undefined || value === null) return undefined;
   if (typeof value === "number") return value;
-  return value.map((entry) => `${entry}px`).join(" ");
+  return Array.isArray(value) ? value.map((entry) => `${entry}px`).join(" ") : undefined;
 };
 
 export function Frame(props: FrameProps) {
