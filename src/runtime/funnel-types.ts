@@ -146,6 +146,12 @@ export function persistenceFor(
  */
 export type CopyLookup = ((key: string, params?: CopyParams) => RichText) & {
   image?: (src: string) => string;
+  /**
+   * Words that are not copy — a field's placeholder, an answer's value — in
+   * the visitor's language, when they are exactly one of the design's own
+   * texts; as they came otherwise. See `useCopy`.
+   */
+  said?: (words: string) => string;
 };
 
 export type FunnelServices<Ui, Component> = {

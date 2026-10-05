@@ -83,7 +83,11 @@ export function useCopy(
     () =>
       Object.assign((key: string, params?: CopyParams) => t(key, params), {
         image: (src: string) => localizedImage(locale, src),
+        said: (words: string) => {
+          const known = said?.get(words);
+          return known ? (locale[known] as string) : words;
+        },
       }),
-    [t, locale],
+    [t, locale, said],
   );
 }

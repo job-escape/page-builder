@@ -378,8 +378,12 @@ function drawNode(
       const typing = within(screen, { ...scope, $value: value });
       return { state: typing.state, nav: typing.nav, req: typing.req };
     };
+    // The hint in the empty field is a prop, not copy — shown in the
+    // visitor's language when the design has those words as a text.
+    const hint = (resolved as { placeholder?: unknown }).placeholder;
     return props.ui.Input({
       ...resolved,
+      ...(typeof hint === "string" && props.t.said ? { placeholder: props.t.said(hint) } : {}),
       // Bound both ways to the declared variable: what the visitor sees is what
       // the funnel holds, so navigating away and back keeps it.
       value: String(props.state.get(variable) ?? ""),
