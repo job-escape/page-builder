@@ -73,6 +73,13 @@ export type FunnelManifest = {
    */
   next?: Record<string, string[]>;
   /**
+   * The dialogs each screen can open, by screen id — `ScreenIndex.overlays`,
+   * forwarded by the host. Not drawn ahead (a dialog is drawn when it opens),
+   * but fetched ahead with its pictures, so one that opens does not arrive
+   * empty. Absent means a dialog is fetched when it is opened, as before.
+   */
+  overlays?: Record<string, string[]>;
+  /**
    * Where each screen's tree is published, by screen id — `ScreenIndex.tree`.
    * With it, `<Funnel>` fetches a screen it was not handed when the screen is
    * needed. Absent means every screen comes from the host.

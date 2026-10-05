@@ -2,7 +2,7 @@
  * Which screens the funnel has, can fetch, and draws — the web `Funnel`'s side
  * of `runtime/screen-loader`.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import type { FunnelManifest } from "../../funnel-core";
 import type { NavigationState } from "../../navigation";
@@ -63,6 +63,77 @@ export function useScreenSource({
   return { load, known };
 }
 
+/** Trees already asked for, by address — one request each for as long as the page lives. */
+const warmed = new Set<string>();
+
+/** How long the current screen has the network to itself before the warming starts. */
+const WARM_AFTER_MS = 300;
+
+/** The most screens warmed from one screen: a branch that fans out is not a reason to fetch a funnel. */
+const WARM_AT_MOST = 12;
+
+/** Every picture a published tree draws that is fetched from somewhere. */
+function picturesOf(nodes: unknown, into: Set<string>): Set<string> {
+  if (!Array.isArray(nodes)) return into;
+  nodes.forEach((node) => {
+    if (!node || typeof node !== "object") return;
+    const { props, src, children } = node as { props?: { src?: unknown }; src?: unknown; children?: unknown };
+    [props?.src, src].forEach((one) => {
+      // A `data:` picture is already here; only an address is worth asking for early.
+      if (typeof one === "string" && /^(https?:)?\/\//.test(one)) into.add(one);
+    });
+    picturesOf(children, into);
+  });
+  return into;
+}
+
+/** Ask for a tree and the pictures in it, so the browser has them before they are drawn. */
+function warm(url: string): void {
+  if (warmed.has(url)) return;
+  warmed.add(url);
+  fetch(url)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((tree: { roots?: unknown } | null) => {
+      if (!tree || typeof Image === "undefined") return;
+      picturesOf(tree.roots, new Set()).forEach((src) => {
+        new Image().src = src;
+      });
+    })
+    // A warm that fails costs nothing: the screen is fetched again when it is needed.
+    .catch(() => warmed.delete(url));
+}
+
+/**
+ * Fetch what the visitor is about to need, one step further than is drawn.
+ *
+ * `prerender` draws the next screens hidden, which requests their pictures —
+ * but only once the visitor has *arrived* on the screen before, so a quick tap
+ * outruns it, and a dialog was never part of it at all: its tree was fetched
+ * when it opened, and its picture after that. So from every screen this asks
+ * for the trees — and through them the pictures — of the dialogs it can open,
+ * the screens it leads to, and what *those* lead to and open. Only fetched,
+ * never built: the browser's cache is what makes the later draw immediate.
+ *
+ * Nothing happens for a host that did not turn `prerender` on, or whose
+ * manifest names no published trees.
+ */
+function useWarmAhead(manifest: FunnelManifest, screen: string, prerender: number): void {
+  const { trees, next, overlays } = manifest;
+  useEffect(() => {
+    if (prerender <= 0 || !trees || typeof window === "undefined") return undefined;
+    const near = [...(overlays?.[screen] ?? []), ...(next?.[screen] ?? [])];
+    const far = (next?.[screen] ?? []).flatMap((id) => [...(overlays?.[id] ?? []), ...(next?.[id] ?? [])]);
+    const wanted = [...new Set([...near, ...far])].filter((id) => id !== screen).slice(0, WARM_AT_MOST);
+    const timer = setTimeout(() => {
+      wanted.forEach((id) => {
+        const url = trees[id];
+        if (url) warm(url);
+      });
+    }, WARM_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [prerender, trees, next, overlays, screen]);
+}
+
 /**
  * The screens to have now: the current one, any overlay over it, and the
  * first `prerender` the current one leads to, in the manifest's order. A tap
@@ -90,6 +161,7 @@ export function useScreensAhead({
         : [],
     [prerender, manifest.next, navState.screen],
   );
+  useWarmAhead(manifest, navState.screen, prerender);
   const loaded = useLoadedScreens({
     screens,
     loadScreen: load,
