@@ -31,14 +31,19 @@ const keyframeName = (preset: MotionPreset): string => `pb-motion-${preset}`;
 /** One stop as CSS — the same four numbers native interpolates. */
 function stopCss(stop: (typeof MOTION_PRESETS)[MotionPreset]["stops"][number]): string {
   const transforms: string[] = [];
+  // A ring by distance stands in for the scales — see `spread`.
+  const ringed = stop.spread !== undefined;
   if (stop.translateY !== undefined) transforms.push(`translateY(${stop.translateY}px)`);
   if (stop.scale !== undefined) transforms.push(`scale(${stop.scale})`);
-  if (stop.scaleX !== undefined) transforms.push(`scaleX(${stop.scaleX})`);
-  if (stop.scaleY !== undefined) transforms.push(`scaleY(${stop.scaleY})`);
+  if (stop.scaleX !== undefined && !ringed) transforms.push(`scaleX(${stop.scaleX})`);
+  if (stop.scaleY !== undefined && !ringed) transforms.push(`scaleY(${stop.scaleY})`);
   if (stop.rotate !== undefined) transforms.push(`rotate(${stop.rotate}deg)`);
   const parts: string[] = [];
   if (stop.opacity !== undefined) parts.push(`opacity: ${stop.opacity}`);
   if (transforms.length) parts.push(`transform: ${transforms.join(" ")}`);
+  // No colour named: a shadow takes the element's own `color`, which a frame
+  // that pings is given from its fill.
+  if (ringed) parts.push(`box-shadow: 0 0 0 ${stop.spread}px`);
   return `${Math.round(stop.at * 100)}% { ${parts.join("; ")} }`;
 }
 

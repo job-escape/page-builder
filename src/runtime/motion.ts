@@ -193,6 +193,13 @@ type PresetSpec = {
     scaleX?: number;
     scaleY?: number;
     rotate?: number;
+    /**
+     * A ring this many points wide around the frame, in the frame's own
+     * colour — the browser's way to grow a shape by a *distance* rather than
+     * by a share of its size. A stop that has one is drawn with it on the web
+     * and its scales are left to the phone, which has no such ring.
+     */
+    spread?: number;
   }>;
 };
 
@@ -218,18 +225,23 @@ export const MOTION_PRESETS: Record<MotionPreset, PresetSpec> = {
   },
   /*
     A ring that leaves a button: a copy of the button's shape behind it grows
-    past its edges — more up and down than sideways, as a pill does — and is
-    gone by three quarters of the way, then waits out the beat. What draws the
-    eye to the one button a page is for.
+    past its edges and is gone by three quarters of the way, then waits out the
+    beat. What draws the eye to the one button a page is for.
+
+    The same distance on every side. It was two scales, tuned on a button 300
+    wide — and a share of the width is a different distance on every button:
+    on a desktop's 576 the ring ran 14 points out sideways and 8 up and down,
+    a lopsided halo. The web grows it by `spread`; the scales stay for the
+    phone, where every button is about the width they were tuned on.
   */
   ping: {
     duration: 1000,
     repeat: "infinite",
     easing: "ease-out",
     stops: [
-      { at: 0, scaleX: 1, scaleY: 1, opacity: 1 },
-      { at: 0.75, scaleX: 1.05, scaleY: 1.3, opacity: 0 },
-      { at: 1, scaleX: 1.05, scaleY: 1.3, opacity: 0 },
+      { at: 0, scaleX: 1, scaleY: 1, spread: 0, opacity: 1 },
+      { at: 0.75, scaleX: 1.05, scaleY: 1.3, spread: 10, opacity: 0 },
+      { at: 1, scaleX: 1.05, scaleY: 1.3, spread: 10, opacity: 0 },
     ],
   },
   shimmer: {

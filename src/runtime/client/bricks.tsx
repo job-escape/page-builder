@@ -621,6 +621,8 @@ export function Frame(props: FrameProps) {
     flexDirection: layout === "row" ? "row" : layout === "column" ? "column" : undefined,
     gap,
     flexWrap: props.wrap && layout === "row" ? "wrap" : undefined,
+    // What a ring that leaves this frame is painted in — see `ping`.
+    ...(props.motion?.preset === "ping" && typeof fill === "string" ? { color: fill } : {}),
     padding: pad(padding),
     width: size(shown.width as FrameProps["width"]),
     ...(root ? PAGE_MIN_HEIGHT : {}),
