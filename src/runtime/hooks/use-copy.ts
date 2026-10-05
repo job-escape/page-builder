@@ -14,6 +14,40 @@ export function useCopy(
   fallbackLocale: Record<string, RichText> | undefined,
   onUnknown: OnUnknown | undefined,
 ): CopyLookup {
+  /*
+    The design's own words, by what they say in the language it was written in.
+
+    A text that shows an answer — "Current status: {status}" — is handed the
+    answer's value, and a value is what the option was authored as: "Business
+    owner", whatever language the visitor reads. But that phrase is also the
+    option's label, which has a translation. So a value that is exactly one of
+    the design's texts is shown as that text in the visitor's language; one
+    that is not — a name, a number, an email — goes in as it came.
+  */
+  const said = useMemo(() => {
+    if (!fallbackLocale || fallbackLocale === locale) return null;
+    const keys = new Map<string, string>();
+    Object.entries(fallbackLocale).forEach(([key, text]) => {
+      if (typeof text === "string" && text && !keys.has(text) && typeof locale[key] === "string") {
+        keys.set(text, key);
+      }
+    });
+    return keys.size > 0 ? keys : null;
+  }, [locale, fallbackLocale]);
+
+  const shown = useCallback(
+    (given: CopyParams): CopyParams => {
+      if (!said) return given;
+      const out: Record<string, string | number> = {};
+      Object.entries(given).forEach(([name, value]) => {
+        const known = typeof value === "string" ? said.get(value) : undefined;
+        out[name] = known ? (locale[known] as string) : value;
+      });
+      return out;
+    },
+    [said, locale],
+  );
+
   const t = useCallback(
     (key: string, params?: CopyParams) => {
       /**
@@ -25,7 +59,7 @@ export function useCopy(
        * published artifacts.
        */
       const fill = (value: RichText): RichText =>
-        params ? interpolate(value, params, (name) => onUnknown?.("param", name)) : value;
+        params ? interpolate(value, shown(params), (name) => onUnknown?.("param", name)) : value;
 
       const value = locale[key];
       if (value !== undefined) return fill(value);
@@ -43,7 +77,7 @@ export function useCopy(
       // Never show a raw key to a customer; an empty string is less wrong.
       return "";
     },
-    [locale, fallbackLocale, onUnknown],
+    [locale, fallbackLocale, onUnknown, shown],
   );
   return useMemo<CopyLookup>(
     () =>
