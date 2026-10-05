@@ -72,6 +72,12 @@ export type TextRun = {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  /**
+   * The run's own colour, where it is not the text's — a phrase picked out in
+   * the brand's blue. A CSS colour or a palette token (`var(--text-link)`), as
+   * a text's own `color` is; a token follows the theme.
+   */
+  color?: string;
   link?: TextLink;
 };
 
@@ -190,6 +196,7 @@ function sameMarks(a: TextRun, b: TextRun): boolean {
   if (!!a.bold !== !!b.bold) return false;
   if (!!a.italic !== !!b.italic) return false;
   if (!!a.underline !== !!b.underline) return false;
+  if ((a.color ?? "") !== (b.color ?? "")) return false;
   const one = a.link;
   const two = b.link;
   if (!one || !two) return one === two;

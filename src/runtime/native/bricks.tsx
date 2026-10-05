@@ -636,6 +636,7 @@ function runText(run: TextRun, at: number, follow: FollowLink | null): ReactNode
     ...(run.bold ? { fontWeight: "700" as TextStyle["fontWeight"] } : {}),
     ...(run.italic ? { fontStyle: "italic" as TextStyle["fontStyle"] } : {}),
     ...(run.underline ? { textDecorationLine: "underline" as TextStyle["textDecorationLine"] } : {}),
+    ...(run.color ? { color: nativeColor(run.color, lookup) } : {}),
   };
 
   // Only when there is somewhere to go — see the web brick's `runElement`.

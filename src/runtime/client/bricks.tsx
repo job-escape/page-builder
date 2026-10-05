@@ -904,6 +904,7 @@ function runElement(run: TextRun, at: number, follow: FollowLink | null): ReactN
     fontWeight: run.bold ? 700 : undefined,
     fontStyle: run.italic ? "italic" : undefined,
     textDecoration: run.underline ? "underline" : undefined,
+    color: run.color || undefined,
   };
 
   // Only when there is somewhere to go. Outside a funnel `follow` is null, and
