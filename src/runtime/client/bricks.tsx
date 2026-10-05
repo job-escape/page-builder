@@ -1437,7 +1437,6 @@ export function Image({
     return (
       <video
         src={src}
-        aria-label={alt || undefined}
         autoPlay
         muted
         loop
@@ -1447,7 +1446,7 @@ export function Image({
           onClick,
           disabled,
           role: role ?? (interactive ? "button" : undefined),
-          ariaLabel,
+          ariaLabel: ariaLabel ?? (alt || undefined),
           tabStop,
           testId,
         })}
