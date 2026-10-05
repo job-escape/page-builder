@@ -99,6 +99,10 @@ export function linkAddress(template: string, read: (name: string) => unknown): 
       ? session?.[name as keyof LinkSession]
       : read(name);
     if (value === undefined || value === null || value === "") return whole;
+    // A placeholder that is the whole address is an address the host holds —
+    // `{loginUrl}`, `{termsUrl}` — not a value written into one: encoded, its
+    // own `://` would stop it being an address at all.
+    if (whole === template.trim()) return String(value);
     return encodeURIComponent(String(value));
   });
 }
