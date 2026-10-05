@@ -73,6 +73,12 @@ export type FunnelManifest = {
    */
   next?: Record<string, string[]>;
   /**
+   * What each screen does when its payment session cannot be opened, by screen
+   * id — `ScreenIndex.paymentError`, forwarded by the host. Absent means a
+   * failed session is only the form not appearing, as before.
+   */
+  paymentErrors?: Record<string, SourceAction[]>;
+  /**
    * The dialogs each screen can open, by screen id — `ScreenIndex.overlays`,
    * forwarded by the host. Not drawn ahead (a dialog is drawn when it opens),
    * but fetched ahead with its pictures, so one that opens does not arrive

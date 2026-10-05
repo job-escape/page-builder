@@ -9,9 +9,26 @@ import {
   SUBSCRIPTIONS_VARIABLE,
   planCodeOf,
 } from "../payment-session";
-import { hasRoute, request } from "../request";
+import { RequestFailed, hasRoute, request } from "../request";
 import type { FunnelStore } from "../store";
 import type { VariableTable, VariableValue } from "../types";
+
+/** Why a session would not open — what a screen's `payment_session_error` steps read as `$error`. */
+export type PaymentSessionError = { message: string; code: string; action: string; status: number };
+
+const text = (value: unknown): string => (typeof value === "string" ? value : "");
+
+/** The refusal as the design reads it: the server's own words where it sent any. */
+function sessionError(failure: unknown): PaymentSessionError {
+  const message = failure instanceof Error ? failure.message : String(failure);
+  if (!(failure instanceof RequestFailed)) return { message, code: "", action: "", status: 0 };
+  return {
+    message: text(failure.body.message) || message,
+    code: text(failure.body.error),
+    action: text(failure.body.action),
+    status: failure.status,
+  };
+}
 
 /**
  * The payment session, opened when the visitor is on a screen that needs one
@@ -27,12 +44,16 @@ import type { VariableTable, VariableValue } from "../types";
  *
  * Called on every render of the funnel, which redraws on any change to the
  * store — that is how a newly chosen plan is noticed.
+ *
+ * `onError` is told when one would not open, with the screen it was for — the
+ * funnel runs that screen's `payment_session_error` steps from it.
  */
 export function usePaymentSession(
   payments: FunnelManifest["payments"],
   screen: string,
   store: FunnelStore,
   table: VariableTable,
+  onError?: (screen: string, error: PaymentSessionError) => void,
 ): void {
   const sells =
     Boolean(payments?.[screen]) &&
@@ -70,6 +91,7 @@ export function usePaymentSession(
         const parsed = PaymentSessionResponse.safeParse(answer);
         if (!parsed.success) {
           store.setStatus(PAYMENT_SESSION_ACTION, "error", "The payment session could not be read.");
+          onError?.(screen, { message: "The payment session could not be read.", code: "", action: "", status: 0 });
           return;
         }
         // With the plan it is for, so confirming can say which was bought.
@@ -85,6 +107,7 @@ export function usePaymentSession(
           "error",
           failure instanceof Error ? failure.message : String(failure),
         );
+        onError?.(screen, sessionError(failure));
       });
     // `read` and `table` are the store's own; the key is what decides.
     // eslint-disable-next-line react-hooks/exhaustive-deps

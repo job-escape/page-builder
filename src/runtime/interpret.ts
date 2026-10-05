@@ -623,8 +623,25 @@ async function submitName(
   return run(action.onSuccess ?? [], ctx);
 }
 
-/** Why an email step failed — what its failure steps read as `$error`. */
-type EmailSubmitError = { message: string; code: string; status: number };
+/**
+ * Why an email step failed — what its failure steps read as `$error`.
+ *
+ * `action` is what a named request's refusal says to do next (`continue`,
+ * `blocked`, `new_session`…); a step that has none leaves it out.
+ */
+type EmailSubmitError = { message: string; code: string; status: number; action?: string };
+
+/**
+ * Steps run because something failed, with why readable as `$error` — what the
+ * funnel runs for a screen's `payment_session_error`.
+ */
+export function runWithError(
+  actions: SourceAction[],
+  ctx: ActionContext,
+  error: EmailSubmitError,
+): Promise<boolean> {
+  return run(actions, withError(ctx, error));
+}
 
 /**
  * The same context with `$error` answered, for the failure steps and no
@@ -642,6 +659,7 @@ function withError(ctx: ActionContext, error: EmailSubmitError): ActionContext {
     "$error.message": error.message,
     "$error.code": error.code,
     "$error.status": error.status,
+    "$error.action": error.action ?? "",
   };
   const mine = (name: string): boolean =>
     Object.prototype.hasOwnProperty.call(fields, name);

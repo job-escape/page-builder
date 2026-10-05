@@ -84,6 +84,12 @@ export type ScreenIndex = {
    * does nothing on opening, so a funnel without any publishes the same bytes.
    */
   enter?: SourceAction[];
+  /**
+   * What runs when this screen's payment session cannot be opened: its own
+   * frame's `payment_session_error` steps, in order. Absent when the screen
+   * says nothing about it, which is every screen published before it could.
+   */
+  paymentError?: SourceAction[];
 };
 
 export type FunnelManifest = {
@@ -221,6 +227,20 @@ function enterOf(screen: SourceScreen): { enter?: SourceAction[] } {
           .flatMap((interaction) => interaction.do) ?? [],
     );
   return enter.length ? { enter } : {};
+}
+
+/** A screen's steps for a payment session that would not open — see `ScreenIndex.paymentError`. */
+function paymentErrorOf(screen: SourceScreen): { paymentError?: SourceAction[] } {
+  const steps = screen.frames
+    .filter((frame) => frame.parent === null)
+    .sort((a, b) => (a.pos ?? "").localeCompare(b.pos ?? ""))
+    .flatMap(
+      (frame) =>
+        frame.interactions
+          ?.filter((interaction) => interaction.on?.event === "payment_session_error")
+          .flatMap((interaction) => interaction.do) ?? [],
+    );
+  return steps.length ? { paymentError: steps } : {};
 }
 
 /** The variables and visitor facts a function's value reads. */
@@ -502,6 +522,7 @@ export function buildManifest(funnel: SourceFunnel): FunnelManifest {
       reads: readsOf(screen),
       presentation: presentationOf(screen),
       ...enterOf(screen),
+      ...paymentErrorOf(screen),
     })),
   };
 }

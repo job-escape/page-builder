@@ -28,7 +28,7 @@
  *
  * No JSX and no platform imports, so React Native gets it unchanged.
  */
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import type { FunnelCoreOptions, FunnelServices } from "./funnel-types";
 import { useCopy } from "./hooks/use-copy";
@@ -36,9 +36,10 @@ import { useFunnelStore } from "./hooks/use-funnel-store";
 import { useHostValues } from "./hooks/use-host-values";
 import { useNavigation } from "./hooks/use-navigation";
 import { useOpeningSteps } from "./hooks/use-opening-steps";
-import { usePaymentSession } from "./hooks/use-payment-session";
+import { usePaymentSession, type PaymentSessionError } from "./hooks/use-payment-session";
 import { useScreenReport } from "./hooks/use-screen-report";
 import { useTrail } from "./hooks/use-trail";
+import { runWithError } from "./interpret";
 import { openLink } from "./link";
 import { request } from "./request";
 import { playSound } from "./sound";
@@ -96,7 +97,11 @@ export function useFunnelRuntime<Ui, Component>({
   useTrail(persist?.funnelId, navigator, navState.screen);
 
   // What being on that screen sets off.
-  usePaymentSession(manifest.payments, navState.screen, store, table);
+  // Told through a ref: the steps need the services, which are made below.
+  const sessionFailed = useRef<(screen: string, error: PaymentSessionError) => void>(undefined);
+  usePaymentSession(manifest.payments, navState.screen, store, table, (screen, error) =>
+    sessionFailed.current?.(screen, error),
+  );
   useScreenReport(navState.screen, onScreen);
 
   // What a screen is handed.
@@ -116,6 +121,12 @@ export function useFunnelRuntime<Ui, Component>({
     }),
     [ui, components, copy, store, nav],
   );
+
+  // What a screen said to do when its payment session would not open.
+  sessionFailed.current = (screen, error) => {
+    const steps = manifest.paymentErrors?.[screen];
+    if (steps?.length) void runWithError(steps, { state: store, nav, req: request }, error);
+  };
 
   // A host that draws on a server runs them from inside the screen instead,
   // once it has hydrated — see `openOnMount`.

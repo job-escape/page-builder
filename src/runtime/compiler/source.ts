@@ -443,6 +443,14 @@ export type SourceEvent =
   | "change"
   | "leave"
   | "load"
+  /**
+   * A screen's own, like `load`: the payment session the funnel opens for a
+   * screen with a payment form could not be opened — the buyer already owns
+   * the plan, the account is not allowed one, the platform is down. The steps
+   * read why as `$error` (`message`, `code`, `action`, `status`). It travels in
+   * the manifest — `ScreenIndex.paymentError` — for the reason `load` does.
+   */
+  | "payment_session_error"
   | "select"
   | "submit"
   /**
