@@ -1363,6 +1363,9 @@ export type ImageProps = Placement &
  */
 const MIRROR_CSS = '[dir="rtl"] [data-pb-mirror] { scale: -1 1 }';
 
+/** Whether an address names a video file — by its ending, before any query. */
+const isVideo = (src: string): boolean => /\.(mp4|webm|mov|m4v)(?:[?#]|$)/i.test(src);
+
 export function Image({
   src,
   alt = "",
@@ -1421,6 +1424,45 @@ export function Image({
           }}
         />
       </>
+    );
+  }
+  /*
+    A video, when that is what the file is. A funnel's "picture" is often a
+    short clip — a product ad, a screen recording — and an `<img>` pointed at
+    an mp4 draws a broken-image box. Played the only way a page may start one
+    by itself: muted, inline and looping, like the animated picture it stands
+    in for. No controls: it is decoration, and its frame's tap is the frame's.
+  */
+  if (isVideo(src)) {
+    return (
+      <video
+        src={src}
+        aria-label={alt || undefined}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        {...interactionProps({
+          onClick,
+          disabled,
+          role: role ?? (interactive ? "button" : undefined),
+          ariaLabel,
+          tabStop,
+          testId,
+        })}
+        style={{
+          width: size(width),
+          height,
+          flexShrink: typeof width === "number" ? 0 : undefined,
+          borderRadius: radius,
+          objectFit: fit,
+          display: hidden ? "none" : "block",
+          cursor: interactive ? "pointer" : undefined,
+          ...placedCss(placement),
+          ...style,
+        }}
+      />
     );
   }
   return (
