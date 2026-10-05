@@ -28,7 +28,15 @@ export function useCopy(
     if (!fallbackLocale || fallbackLocale === locale) return null;
     const keys = new Map<string, string>();
     Object.entries(fallbackLocale).forEach(([key, text]) => {
-      if (typeof text === "string" && text && !keys.has(text) && typeof locale[key] === "string") {
+      // Not a figure: a price or an age range is a value, and a design text
+      // that happens to say "$38.95" must not rewrite every such price.
+      if (
+        typeof text === "string" &&
+        text &&
+        !/\d/.test(text) &&
+        !keys.has(text) &&
+        typeof locale[key] === "string"
+      ) {
         keys.set(text, key);
       }
     });

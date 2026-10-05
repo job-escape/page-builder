@@ -238,6 +238,11 @@ export type FrameLook = Placement & {
    */
   places?: boolean;
   gap?: number;
+  /**
+   * Let a row put its children on another line when they do not fit: a title
+   * and the tag beside it, in a language whose words are longer.
+   */
+  wrap?: boolean;
   padding?: number | [number, number] | [number, number, number, number];
   /** A number of pixels, `fill`, `hug`, or a percent of the parent — `"42%"`. */
   width?: number | "fill" | "hug" | `${number}%`;
@@ -613,6 +618,7 @@ export function Frame(props: FrameProps) {
     display: hidden ? "none" : layout === "none" ? "block" : "flex",
     flexDirection: layout === "row" ? "row" : layout === "column" ? "column" : undefined,
     gap,
+    flexWrap: props.wrap && layout === "row" ? "wrap" : undefined,
     padding: pad(padding),
     width: size(shown.width as FrameProps["width"]),
     ...(root ? PAGE_MIN_HEIGHT : {}),

@@ -199,6 +199,7 @@ function layoutOf(props: FrameProps, flow?: Flow): NativeStyle {
   const style: NativeStyle = {};
   if (props.layout && props.layout !== "none") style.flexDirection = props.layout;
   if (props.gap !== undefined) style.gap = props.gap;
+  if (props.wrap && props.layout === "row") style.flexWrap = "wrap";
 
   if (props.align && ALONG[props.align]) style.alignItems = ALONG[props.align];
   if (props.justify && BETWEEN[props.justify]) style.justifyContent = BETWEEN[props.justify];
