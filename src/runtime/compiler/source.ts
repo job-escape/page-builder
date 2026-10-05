@@ -396,6 +396,15 @@ export type SourceAction =
    */
   | { type: "track"; event: string }
   /**
+   * Make a sound — `pop` on an answer, `success` at the end of a loader.
+   *
+   * A sound's *name*, never a file: what it sounds like, and whether it sounds
+   * at all, is the host's (see `runtime/sound`). Fired and not awaited, and a
+   * host that plays nothing makes it nothing — so it goes before the `show`
+   * that leaves, from the tap itself, which is when a browser allows audio.
+   */
+  | { type: "sound"; sound: string }
+  /**
    * Send the funnel's own analytics an event, and what it carries.
    *
    * Each property is a value as a condition reads one — a variable, a literal,

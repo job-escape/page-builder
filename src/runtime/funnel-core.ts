@@ -41,6 +41,7 @@ import { useScreenReport } from "./hooks/use-screen-report";
 import { useTrail } from "./hooks/use-trail";
 import { openLink } from "./link";
 import { request } from "./request";
+import { playSound } from "./sound";
 import { analytics, track } from "./track";
 
 export type {
@@ -111,6 +112,7 @@ export function useFunnelRuntime<Ui, Component>({
       track,
       analytics,
       link: openLink,
+      sound: playSound,
     }),
     [ui, components, copy, store, nav],
   );

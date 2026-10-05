@@ -14,6 +14,7 @@ import type { CopyParams, RichText } from "./rich-text";
 import type { FunnelStore } from "./store";
 import type { ResolvedTokens } from "./style/tokens";
 import type { TimerStorage } from "./timers";
+import type { playSound } from "./sound";
 import type { analytics, track } from "./track";
 import type { VariableDecl, VariableValue } from "./types";
 
@@ -177,6 +178,8 @@ export type FunnelServices<Ui, Component> = {
   analytics: typeof analytics;
   /** Opens an Open link step's address — see `runtime/link`. */
   link: typeof openLink;
+  /** Makes a `sound` step's noise through the host. A name, never a file. */
+  sound: typeof playSound;
 };
 
 /** Something the runtime was asked for and does not have — reported, never thrown. */

@@ -33,6 +33,7 @@ import { durationOf, ease, playFrames } from "./motion";
 import type { TimerBook } from "./timers";
 import type { VariableValue } from "./types";
 import type { request } from "./request";
+import { playSound } from "./sound";
 import { analytics, track, type AnalyticsProperties } from "./track";
 import { scrollToAnchor } from "./scroll-anchor";
 
@@ -174,6 +175,11 @@ export type ActionContext = {
    * step goes through the configured sender (`configureTracking`).
    */
   analytics?: (event: string, properties: AnalyticsProperties) => void;
+  /**
+   * Makes a sound. Optional, like `track`: without it a `sound` step goes
+   * through the configured player (`configureSounds`).
+   */
+  sound?: (name: string) => void;
 };
 
 /**
@@ -442,6 +448,11 @@ export async function run(
       case "track":
         // Not awaited, and never in the way: see `runtime/track`.
         (ctx.track ?? track)(action.event);
+        break;
+
+      case "sound":
+        // Not awaited, and silent on a host that plays nothing: see `runtime/sound`.
+        (ctx.sound ?? playSound)(action.sound);
         break;
 
       case "analytics":

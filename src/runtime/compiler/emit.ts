@@ -219,6 +219,10 @@ function emitAction(action: SourceAction, indent: string): string {
       // `track` is a service like `req`; a host too old to hand it over makes
       // this nothing rather than a thrown error.
       return `${indent}if (track) track(${lit(action.event)});`;
+    case "sound":
+      // A name for the host's player, fired and not awaited — see
+      // `runtime/sound`. A host too old to hand the service over is silent.
+      return `${indent}if (sound) sound(${lit(action.sound)});`;
     case "analytics": {
       // Each property read as the step runs, through the same `state` reads a
       // condition makes, so both renderers send the same values. Fired and not
@@ -383,7 +387,7 @@ export function emitScreen(screen: SourceScreen): string {
 
   return [
     `// ${screen.id} — generated, do not edit`,
-    `export default function Screen({ ui, c, t, state, nav, req, track, analytics, link }) {`,
+    `export default function Screen({ ui, c, t, state, nav, req, track, analytics, link, sound }) {`,
     `  return [`,
     body,
     `  ];`,

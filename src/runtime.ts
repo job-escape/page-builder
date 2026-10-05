@@ -208,6 +208,12 @@ export type { AnalyticsProperties, TrackOptions } from "./runtime/track";
  * The steps name what happened; this decides where it goes. See `runtime/track`.
  */
 export { analytics, configureTracking, track } from "./runtime/track";
+/**
+ * What a `sound` step reaches — the host's player — and the host's hook for
+ * saying what each name sounds like. See `runtime/sound`.
+ */
+export type { SoundName, SoundOptions } from "./runtime/sound";
+export { SOUND_NAMES, configureSounds, playSound } from "./runtime/sound";
 export type { LinkOptions, LinkSession } from "./runtime/link";
 export { configureLinks, linkAddress, openLink } from "./runtime/link";
 
