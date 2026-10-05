@@ -56,7 +56,8 @@ function useEntrance(
   transition: ScreenTransition | undefined,
   direction: "forward" | "back",
 ): Animated.WithAnimatedValue<ViewStyle> | null {
-  const moving = transition === "fade" || transition === "slide" || transition === "push";
+  const moving =
+    transition === "fade" || transition === "slide" || transition === "push" || transition === "slideUp";
   const progress = useRef(new Animated.Value(moving ? 0 : 1)).current;
   const { width } = useWindowDimensions();
   // A forward push arrives from the side the line ends on — the left, in Arabic.
@@ -78,6 +79,10 @@ function useEntrance(
   if (!moving) return null;
   const sign = (direction === "back" ? -1 : 1) * (rightToLeft ? -1 : 1);
   if (transition === "fade") return { opacity: progress };
+  if (transition === "slideUp") {
+    const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [24, 0] });
+    return { opacity: progress, transform: [{ translateY }] };
+  }
   const distance = transition === "push" ? width : 24;
   const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [sign * distance, 0] });
   return transition === "push"

@@ -51,6 +51,7 @@ export const DEFAULT_PRESENTATION: ScreenPresentation = {
  */
 const KEYFRAMES = `
 @keyframes pb-screen-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pb-screen-slide-up { from { opacity: 0; transform: translateY(24px) } to { opacity: 1; transform: none } }
 @keyframes pb-screen-slide-forward { from { opacity: 0; transform: translateX(24px) } to { opacity: 1; transform: none } }
 @keyframes pb-screen-slide-back { from { opacity: 0; transform: translateX(-24px) } to { opacity: 1; transform: none } }
 @keyframes pb-screen-push-forward { from { transform: translateX(100%) } to { transform: none } }
@@ -67,6 +68,7 @@ function entranceOf(
   direction: "forward" | "back",
 ): string | undefined {
   if (transition === "fade") return `pb-screen-fade 240ms ${EASE} both`;
+  if (transition === "slideUp") return `pb-screen-slide-up 320ms ${EASE} both`;
   if (transition === "slide") return `pb-screen-slide-${direction} 280ms ${EASE} both`;
   if (transition === "push") return `pb-screen-push-${direction} 320ms ${EASE} both`;
   return undefined;

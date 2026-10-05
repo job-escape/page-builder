@@ -615,7 +615,11 @@ export type SourceScreenPresentation = {
  * fades; `push` slides it in from the edge. Going back plays `slide` and `push`
  * the other way, so a visitor can feel which way they went.
  */
-export type ScreenTransition = "none" | "fade" | "slide" | "push";
+/**
+ * `slideUp` rises into place as it fades in — the same from either direction,
+ * since up is not a way a visitor went.
+ */
+export type ScreenTransition = "none" | "fade" | "slide" | "push" | "slideUp";
 
 export type SourceScreen = {
   id: string;
