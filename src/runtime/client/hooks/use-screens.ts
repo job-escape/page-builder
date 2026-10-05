@@ -66,6 +66,30 @@ export function useScreenSource({
 /** Trees already asked for, by address — one request each for as long as the page lives. */
 const warmed = new Set<string>();
 
+/**
+ * The pictures asked for ahead, held for as long as the page lives.
+ *
+ * Held, not just requested. A picture nothing refers to can be dropped by the
+ * browser as soon as it has loaded, and then the screen that draws it leans on
+ * the HTTP cache alone — which a visitor's browser may not keep (a private
+ * window under pressure, developer tools with the cache off). While one of
+ * these is alive and decoded, an `<img>` with the same address is painted from
+ * memory in the frame it appears.
+ */
+const held = new Map<string, HTMLImageElement>();
+
+/** Ask for a picture now, keep it, and have it decoded before anything draws it. */
+function hold(src: string): void {
+  if (held.has(src) || typeof Image === "undefined") return;
+  const picture = new Image();
+  picture.decoding = "async";
+  picture.src = src;
+  held.set(src, picture);
+  // Decoded ahead as well as fetched: the first paint of a large picture is
+  // otherwise a blank box for the frames the decode takes.
+  picture.decode?.().catch(() => {});
+}
+
 /** How long the current screen has the network to itself before the warming starts. */
 const WARM_AFTER_MS = 300;
 
@@ -94,10 +118,8 @@ function warm(url: string): void {
   fetch(url)
     .then((response) => (response.ok ? response.json() : null))
     .then((tree: { roots?: unknown } | null) => {
-      if (!tree || typeof Image === "undefined") return;
-      picturesOf(tree.roots, new Set()).forEach((src) => {
-        new Image().src = src;
-      });
+      if (!tree) return;
+      picturesOf(tree.roots, new Set()).forEach(hold);
     })
     // A warm that fails costs nothing: the screen is fetched again when it is needed.
     .catch(() => warmed.delete(url));
@@ -121,8 +143,14 @@ function useWarmAhead(manifest: FunnelManifest, screen: string, prerender: numbe
   const { trees, next, overlays } = manifest;
   useEffect(() => {
     if (prerender <= 0 || !trees || typeof window === "undefined") return undefined;
-    const near = [...(overlays?.[screen] ?? []), ...(next?.[screen] ?? [])];
-    const far = (next?.[screen] ?? []).flatMap((id) => [...(overlays?.[id] ?? []), ...(next?.[id] ?? [])]);
+    // A dialog of this screen can open the moment it is drawn — a loader that
+    // stops to ask something — so those are asked for at once, not after the pause.
+    (overlays?.[screen] ?? []).forEach((id) => {
+      const url = trees[id];
+      if (url) warm(url);
+    });
+    const near = next?.[screen] ?? [];
+    const far = near.flatMap((id) => [...(overlays?.[id] ?? []), ...(next?.[id] ?? [])]);
     const wanted = [...new Set([...near, ...far])].filter((id) => id !== screen).slice(0, WARM_AT_MOST);
     const timer = setTimeout(() => {
       wanted.forEach((id) => {
