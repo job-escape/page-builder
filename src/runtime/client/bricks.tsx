@@ -21,6 +21,8 @@ import {
 } from "react";
 
 import { useFollowLink, type FollowLink } from "../link-context";
+import { rangeAt, rangeValue, stopsOf } from "../range";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { fontStack, useWebFont } from "./web-font";
 import type { FrameMotion, FrameTransition } from "../motion";
 import { isRuns, withLineBreaks, runsOf, type RichText, type TextRun } from "../rich-text";
@@ -1064,7 +1066,20 @@ export type InputProps = Placement & {
    * Chooses the keyboard on a phone as much as the validation — `email` gets an
    * @ key, `tel` gets a number pad. A funnel is used with a thumb.
    */
-  type?: "text" | "email" | "tel" | "number";
+  type?: "text" | "email" | "tel" | "number" | "range";
+  /**
+   * For `type: "range"` — a slider. Between `min` and `max` in `step`s, or
+   * across `stops` when the answers are not evenly spaced numbers: the thumb
+   * snaps to each stop in turn, evenly along the track, and the field holds the
+   * stop's own words ("150+"), which is what a condition later compares.
+   */
+  min?: number;
+  max?: number;
+  step?: number;
+  stops?: readonly string[];
+  /** A slider's thumb, across, and its track, tall — in pixels. */
+  thumb?: number;
+  track?: number;
   invalid?: boolean;
   size?: number;
   color?: string;
@@ -1087,7 +1102,149 @@ export type InputProps = Placement & {
  * `onValue` writes straight to the declared variable, so a condition can read
  * what was typed the moment it is typed.
  */
-export function Input({
+/**
+ * A slider: a track, the part of it already covered, and a thumb to drag.
+ *
+ * Drawn from three boxes rather than the browser's own range input, whose
+ * track and thumb are styled through a different pseudo-element in every
+ * engine — the design names two colours and two sizes, and gets exactly those.
+ * The pointer is captured on the way down, so a drag that leaves the track
+ * goes on following the finger, and vertical scrolling is left to the page.
+ * Announced as a slider and moved with the arrow keys, Home and End.
+ */
+function Range({
+  value = "",
+  onValue,
+  onLeave,
+  min = 0,
+  max = 100,
+  step = 1,
+  stops: given,
+  thumb = 24,
+  track = 6,
+  color,
+  fill,
+  width,
+  height,
+  ariaLabel,
+  testId,
+  style,
+  ...placement
+}: InputProps) {
+  const stops = stopsOf(given);
+  const shape = { min, max, step, stops };
+  const at = rangeAt(value, shape);
+  const move = (fraction: number) => {
+    const next = rangeValue(fraction, shape);
+    if (next !== value) onValue?.(next);
+  };
+  const along = (event: ReactPointerEvent<HTMLDivElement>): number => {
+    const box = event.currentTarget.getBoundingClientRect();
+    // The thumb's centre travels between the two ends, half a thumb in.
+    const reach = Math.max(1, box.width - thumb);
+    const from = (event.clientX - box.left - thumb / 2) / reach;
+    return getComputedStyle(event.currentTarget).direction === "rtl" ? 1 - from : from;
+  };
+  const count = stops?.length ? stops.length - 1 : Math.max(1, Math.round((max - min) / (step > 0 ? step : 1)));
+  const nudge = (by: number) => move(at + by / count);
+  const accent = color ?? "#2563eb";
+
+  return (
+    <div
+      role="slider"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      aria-valuemin={stops?.length ? 0 : min}
+      aria-valuemax={stops?.length ? stops.length - 1 : max}
+      aria-valuenow={stops?.length ? Math.round(at * (stops.length - 1)) : Number(rangeValue(at, shape))}
+      aria-valuetext={value || rangeValue(at, shape)}
+      data-testid={testId}
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        move(along(event));
+      }}
+      onPointerMove={(event) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) move(along(event));
+      }}
+      onPointerUp={onLeave}
+      onBlur={onLeave}
+      onKeyDown={(event) => {
+        const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+        const steps: Record<string, () => void> = {
+          ArrowRight: () => nudge(rtl ? -1 : 1),
+          ArrowLeft: () => nudge(rtl ? 1 : -1),
+          ArrowUp: () => nudge(1),
+          ArrowDown: () => nudge(-1),
+          Home: () => move(0),
+          End: () => move(1),
+        };
+        const go = steps[event.key];
+        if (!go) return;
+        event.preventDefault();
+        go();
+      }}
+      style={{
+        position: "relative",
+        width: size(width) ?? "100%",
+        height: height ?? Math.max(thumb, 32),
+        boxSizing: "border-box",
+        cursor: "pointer",
+        // A sideways drag is the slider's; an up-and-down one stays the page's.
+        touchAction: "pan-y",
+        userSelect: "none",
+        outline: "none",
+        ...placedCss(placement),
+        ...style,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          insetInline: 0,
+          top: "50%",
+          height: track,
+          marginTop: -track / 2,
+          borderRadius: track,
+          background: fill ?? "rgba(15,23,42,0.1)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          insetInlineStart: 0,
+          top: "50%",
+          height: track,
+          marginTop: -track / 2,
+          borderRadius: track,
+          width: `calc(${thumb / 2}px + (100% - ${thumb}px) * ${at})`,
+          background: accent,
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          insetInlineStart: `calc((100% - ${thumb}px) * ${at})`,
+          width: thumb,
+          height: thumb,
+          marginTop: -thumb / 2,
+          borderRadius: thumb,
+          boxSizing: "border-box",
+          background: accent,
+          border: "3px solid #fff",
+          boxShadow: "0 1px 4px rgba(15,23,42,0.25)",
+        }}
+      />
+    </div>
+  );
+}
+
+export function Input(props: InputProps) {
+  if (props.type === "range") return <Range {...props} />;
+  return <TextField {...props} />;
+}
+
+function TextField({
   value = "",
   onValue,
   onLeave,
@@ -1106,6 +1263,12 @@ export function Input({
   ariaLabel,
   testId,
   style,
+  min: _min,
+  max: _max,
+  step: _step,
+  stops: _stops,
+  thumb: _thumb,
+  track: _track,
   ...placement
 }: InputProps) {
   return (

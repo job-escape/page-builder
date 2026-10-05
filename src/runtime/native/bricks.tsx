@@ -19,11 +19,12 @@
  *   belongs to `contentContainerStyle`. Padding on the first does nothing and a
  *   height on the second breaks scrolling, so the computed style is split.
  */
-import { createContext, createElement, useContext, useState, type ReactNode } from "react";
+import { createContext, createElement, useContext, useRef, useState, type ReactNode } from "react";
 import {
   Animated,
   I18nManager,
   Image as RNImage,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -79,6 +80,7 @@ import {
 } from "../style/emit-native";
 import type { TokenLookup } from "../style/tokens";
 import type { FrameProps, ImageProps, InputProps, Placement, TextProps } from "../client/bricks";
+import { rangeAt, rangeValue, stopsOf } from "../range";
 
 export { HeightContext } from "./flow-context";
 
@@ -850,7 +852,111 @@ const KEYBOARDS = {
   number: "numeric",
 } as const;
 
-export function Input({
+/**
+ * A slider on a phone: the same three boxes the browser draws, moved by a
+ * touch — see `Range` in the client bricks, whose arithmetic this shares.
+ */
+function Range({
+  value = "",
+  onValue,
+  onLeave,
+  min = 0,
+  max = 100,
+  step = 1,
+  stops: given,
+  thumb = 24,
+  track = 6,
+  color,
+  fill,
+  width,
+  height,
+  ariaLabel,
+  testId,
+  ...rest
+}: InputProps) {
+  const flow = useContext(FlowContext);
+  const stops = stopsOf(given);
+  const shape = { min, max, step, stops };
+  const at = rangeAt(value, shape);
+  const [across, setAcross] = useState(0);
+  // Read through refs: the responder is made once and outlives every render.
+  const live = useRef({ value, onValue, onLeave, across, shape });
+  live.current = { value, onValue, onLeave, across, shape };
+  const responder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      // A sideways drag is the slider's; an up-and-down one stays the page's.
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderGrant: (event) => place(event.nativeEvent.locationX),
+      onPanResponderMove: (event) => place(event.nativeEvent.locationX),
+      onPanResponderRelease: () => live.current.onLeave?.(),
+      onPanResponderTerminate: () => live.current.onLeave?.(),
+    }),
+  ).current;
+  function place(x: number): void {
+    const now = live.current;
+    const reach = Math.max(1, now.across - thumb);
+    const from = (x - thumb / 2) / reach;
+    const next = rangeValue(I18nManager.isRTL ? 1 - from : from, now.shape);
+    if (next !== now.value) now.onValue?.(next);
+  }
+  const accent = color ? nativeColor(color, lookup) : "#2563eb";
+  const reach = Math.max(0, across - thumb);
+
+  return (
+    <View
+      {...responder.panHandlers}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={ariaLabel}
+      accessibilityValue={{ text: value || rangeValue(at, shape) }}
+      testID={testId}
+      onLayout={(event) => setAcross(event.nativeEvent.layout.width)}
+      style={[
+        placedNative(rest as Placement) as ViewStyle,
+        nativeSize(width ?? "fill", "width", flow) as ViewStyle,
+        { height: typeof height === "number" ? height : Math.max(thumb, 32), justifyContent: "center" },
+      ]}
+    >
+      <View
+        style={{
+          height: track,
+          borderRadius: track,
+          backgroundColor: fill ? nativeColor(fill, lookup) : "rgba(15,23,42,0.1)",
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          start: 0,
+          height: track,
+          borderRadius: track,
+          width: thumb / 2 + reach * at,
+          backgroundColor: accent,
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          start: reach * at,
+          width: thumb,
+          height: thumb,
+          borderRadius: thumb,
+          backgroundColor: accent,
+          borderWidth: 3,
+          borderColor: "#fff",
+        }}
+      />
+    </View>
+  );
+}
+
+export function Input(props: InputProps) {
+  if (props.type === "range") return <Range {...props} />;
+  return <TextField {...props} />;
+}
+
+function TextField({
   value,
   onValue,
   onLeave,
@@ -865,6 +971,12 @@ export function Input({
   height,
   ariaLabel,
   testId,
+  min: _min,
+  max: _max,
+  step: _step,
+  stops: _stops,
+  thumb: _thumb,
+  track: _track,
   ...rest
 }: InputProps) {
   // The frame this field sits in — what its `fill` is measured along.
@@ -881,7 +993,7 @@ export function Input({
       onSubmitEditing={onSubmit}
       returnKeyType={onSubmit ? "go" : undefined}
       placeholder={placeholder}
-      keyboardType={KEYBOARDS[type]}
+      keyboardType={KEYBOARDS[type === "range" ? "text" : type]}
       autoCapitalize={type === "email" ? "none" : "sentences"}
       autoCorrect={type !== "email"}
       aria-label={ariaLabel}
