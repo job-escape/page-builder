@@ -53,6 +53,7 @@ export function runtimeManifest(manifest: AnyManifest): FunnelManifest {
     screens: map((screen) => screen.presentation),
     enter: map((screen) => (screen.enter?.length ? screen.enter : undefined)),
     next: map((screen) => screen.next),
+    names: map((screen) => screen.name || undefined),
     paymentErrors: map((screen) => (screen.paymentError?.length ? screen.paymentError : undefined)),
     overlays: map((screen) => (screen.overlays?.length ? screen.overlays : undefined)),
     trees: map((screen) => screen.tree || undefined),

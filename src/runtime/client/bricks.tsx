@@ -633,7 +633,7 @@ export function Frame(props: FrameProps) {
     justifyContent: justify ? JUSTIFY[justify] : undefined,
     background,
     border,
-    borderRadius: squares ? radiusCss(dockedRadius(radius, docked)) : radius,
+    borderRadius: radiusCss(squares ? dockedRadius(radius, docked) : radius),
     opacity: shown.opacity as number | undefined,
     boxShadow: shadow,
     flexGrow: grow || fillsFlow ? 1 : undefined,

@@ -48,6 +48,12 @@ export type ScreenPresentation = Required<Omit<SourceScreenPresentation, "status
 
 export type ScreenIndex = {
   id: string;
+  /**
+   * The screen's name on the canvas — "03 Q — age". For people, not for the
+   * runtime: the events toolbar lists a funnel's pages by it. Absent on an
+   * unnamed screen and on every artifact published before it travelled.
+   */
+  name?: string;
   next: string[];
   overlays: string[];
   presentation: ScreenPresentation;
@@ -518,6 +524,7 @@ export function buildManifest(funnel: SourceFunnel): FunnelManifest {
     visitorFacts: visitorFactsOf(funnel),
     screens: screens.map((screen) => ({
       id: screen.id,
+      ...(screen.name ? { name: screen.name } : {}),
       ...reachable(screen),
       reads: readsOf(screen),
       presentation: presentationOf(screen),

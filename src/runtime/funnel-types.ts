@@ -79,6 +79,11 @@ export type FunnelManifest = {
    */
   paymentErrors?: Record<string, SourceAction[]>;
   /**
+   * Each screen's name on the canvas, by screen id — `ScreenIndex.name`. Read
+   * by nothing that runs the funnel; the events toolbar lists pages by it.
+   */
+  names?: Record<string, string>;
+  /**
    * The dialogs each screen can open, by screen id — `ScreenIndex.overlays`,
    * forwarded by the host. Not drawn ahead (a dialog is drawn when it opens),
    * but fetched ahead with its pictures, so one that opens does not arrive
